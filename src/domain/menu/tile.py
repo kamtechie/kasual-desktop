@@ -43,19 +43,15 @@ def tile_menu_for(
 def compose_tile_menu(target: Target, is_running: bool) -> list[MenuItem]:
     """The single, state-dependent tile menu (§7.3).
 
-    The lifecycle action(s) on top, then — *unless the app is running* — a
-    separator and the management group. A running catalog app is no moment to
-    move / recolour / unpin it, so that group is dropped; an open window still
-    offers the one durable action, *Pin to menu*.
+    The lifecycle action(s) on top, then a separator and the management group.
+    A running catalog app can still be moved / recoloured / unpinned; unpinning
+    a running app moves its tile to the dynamic section.
 
       - catalog app · idle    → Launch · ─ · Move · Settings · Unpin
-      - catalog app · running → Restore · Close          (management hidden)
+      - catalog app · running → Restore · Close · ─ · Move · Settings · Unpin
       - ephemeral window      → Restore · Close · ─ · Pin to menu
     """
-    lifecycle = lifecycle_menu(target, is_running)
-    if isinstance(target, AppTarget) and is_running:
-        return lifecycle
-    return [*lifecycle, _SEPARATOR, *tile_management_menu(target)]
+    return [*lifecycle_menu(target, is_running), _SEPARATOR, *tile_management_menu(target)]
 
 
 def lifecycle_menu(target: Target, is_running: bool) -> list[MenuItem]:

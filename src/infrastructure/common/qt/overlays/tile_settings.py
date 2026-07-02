@@ -45,6 +45,19 @@ _RECALL_OPTIONS: tuple[tuple[str, str], ...] = (
     (translate("Desktop", "Holding Home Button"),    Trigger.HOLD_1S),
 )
 
+# Staged-but-not-focused button: dialog_idle() background with accent border,
+# used when the recall trigger is selected but the focus group is elsewhere.
+_DIALOG_STAGED = """
+    QPushButton {
+        font-size: 22px;
+        padding: 14px 24px;
+        background-color: #4c566a;
+        color: white;
+        border-radius: 25px;
+        border: 2px solid #88c0d0;
+    }
+"""
+
 # Focus groups (cycled by LB/RB, clamped at the edges).
 _RECALL = 0
 _COLOR = 1
@@ -84,13 +97,10 @@ class TileSettings(BaseOverlay):
         self._pending_color = original_color
         self._pending_trigger = original_trigger
 
-        # Start on the colour grid (the familiar default from the old picker).
-        self._active_group = _COLOR
-        self._recall_index = 0
-        for i, (_, value) in enumerate(_RECALL_OPTIONS):
-            if value == original_trigger:
-                self._recall_index = i
-                break
+        self._active_group = _RECALL
+        self._recall_index = next(
+            i for i, (_, v) in enumerate(_RECALL_OPTIONS) if v == original_trigger
+        )
         # Action buttons: 0 = Cancel, 1 = Save. Start on Save so A commits.
         self._action_index = 1
 
@@ -108,7 +118,9 @@ class TileSettings(BaseOverlay):
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         per_row = min(len(self._colors), _MAX_PER_ROW)
-        card = self.build_card(160 + per_row * (_SWATCH + _SWATCH_GAP))
+        swatch_w = 160 + per_row * (_SWATCH + _SWATCH_GAP)
+        recall_w = 160 + 2 * 400 + _SWATCH_GAP
+        card = self.build_card(max(swatch_w, recall_w))
         layout = QVBoxLayout(card)
         layout.setContentsMargins(48, 40, 48, 40)
         layout.setSpacing(20)
@@ -131,7 +143,7 @@ class TileSettings(BaseOverlay):
         self._recall_buttons: list[QPushButton] = []
         for i, (label, _value) in enumerate(_RECALL_OPTIONS):
             btn = QPushButton(label)
-            btn.setFixedSize(300, _SWATCH)
+            btn.setFixedSize(400, _SWATCH)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             btn.clicked.connect(
                 lambda _checked=False, idx=i: self._stage_recall(idx))
@@ -170,7 +182,7 @@ class TileSettings(BaseOverlay):
         self._btn_cancel = QPushButton(translate("Desktop", "Cancel"))
         self._btn_save = QPushButton(translate("Desktop", "Save"))
         for btn in (self._btn_cancel, self._btn_save):
-            btn.setMinimumSize(200, 64)
+            btn.setMinimumSize(210, 80)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._btn_cancel.clicked.connect(self._cancel)
         self._btn_save.clicked.connect(self._save)
@@ -211,13 +223,9 @@ class TileSettings(BaseOverlay):
 
     def _recall_nav(self, event: str) -> None:
         if event == Event.LEFT:
-            self._recall_index = (self._recall_index - 1) % len(_RECALL_OPTIONS)
-            self._render_recall()
-            self._feedback.play(Cue.CURSOR)
+            self._stage_recall((self._recall_index - 1) % len(_RECALL_OPTIONS))
         elif event == Event.RIGHT:
-            self._recall_index = (self._recall_index + 1) % len(_RECALL_OPTIONS)
-            self._render_recall()
-            self._feedback.play(Cue.CURSOR)
+            self._stage_recall((self._recall_index + 1) % len(_RECALL_OPTIONS))
         elif event == Event.DOWN:
             self._switch_group(+1)
         elif event == Event.UP:
@@ -277,6 +285,11 @@ class TileSettings(BaseOverlay):
         new = max(0, min(self._active_group + delta, _ACTIONS))
         if new == self._active_group:
             return
+        if new == _RECALL:
+            for i, (_, v) in enumerate(_RECALL_OPTIONS):
+                if v == self._pending_trigger:
+                    self._recall_index = i
+                    break
         self._active_group = new
         self._render_all()
         self._feedback.play(Cue.CURSOR)
@@ -295,11 +308,8 @@ class TileSettings(BaseOverlay):
     # ── Staging / committing ─────────────────────────────────────────────────
 
     def _stage_recall(self, index: int) -> None:
-        trigger = _RECALL_OPTIONS[index][1]
-        if trigger == self._pending_trigger:
-            return
         self._recall_index = index
-        self._pending_trigger = trigger
+        self._pending_trigger = _RECALL_OPTIONS[index][1]
         self._render_recall()
         self._feedback.play(Cue.CURSOR)
 
@@ -330,28 +340,17 @@ class TileSettings(BaseOverlay):
     def _render_recall(self) -> None:
         focused = self._active_group == _RECALL
         for i, btn in enumerate(self._recall_buttons):
-            is_cursor = i == self._recall_index
             is_staged = _RECALL_OPTIONS[i][1] == self._pending_trigger
-            if is_cursor and focused:
-                border = "3px solid white"
-                bg = "#4c566a"
+            if focused and i == self._recall_index:
+                btn.setStyleSheet(styles.dialog_focused())
             elif is_staged:
-                border = "3px solid #88c0d0"
-                bg = "#3b4252"
+                btn.setStyleSheet(_DIALOG_STAGED)
             else:
-                border = "3px solid #888888"
-                bg = "#2e3440"
-            btn.setStyleSheet(
-                f"QPushButton {{ background-color: {bg}; color: white;"
-                f" font-size: 18px; border: {border};"
-                f" border-radius: {_SWATCH_RADIUS}px; }}"
-            )
+                btn.setStyleSheet(styles.dialog_idle())
 
     def _render_actions(self) -> None:
-        focused = self._active_group == _ACTIONS
         for i, btn in enumerate((self._btn_cancel, self._btn_save)):
-            is_cursor = i == self._action_index
-            if is_cursor and focused:
+            if i == self._action_index:
                 btn.setStyleSheet(styles.dialog_focused())
             else:
                 btn.setStyleSheet(styles.dialog_idle())

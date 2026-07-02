@@ -43,6 +43,7 @@ class TestHandlerRegistration:
 
     def test_deregisters_after_save(self, mock_gamepad):
         overlay = _make(mock_gamepad)
+        overlay._handle_pad("section_next")   # → colour
         overlay._handle_pad("section_next")   # → actions
         overlay._handle_pad("select")          # Save (default focus on Save)
         assert overlay._handle_pad not in mock_gamepad._stack
@@ -54,16 +55,17 @@ class TestHandlerRegistration:
 
 
 class TestColorStaging:
-    def test_starts_on_color_group(self, mock_gamepad):
+    def test_starts_on_recall_group(self, mock_gamepad):
         overlay = _make(mock_gamepad, original_color="#cccccc")
-        assert overlay._active_group == 1   # _COLOR
+        assert overlay._active_group == 0   # _RECALL
 
     def test_select_stages_color_and_previews(self, mock_gamepad):
         previews = []
         overlay = _make(mock_gamepad, original_color="#aaaaaa",
                         on_color_preview=previews.append)
-        overlay._handle_pad("right")        # move cursor to #bbbbbb
-        overlay._handle_pad("select")       # stage it
+        overlay._handle_pad("section_next")  # → colour
+        overlay._handle_pad("right")         # move cursor to #bbbbbb
+        overlay._handle_pad("select")        # stage it
         assert previews == ["#bbbbbb"]
         assert overlay._pending_color == "#bbbbbb"
 
@@ -71,7 +73,8 @@ class TestColorStaging:
         previews = []
         overlay = _make(mock_gamepad, original_color="#aaaaaa",
                         on_color_preview=previews.append)
-        overlay._handle_pad("select")       # cursor is on #aaaaaa (original)
+        overlay._handle_pad("section_next")  # → colour
+        overlay._handle_pad("select")        # cursor is on #aaaaaa (original)
         assert previews == []
         assert overlay._pending_color == "#aaaaaa"
 
@@ -79,6 +82,7 @@ class TestColorStaging:
         previews = []
         overlay = _make(mock_gamepad, original_color="#aaaaaa",
                         on_color_preview=previews.append)
+        overlay._handle_pad("section_next")  # → colour
         overlay._handle_pad("right")
         assert previews == []                # navigation only, no stage
         assert overlay._color_cursor.index == 1
@@ -87,6 +91,7 @@ class TestColorStaging:
         previews = []
         overlay = _make(mock_gamepad, original_color="#aaaaaa",
                         on_color_preview=previews.append)
+        overlay._handle_pad("section_next")  # → colour
         overlay._handle_pad("left")          # wrap to #dddddd
         overlay._handle_pad("select")        # stage
         assert previews == ["#dddddd"]
@@ -112,73 +117,75 @@ class TestGridNavigation:
         previews = []
         overlay = self._make_wide(mock_gamepad, original_color=self.WIDE[0],
                                   on_color_preview=previews.append)
+        overlay._handle_pad("section_next")  # → colour
         overlay._handle_pad("down")
         overlay._handle_pad("select")
         assert previews == [self.WIDE[10]]
 
     def test_up_at_top_row_crosses_to_recall(self, mock_gamepad):
         overlay = self._make_wide(mock_gamepad, original_color=self.WIDE[1])
-        overlay._handle_pad("up")
+        overlay._handle_pad("section_next")  # → colour
+        overlay._handle_pad("up")             # top row → recall
         assert overlay._active_group == 0   # _RECALL
 
     def test_down_at_bottom_row_crosses_to_actions(self, mock_gamepad):
         overlay = self._make_wide(mock_gamepad, original_color=self.WIDE[11])
-        overlay._handle_pad("down")         # at bottom row → actions
+        overlay._handle_pad("section_next")  # → colour (cursor on 11, bottom row)
+        overlay._handle_pad("down")          # bottom row → actions
         assert overlay._active_group == 2   # _ACTIONS
 
 
 class TestRecallSection:
     def test_lb_from_color_switches_to_recall(self, mock_gamepad):
         overlay = _make(mock_gamepad, original_trigger=Trigger.CLICK)
-        overlay._handle_pad("section_prev")
+        overlay._handle_pad("section_next")  # → colour
+        overlay._handle_pad("section_prev")  # → recall
         assert overlay._active_group == 0
 
     def test_rb_from_recall_returns_to_color(self, mock_gamepad):
         overlay = _make(mock_gamepad, original_trigger=Trigger.CLICK)
-        overlay._handle_pad("section_prev")   # → Recall
         overlay._handle_pad("section_next")   # → Colour
         assert overlay._active_group == 1
 
     def test_down_from_recall_crosses_to_color(self, mock_gamepad):
         overlay = _make(mock_gamepad, original_trigger=Trigger.CLICK)
-        overlay._handle_pad("section_prev")   # → Recall
         overlay._handle_pad("down")           # → Colour
         assert overlay._active_group == 1
 
     def test_up_in_recall_is_clamped(self, mock_gamepad):
         overlay = _make(mock_gamepad, original_trigger=Trigger.CLICK)
-        overlay._handle_pad("section_prev")   # → Recall
         overlay._handle_pad("up")             # clamp
         assert overlay._active_group == 0
 
     def test_select_stages_trigger(self, mock_gamepad):
         overlay = _make(mock_gamepad, original_trigger=Trigger.CLICK)
-        overlay._handle_pad("section_prev")   # → Recall (option 0 = CLICK)
-        overlay._handle_pad("right")          # → option 1 (HOLD_1S)
-        overlay._handle_pad("select")         # stage
+        overlay._handle_pad("right")          # → option 1 (HOLD_1S, auto-stage)
+        overlay._handle_pad("select")         # stage (redundant)
         assert overlay._pending_trigger == Trigger.HOLD_1S
 
     def test_staging_same_trigger_is_noop(self, mock_gamepad):
         overlay = _make(mock_gamepad, original_trigger=Trigger.CLICK)
-        overlay._handle_pad("section_prev")   # → Recall (option 0 = CLICK)
         overlay._handle_pad("select")         # stage CLICK (already pending)
         assert overlay._pending_trigger == Trigger.CLICK
 
     def test_rb_in_color_goes_to_actions(self, mock_gamepad):
         overlay = _make(mock_gamepad)
-        overlay._handle_pad("section_next")   # Colour → Actions
+        overlay._handle_pad("section_next")   # → colour
+        overlay._handle_pad("section_next")   # → actions
         assert overlay._active_group == 2
 
     def test_rb_in_actions_is_clamped(self, mock_gamepad):
         overlay = _make(mock_gamepad)
-        overlay._handle_pad("section_next")   # → Actions
+        overlay._handle_pad("section_next")   # → colour
+        overlay._handle_pad("section_next")   # → actions
         overlay._handle_pad("section_next")   # clamp
         assert overlay._active_group == 2
 
     def test_up_from_actions_crosses_to_color(self, mock_gamepad):
         overlay = _make(mock_gamepad)
-        overlay._handle_pad("section_next")   # → Actions
-        overlay._handle_pad("up")             # → Colour
+        overlay._handle_pad("section_next")   # → colour
+        overlay._handle_pad("section_next")   # → actions
+        overlay._handle_pad("up")             # → colour
         assert overlay._active_group == 1
 
 
@@ -194,6 +201,7 @@ class TestSaveAndCancel:
             on_save=lambda c, t: saved.append((c, t)),
         )
         # Stage a colour
+        overlay._handle_pad("section_next")   # → Colour
         overlay._handle_pad("right")
         overlay._handle_pad("select")
         # Stage a trigger
@@ -214,7 +222,8 @@ class TestSaveAndCancel:
             original_trigger=Trigger.HOLD_1S,
             on_save=lambda c, t: saved.append((c, t)),
         )
-        overlay._handle_pad("section_next")   # → Actions
+        overlay._handle_pad("section_next")   # → colour
+        overlay._handle_pad("section_next")   # → actions
         overlay._handle_pad("select")          # Save
         assert saved == [("#cccccc", Trigger.HOLD_1S)]
 
@@ -236,7 +245,8 @@ class TestSaveAndCancel:
             on_save=lambda c, t: saved.append((c, t)),
             on_cancel=lambda: cancelled.append(True),
         )
-        overlay._handle_pad("section_next")   # → Actions (on Save)
+        overlay._handle_pad("section_next")   # → colour
+        overlay._handle_pad("section_next")   # → actions (on Save)
         overlay._handle_pad("left")           # → Cancel
         overlay._handle_pad("select")          # activate Cancel
         assert cancelled == [True]
