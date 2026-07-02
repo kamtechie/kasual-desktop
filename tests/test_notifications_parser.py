@@ -75,28 +75,39 @@ class TestParseNotifyArgs:
 
 
 class TestParseNotifyBlocks:
-    def test_returns_completed_blocks_and_holds_the_tail(self):
+    def test_flushes_all_fully_streamed_blocks(self):
         found, leftover = parse_notify_blocks(_SAMPLE)
-        # Spotify is complete; the trailing KMail block is held until the next
-        # header proves it finished. The noise signal is ignored.
-        assert [a.app_name for a in found] == ["Spotify"]
+        # Both blocks have fully streamed (each ends with its trailing int32), so
+        # both are emitted — the final one is NOT stranded waiting for a follower.
+        # The noise signal is ignored.
+        assert [a.app_name for a in found] == ["Spotify", "KMail"]
         assert found[0].summary == "Now Playing"
         assert found[0].app_icon == "spotify"
+        assert found[1].body == "From Alice"
+        assert "KMail" not in leftover
+
+    def test_holds_a_trailing_block_still_streaming(self):
+        # The final block is cut off before its trailing int32 arrives, so it is
+        # held back (emitting it now would drop the fields still to come).
+        partial = _SAMPLE[: _SAMPLE.rindex("int32 -1")]
+        found, leftover = parse_notify_blocks(partial)
+        assert [a.app_name for a in found] == ["Spotify"]
         assert "KMail" in leftover
+
+    def test_held_tail_flushes_once_it_completes(self):
+        partial = _SAMPLE[: _SAMPLE.rindex("int32 -1")]
+        _, leftover = parse_notify_blocks(partial)
+        # The remaining lines (the trailing int32) complete the held KMail block.
+        found, tail = parse_notify_blocks(leftover + "int32 -1\n")
+        assert [a.app_name for a in found] == ["KMail"]
+        assert found[0].body == "From Alice"
+        assert tail == ""
 
     def test_no_header_yet_keeps_everything(self):
         chunk = '   string "partial"\n'
         found, leftover = parse_notify_blocks(chunk)
         assert found == []
         assert leftover == chunk
-
-    def test_tail_completes_on_next_chunk(self):
-        _, leftover = parse_notify_blocks(_SAMPLE)
-        # Feeding another header finalizes the held KMail block.
-        more = leftover + "signal time=9.0 sender=x -> destination=y serial=99 path=/p; interface=i; member=M\n"
-        found, _ = parse_notify_blocks(more)
-        assert [a.app_name for a in found] == ["KMail"]
-        assert found[0].body == "From Alice"
 
     def test_ignores_non_notify_method_calls(self):
         text = (

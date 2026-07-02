@@ -139,7 +139,11 @@ def main() -> None:
         # Recent-notifications feature: the KDE monitor (source port) feeds the
         # platform-agnostic NotificationCenter, which the Desktop's overlay reads.
         notification_center = NotificationCenter()
-        notification_monitor = KdeNotificationMonitor()
+        # Parented to the QApplication so Qt owns it for the app's lifetime: as a
+        # local it would otherwise be garbage-collected after start_session()
+        # returns — before the deferred QTimer.singleShot(0, …start) below fires —
+        # and the monitor would silently never start.
+        notification_monitor = KdeNotificationMonitor(parent=app)
         notification_monitor.on_notification(notification_center.record)
 
         volume = PactlVolumeControl()

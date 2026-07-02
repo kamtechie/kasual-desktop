@@ -71,15 +71,17 @@ def _unquote(token: str) -> str:
     return token[i + 1:j] if i != -1 and j > i else ""
 
 
-def _parse_notify_args(arg_lines: list[str]) -> _NotifyArgs | None:
-    """Pull (app_name, summary, body) from the arg lines of a `Notify` block.
+# The `Notify` signature is ``(s u s s s as a{sv} i)``: app_name, replaces_id,
+# app_icon, summary, body, actions, hints, expire_timeout — exactly 8 top-level
+# args, of which 6 are scalars (the two arrays contribute none at depth 0). So a
+# block is fully streamed once its 6th depth-0 scalar (the trailing int32) lands.
+_NOTIFY_SCALAR_COUNT = 6
 
-    The `Notify` signature is ``(s u s s s as a{sv} i)``: app_name, replaces_id,
-    app_icon, summary, body, actions, hints, expire_timeout. We collect the
-    *top-level* (depth 0) scalar values in order — arrays/dicts (actions, hints)
-    are skipped by depth tracking, so their nested strings never pollute the
-    positions — then read app_name at 0, app_icon at 2, summary at 3, body at 4.
-    """
+
+def _top_level_scalars(arg_lines: list[str]) -> list[str]:
+    """Collect the *top-level* (depth 0) scalar values of a `Notify` block, in
+    order — arrays/dicts (actions, hints) are skipped by depth tracking, so their
+    nested strings never pollute the positions."""
     depth = 0
     scalars: list[str] = []
     for raw in arg_lines:
@@ -94,7 +96,13 @@ def _parse_notify_args(arg_lines: list[str]) -> _NotifyArgs | None:
             scalars.append(s)
         if opens:
             depth += 1
+    return scalars
 
+
+def _parse_notify_args(arg_lines: list[str]) -> _NotifyArgs | None:
+    """Pull (app_name, app_icon, summary, body) from the arg lines of a `Notify`
+    block — app_name at 0, app_icon at 2, summary at 3, body at 4."""
+    scalars = _top_level_scalars(arg_lines)
     if len(scalars) < 5:
         return None
     return _NotifyArgs(
@@ -105,13 +113,23 @@ def _parse_notify_args(arg_lines: list[str]) -> _NotifyArgs | None:
     )
 
 
+def _is_complete_notify(arg_lines: list[str]) -> bool:
+    """Whether a `Notify` block has fully streamed — its trailing (6th) top-level
+    scalar has arrived — so it can be emitted without waiting for the next
+    D-Bus message to prove it complete."""
+    return len(_top_level_scalars(arg_lines)) >= _NOTIFY_SCALAR_COUNT
+
+
 def parse_notify_blocks(text: str) -> tuple[list[_NotifyArgs], str]:
     """Parse complete `Notify` blocks from streamed dbus-monitor output.
 
-    Returns the notifications found in the *complete* blocks plus the unparsed
-    tail (from the last header line onward) to prepend to the next chunk — the
-    final block may still be streaming, so it is held back until the next header
-    proves it complete.
+    Returns the notifications found in the complete blocks plus the unparsed tail
+    to prepend to the next chunk. A block followed by another header is proven
+    complete by that header; the *final* block has no follower yet, so it is
+    emitted only once it has structurally streamed in full (see
+    :func:`_is_complete_notify`) — otherwise it is held back as leftover. This
+    matters because a lone notification (nothing arriving after it) would
+    otherwise sit in the buffer indefinitely, never reaching the UI.
     """
     lines = text.split("\n")
     header_idxs = [
@@ -121,16 +139,31 @@ def parse_notify_blocks(text: str) -> tuple[list[_NotifyArgs], str]:
     if not header_idxs:
         return [], text
 
+    def notify_args(start: int, end: int) -> _NotifyArgs | None:
+        header = lines[start]
+        if not (header.startswith(_NOTIFY_HEADER) and "member=Notify" in header):
+            return None
+        return _parse_notify_args(lines[start + 1:end])
+
     results: list[_NotifyArgs] = []
     for k in range(len(header_idxs) - 1):
-        start, end = header_idxs[k], header_idxs[k + 1]
-        header = lines[start]
-        if header.startswith(_NOTIFY_HEADER) and "member=Notify" in header:
-            parsed = _parse_notify_args(lines[start + 1:end])
-            if parsed is not None:
-                results.append(parsed)
+        parsed = notify_args(header_idxs[k], header_idxs[k + 1])
+        if parsed is not None:
+            results.append(parsed)
 
-    leftover = "\n".join(lines[header_idxs[-1]:])
+    # The trailing block: emit it now if it has fully streamed, so a final lone
+    # notification is not stranded waiting for a follower; else keep it as tail.
+    last = header_idxs[-1]
+    tail = lines[last + 1:]
+    header = lines[last]
+    is_notify = header.startswith(_NOTIFY_HEADER) and "member=Notify" in header
+    if is_notify and _is_complete_notify(tail):
+        parsed = _parse_notify_args(tail)
+        if parsed is not None:
+            results.append(parsed)
+        return results, ""
+
+    leftover = "\n".join(lines[last:])
     return results, leftover
 
 
