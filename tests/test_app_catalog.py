@@ -147,6 +147,21 @@ class TestWithColor:
         assert cat[0].color == _app("A").color
 
 
+class TestWithRecallTrigger:
+    def test_sets_trigger_on_one_app(self):
+        from domain.input.vocabulary import Trigger
+        cat = AppCatalog((_app("A"), _app("B")))
+        out = cat.with_recall_trigger(0, Trigger.HOLD_1S)
+        assert out[0].recall_menu_trigger == Trigger.HOLD_1S
+        assert out[1].recall_menu_trigger == _app("B").recall_menu_trigger
+
+    def test_leaves_original_untouched(self):
+        from domain.input.vocabulary import Trigger
+        cat = AppCatalog((_app("A"),))
+        cat.with_recall_trigger(0, Trigger.HOLD_1S)
+        assert cat[0].recall_menu_trigger == _app("A").recall_menu_trigger
+
+
 class TestAppended:
     def test_adds_app_at_end(self):
         cat = AppCatalog((_app("A"),))

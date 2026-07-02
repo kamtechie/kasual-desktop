@@ -107,6 +107,18 @@ class AppCatalog(Sequence[App]):
         apps[index] = replace(apps[index], color=color)
         return AppCatalog(tuple(apps))
 
+    def with_recall_trigger(self, index: int, trigger: str) -> "AppCatalog":
+        """Return a new catalog with the app at *index* set to recall-menu
+        *trigger*.
+
+        Pure (the catalog and its apps are immutable): the Tile Settings modal's
+        recall-trigger change uses this, with the parallel ``.desktop``
+        ``X-Kasual-RecallMenuTrigger`` rewrite handled by the persistence adapter.
+        """
+        apps = list(self.apps)
+        apps[index] = replace(apps[index], recall_menu_trigger=trigger)
+        return AppCatalog(tuple(apps))
+
     def __getitem__(self, index):
         return self.apps[index]
 

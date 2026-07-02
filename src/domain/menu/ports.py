@@ -19,15 +19,25 @@ class TileOrderStore(Protocol):
 
 
 class TileColorStore(Protocol):
-    """Persists a tile's colour (the write side of ``X-Kasual-Color``).
+    """Persists a tile's per-tile settings (the write side of ``X-Kasual-Color``
+    and ``X-Kasual-RecallMenuTrigger``).
 
-    The Tile Management Popover's colour picker calls :meth:`set_color` after
-    recolouring a tile on screen, so the new colour survives a restart. *index* is
-    the tile's position in the rendered order (the ``(X-Kasual-Order, source)``-sorted
-    catalog) and the adapter rewrites that ``.desktop`` file's ``X-Kasual-Color``.
+    The Tile Settings modal calls :meth:`set_color` after recolouring a tile on
+    screen and :meth:`set_recall_trigger` after changing how BTN_MODE recalls the
+    menu over that tile's app, so both survive a restart. *index* is the tile's
+    position in the rendered order (the ``(X-Kasual-Order, source)``-sorted
+    catalog) and the adapter rewrites that ``.desktop`` file's keys.
     """
 
     def set_color(self, index: int, color: str) -> None: ...
+
+    def set_recall_trigger(self, index: int, trigger: str) -> None:
+        """Persist the recall-menu trigger (``X-Kasual-RecallMenuTrigger``).
+
+        The default trigger (``Trigger.CLICK``) is the sentinel the adapter
+        omits from the file — passing it here makes the adapter remove any
+        previously-written key, so the file never carries a default value."""
+        ...
 
 
 class AppPinning(Protocol):

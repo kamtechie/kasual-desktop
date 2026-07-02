@@ -36,6 +36,11 @@ class LiveCatalog(Sequence[App]):
         """Recolour the app at *index*, for every consumer at once."""
         self._catalog = self._catalog.with_color(index, color)
 
+    def set_recall_trigger(self, index: int, trigger: str) -> None:
+        """Set the recall-menu trigger of the app at *index*, for every consumer
+        at once (the Tile Settings modal's first section)."""
+        self._catalog = self._catalog.with_recall_trigger(index, trigger)
+
     def append(self, app: App) -> None:
         """Add *app* as the last tile, for every consumer at once (the pin action)."""
         self._catalog = self._catalog.appended(app)

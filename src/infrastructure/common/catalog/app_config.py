@@ -155,11 +155,15 @@ class DesktopTileOrderStore(TileOrderStore):
 
 
 class DesktopTileColorStore(TileColorStore):
-    """Persist a tile's colour by rewriting ``X-Kasual-Color`` in its ``.desktop`` file.
+    """Persist a tile's per-tile settings by rewriting ``X-Kasual-Color`` and
+    ``X-Kasual-RecallMenuTrigger`` in its ``.desktop`` file.
 
     Resolves the *index* to a file through the same render-order mapping the order
-    store uses, then rewrites that one file's ``X-Kasual-Color`` line-based, leaving
-    every other key and comment untouched.
+    store uses, then rewrites that one file's keys line-based, leaving every other
+    key and comment untouched. The recall trigger's default value
+    (``Trigger.CLICK``) is the sentinel the App omits when serialising, so passing
+    it here removes any previously-written key rather than writing the default —
+    a default value never lives in the file.
     """
 
     def set_color(self, index: int, color: str) -> None:
@@ -171,6 +175,22 @@ class DesktopTileColorStore(TileColorStore):
             _rewrite_key(ordered[index], "X-Kasual-Color", color)
         except OSError as exc:
             logger.error("Cannot rewrite colour in %s: %s", ordered[index], exc)
+
+    def set_recall_trigger(self, index: int, trigger: str) -> None:
+        from domain.input.vocabulary import Trigger   # local: avoid a cycle at import
+        ordered = _ordered_desktop_paths()
+        if not (0 <= index < len(ordered)):
+            logger.warning("Tile recall trigger set out of range: %d of %d",
+                           index, len(ordered))
+            return
+        path = ordered[index]
+        try:
+            if trigger == Trigger.CLICK:
+                _remove_key(path, "X-Kasual-RecallMenuTrigger")
+            else:
+                _rewrite_key(path, "X-Kasual-RecallMenuTrigger", trigger)
+        except OSError as exc:
+            logger.error("Cannot rewrite recall trigger in %s: %s", path, exc)
 
 
 def _ordered_desktop_paths() -> list[Path]:
@@ -225,6 +245,22 @@ def _rewrite_key(path: Path, key: str, value: str) -> None:
         if out and not out[-1].endswith("\n"):
             out[-1] += "\n"
         out.append(new_line)
+    path.write_text("".join(out), encoding="utf-8")
+
+
+def _remove_key(path: Path, key: str) -> None:
+    """Drop every assignment of *key* from *path*, preserving every other line.
+
+    Used to keep a default-valued setting out of the file (e.g.
+    ``X-Kasual-RecallMenuTrigger`` left at the ``Trigger.CLICK`` default): the
+    domain omits defaults when serialising, so the adapter mirrors that on a
+    rewrite-by-edit. Idempotent — a key already absent is a no-op."""
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    out = [line for line in lines if not _is_key_line(line, key)]
+    if len(out) == len(lines):
+        return
+    if out and not out[-1].endswith("\n"):
+        out[-1] += "\n"
     path.write_text("".join(out), encoding="utf-8")
 
 

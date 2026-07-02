@@ -246,7 +246,13 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         if isinstance(tile, AppTile):
             tile.set_moving(active)
 
-    # ── Colour (Tile Management Popover) ─────────────────────────────────────
+    # ── Tile settings (Tile Settings modal) ───────────────────────────────────
+
+    def current_app_name(self) -> str | None:
+        """Name of the focused app tile, or None if it is not an app tile."""
+        if 0 <= self._tile_index < len(self._tiles):
+            return self._apps[self._tile_index].name
+        return None
 
     def current_app_color(self) -> str | None:
         """Colour of the focused app tile, or None if it is not an app tile."""
@@ -260,6 +266,19 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
             return
         self._apps.recolour(index, color)
         self._tiles[index].set_color(color)
+
+    def current_app_recall_trigger(self) -> str | None:
+        """Recall-menu trigger of the focused app tile, or None if it is not an
+        app tile."""
+        if 0 <= self._tile_index < len(self._tiles):
+            return self._apps[self._tile_index].recall_menu_trigger
+        return None
+
+    def set_app_recall_trigger(self, index: int, trigger: str) -> None:
+        """Update the recall-menu trigger of the static app tile at *index* in the
+        shared catalog (the on-screen tile has no glyph for it)."""
+        if 0 <= index < len(self._tiles):
+            self._apps.set_recall_trigger(index, trigger)
 
     # ── Pin to menu (Tile Management Popover) ────────────────────────────────
 

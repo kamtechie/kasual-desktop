@@ -7,14 +7,14 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QApplication
 
 from domain.catalog.live_catalog import LiveCatalog
 from domain.shell.desktop_state import DesktopState
-from domain.input.vocabulary import Event
+from domain.input.vocabulary import Event, Trigger
 from domain.input.pad_control import PadControl
 from domain.navigation import hints as home_hints
 from infrastructure.common.qt.overlays.base_overlay import BaseOverlay
 from infrastructure.common.qt.overlays.confirm_dialog import ConfirmDialog
 from infrastructure.common.qt.overlays.info_dialog import InfoDialog
 from infrastructure.common.qt.overlays.tile_popover import TilePopoverMenu
-from infrastructure.common.qt.overlays.tile_color_picker import TileColorPicker
+from infrastructure.common.qt.overlays.tile_settings import TileSettings
 from infrastructure.common.qt.overlays.notifications_overlay import NotificationsOverlay
 from infrastructure.common.qt.overlays.network_overlay import NetworkOverlay
 from domain.notifications.center import NotificationCenter
@@ -37,7 +37,7 @@ from domain.lifecycle.app_lifecycle import AppLifecycle
 from domain.navigation.focus_navigator import FocusNavigator
 from domain.navigation.tile_mover import TileMover
 from domain.system.runner import ActionRunner
-from domain.menu.entry import CHANGE_COLOR, MOVE, PIN, POWER, RETURN_TO_DESKTOP, UNPIN
+from domain.menu.entry import SETTINGS, MOVE, PIN, POWER, RETURN_TO_DESKTOP, UNPIN
 from domain.menu.item import MenuItem
 from domain.menu.palette import TILE_COLORS
 from domain.menu.ports import AppPinning, TileColorStore
@@ -144,7 +144,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._surface        = surface or PlainSurface()
         self._confirm_dialog = None
         self._tile_popover   = None
-        self._color_picker   = None
+        self._tile_settings  = None
 
         # Desktop visibility + paused + what the BTN_MODE menu targets (foreground).
         # The foreground is shared by reference with the AppLifecycle coordinator.
@@ -287,7 +287,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         overlay (it owns a pushed pad handler), so it is cancelled explicitly."""
         self._overlays.cancel()
         self._confirm_dialog = None
-        self._color_picker = None
+        self._tile_settings = None
         self._app_add.cancel()
         if self._tile_mover is not None:
             self._tile_mover.cancel()
@@ -587,7 +587,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     # ── Tile popover activation ────────────────────────────────────────────
 
-    _MANAGEMENT_ACTIONS = frozenset({MOVE, CHANGE_COLOR, PIN, UNPIN})
+    _MANAGEMENT_ACTIONS = frozenset({MOVE, SETTINGS, PIN, UNPIN})
 
     def _on_tile_select(self, item: MenuItem) -> None:
         """Route a chosen tile-menu item: management actions to their handlers,
@@ -600,8 +600,8 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def _on_manage_select(self, item: MenuItem) -> None:
         if item.action == MOVE:
             self._tile_mover.start()
-        elif item.action == CHANGE_COLOR:
-            self._show_color_picker()
+        elif item.action == SETTINGS:
+            self._show_tile_settings()
         elif item.action == PIN:
             self._pin_window(item.target)
         elif item.action == UNPIN:
@@ -641,35 +641,50 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._tilebar.unpin_app(index)
         self._feedback.play(Cue.SELECT)
 
-    def _show_color_picker(self) -> None:
-        """Open the palette picker for the focused app tile.
+    def _show_tile_settings(self) -> None:
+        """Open the Tile Settings modal for the focused app tile.
 
-        The chosen colour is applied to the tile and persisted; cancelling (B /
-        Escape / backdrop / BTN_MODE) leaves it unchanged. The capture of the tile
-        index is safe: the picker is modal, so the focus cannot move underneath it."""
-        if self._color_picker is not None or not self._tilebar.current_is_app():
+        Both sections (recall trigger + colour) are visible at once. Staging a
+        colour previews it live on the tile; *Save* persists both values to the
+        ``.desktop`` file; *Cancel* (or B / Escape / backdrop / BTN_MODE) reverts
+        the preview. The capture of the tile index is safe: the modal is modal,
+        so the focus cannot move underneath it."""
+        if self._tile_settings is not None or not self._tilebar.current_is_app():
             return
         index = self._tilebar.current_app_index()
+        original_color = self._tilebar.current_app_color()
 
-        def _on_chosen(color: str) -> None:
-            self._forget_color_picker()
+        def _on_color_preview(color: str) -> None:
             self._tilebar.set_app_color(index, color)
-            self._color_store.set_color(index, color)
 
-        self._color_picker = TileColorPicker(
+        def _on_save(color: str, trigger: str) -> None:
+            self._forget_tile_settings()
+            self._color_store.set_color(index, color)
+            self._tilebar.set_app_recall_trigger(index, trigger)
+            self._color_store.set_recall_trigger(index, trigger)
+
+        def _on_cancel() -> None:
+            self._forget_tile_settings()
+            if original_color is not None:
+                self._tilebar.set_app_color(index, original_color)
+
+        self._tile_settings = TileSettings(
+            app_name=self._tilebar.current_app_name() or "",
             colors=TILE_COLORS,
-            selected=self._tilebar.current_app_color(),
-            on_select=_on_chosen,
-            on_cancel=self._forget_color_picker,
+            original_color=original_color,
+            original_trigger=self._tilebar.current_app_recall_trigger() or Trigger.CLICK,
+            on_color_preview=_on_color_preview,
+            on_save=_on_save,
+            on_cancel=_on_cancel,
             gamepad=self._gamepad,
             feedback=self._feedback,
             parent=self,
         )
-        self._overlays.register(self._color_picker)
+        self._overlays.register(self._tile_settings)
 
-    def _forget_color_picker(self) -> None:
-        self._overlays.forget(self._color_picker)
-        self._color_picker = None
+    def _forget_tile_settings(self) -> None:
+        self._overlays.forget(self._tile_settings)
+        self._tile_settings = None
 
     def _close_active_dialog(self) -> None:
         if self._confirm_dialog is not None:

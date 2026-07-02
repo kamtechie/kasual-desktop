@@ -282,3 +282,72 @@ class TestTileColorStore:
         from infrastructure.common.catalog.app_config import DesktopTileColorStore
         DesktopTileColorStore().set_color(5, "#ff0000")
         assert load_apps()[0].color == "#111111"
+
+
+# ── DesktopTileColorStore.set_recall_trigger ─────────────────────────────────
+
+class TestTileRecallTriggerStore:
+    def _write_app(self, apps_root, filename, name, order, trigger=None):
+        lines = [
+            "[Desktop Entry]",
+            "Type=Application",
+            f"Name={name}",
+            f"Exec={name.lower()}",
+            f"X-Kasual-Order={order}",
+        ]
+        if trigger is not None:
+            lines.insert(4, f"X-Kasual-RecallMenuTrigger={trigger}")
+        _write(apps_root, filename, "\n".join(lines) + "\n")
+
+    def test_writes_hold_trigger_when_absent(self, apps_root):
+        self._write_app(apps_root, "a.desktop", "A", 0)   # no trigger key
+
+        from infrastructure.common.catalog.app_config import DesktopTileColorStore
+        DesktopTileColorStore().set_recall_trigger(0, "BTN_MODE_HOLD_1S")
+
+        assert load_apps()[0].recall_menu_trigger == "BTN_MODE_HOLD_1S"
+
+    def test_rewrites_existing_hold_trigger(self, apps_root):
+        self._write_app(apps_root, "a.desktop", "A", 0, trigger="BTN_MODE_HOLD_1S")
+
+        from infrastructure.common.catalog.app_config import DesktopTileColorStore
+        DesktopTileColorStore().set_recall_trigger(0, "BTN_MODE_CLICK")
+
+        # Default trigger means the key must NOT live in the file.
+        text = (apps_root / "a.desktop").read_text(encoding="utf-8")
+        assert "X-Kasual-RecallMenuTrigger" not in text
+        assert load_apps()[0].recall_menu_trigger == "BTN_MODE_CLICK"
+
+    def test_default_removes_key_even_when_present(self, apps_root):
+        self._write_app(apps_root, "a.desktop", "A", 0, trigger="BTN_MODE_HOLD_1S")
+
+        from infrastructure.common.catalog.app_config import DesktopTileColorStore
+        DesktopTileColorStore().set_recall_trigger(0, "BTN_MODE_CLICK")
+
+        text = (apps_root / "a.desktop").read_text(encoding="utf-8")
+        assert "X-Kasual-RecallMenuTrigger" not in text
+
+    def test_preserves_other_keys(self, apps_root):
+        _write(apps_root, "a.desktop", (
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=A\n"
+            "Exec=a\n"
+            "X-Kasual-Color=#123456\n"
+            "X-Kasual-RecallMenuTrigger=BTN_MODE_HOLD_1S\n"
+            "X-Kasual-Order=0\n"
+        ))
+
+        from infrastructure.common.catalog.app_config import DesktopTileColorStore
+        DesktopTileColorStore().set_recall_trigger(0, "BTN_MODE_CLICK")
+
+        a = load_apps()[0]
+        assert a.color == "#123456"
+        assert a.recall_menu_trigger == "BTN_MODE_CLICK"
+
+    def test_out_of_range_is_a_noop(self, apps_root):
+        self._write_app(apps_root, "a.desktop", "A", 0,
+                        trigger="BTN_MODE_HOLD_1S")
+        from infrastructure.common.catalog.app_config import DesktopTileColorStore
+        DesktopTileColorStore().set_recall_trigger(5, "BTN_MODE_CLICK")
+        assert load_apps()[0].recall_menu_trigger == "BTN_MODE_HOLD_1S"

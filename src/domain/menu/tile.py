@@ -15,7 +15,7 @@ from collections.abc import Callable
 
 from domain.catalog.target import AddTileTarget, AppTarget, Target
 from domain.menu.entry import (
-    CHANGE_COLOR, CLOSE, LAUNCH, MOVE, PIN, RESTORE, SEPARATOR, UNPIN,
+    SETTINGS, CLOSE, LAUNCH, MOVE, PIN, RESTORE, SEPARATOR, UNPIN,
 )
 from domain.menu.item import MenuItem
 from domain.shared.i18n import translate
@@ -48,7 +48,7 @@ def compose_tile_menu(target: Target, is_running: bool) -> list[MenuItem]:
     move / recolour / unpin it, so that group is dropped; an open window still
     offers the one durable action, *Pin to menu*.
 
-      - catalog app · idle    → Launch · ─ · Move · Change color · Unpin
+      - catalog app · idle    → Launch · ─ · Move · Settings · Unpin
       - catalog app · running → Restore · Close          (management hidden)
       - ephemeral window      → Restore · Close · ─ · Pin to menu
     """
@@ -85,7 +85,7 @@ def tile_management_menu(target: Target) -> list[MenuItem]:
     if isinstance(target, AppTarget):
         return [
             MenuItem(translate("Desktop", "Move"), MOVE, target=target),
-            MenuItem(translate("Desktop", "Change color"), CHANGE_COLOR, target=target),
+            MenuItem(translate("Desktop", "Settings"), SETTINGS, target=target),
             MenuItem(translate("Desktop", "Unpin"), UNPIN, target=target),
         ]
     return [MenuItem(translate("Desktop", "Pin to menu"), PIN, target=target)]

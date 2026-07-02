@@ -71,10 +71,9 @@
         <translation>Przesuń</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/tile_color_picker.py" line="65" />
         <location filename="../src/domain/menu/tile.py" line="88" />
-        <source>Change color</source>
-        <translation>Zmień kolor</translation>
+        <source>Settings</source>
+        <translation>Ustawienia</translation>
     </message>
     <message>
         <location filename="../src/domain/menu/tile.py" line="89" />
@@ -87,16 +86,51 @@
         <translation>Przypnij do menu</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="567" />
+        <location filename="../src/infrastructure/common/qt/desktop/app_add_controller.py" line="66" />
         <source>Add app</source>
         <translation>Dodaj aplikację</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="666" />
+        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="631" />
         <source>Are you sure you want to unpin
 "{0}"?</source>
         <translation>Czy na pewno chcesz odpiąć
 "{0}"?</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="44" />
+        <source>Pressing Home Button</source>
+        <translation>Wciskając Home Button</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="45" />
+        <source>Holding Home Button</source>
+        <translation>Przytrzymując Home Button</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="116" />
+        <source>Settings — {0}</source>
+        <translation>Ustawienia — {0}</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="123" />
+        <source>Call Kasual Desktop menu:</source>
+        <translation>Wywołaj menu Kasual Desktop:</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="146" />
+        <source>Tile color:</source>
+        <translation>Kolor kafelka:</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="170" />
+        <source>Cancel</source>
+        <translation>Anuluj</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="171" />
+        <source>Save</source>
+        <translation>Zapisz</translation>
     </message>
 </context><context>
     <name>HintBar</name>
@@ -179,7 +213,6 @@
         <source>Close</source>
         <translation>Zamknij</translation>
     </message>
-
 </context><context>
     <name>InfoDialog</name>
     <message>

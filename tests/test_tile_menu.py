@@ -1,7 +1,7 @@
 """Tests for the tile Popover composition rules (pure, no Qt)."""
 
 from domain.menu.entry import (
-    CHANGE_COLOR, CLOSE, LAUNCH, MOVE, PIN, RESTORE, SEPARATOR, UNPIN,
+    SETTINGS, CLOSE, LAUNCH, MOVE, PIN, RESTORE, SEPARATOR, UNPIN,
 )
 from domain.menu.tile import (
     lifecycle_menu, compose_tile_menu, tile_management_menu, tile_menu_for,
@@ -35,7 +35,7 @@ class TestComposeTileMenu:
 
     def test_idle_app_has_launch_separator_then_management(self):
         items = compose_tile_menu(AppTarget(0, "Steam"), is_running=False)
-        assert [i.action for i in items] == [LAUNCH, SEPARATOR, MOVE, CHANGE_COLOR, UNPIN]
+        assert [i.action for i in items] == [LAUNCH, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
     def test_running_app_hides_management(self):
         items = compose_tile_menu(AppTarget(0, "Steam"), is_running=True)
@@ -63,7 +63,7 @@ class TestTileMenuFor:
             return False
         items = tile_menu_for(AppTarget(3, "Steam"), is_running)
         assert calls == [3]
-        assert [i.action for i in items] == [LAUNCH, SEPARATOR, MOVE, CHANGE_COLOR, UNPIN]
+        assert [i.action for i in items] == [LAUNCH, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
     def test_app_running_offers_restore_and_close_only(self):
         items = tile_menu_for(AppTarget(0, "Steam"), lambda idx: True)
@@ -91,9 +91,9 @@ class TestTileMenuFor:
 
 
 class TestTileManagementMenu:
-    def test_app_tile_offers_move_change_color_and_unpin(self):
+    def test_app_tile_offers_move_settings_and_unpin(self):
         items = tile_management_menu(AppTarget(0, "Steam"))
-        assert [i.action for i in items] == [MOVE, CHANGE_COLOR, UNPIN]
+        assert [i.action for i in items] == [MOVE, SETTINGS, UNPIN]
 
     def test_window_tile_offers_pin(self):
         items = tile_management_menu(WindowTarget("w1", "Firefox"))
