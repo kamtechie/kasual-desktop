@@ -64,6 +64,17 @@ class TestPadInTiles:
         nav.handle_pad("up")
         assert nav.in_tiles is True
 
+    def test_section_prev_switches_to_topbar(self):
+        # LB jumps to the top bar, mirroring the Home Overlay's SECTION_PREV.
+        nav, *_ = _make(topbar_count=3)
+        nav.handle_pad("section_prev")
+        assert nav.in_tiles is False
+
+    def test_section_prev_ignored_when_no_topbar_buttons(self):
+        nav, *_ = _make(topbar_count=0)
+        nav.handle_pad("section_prev")
+        assert nav.in_tiles is True
+
 
 class TestPadInTopbar:
     def _in_topbar(self, topbar_count=3):
@@ -98,6 +109,12 @@ class TestPadInTopbar:
     def test_cancel_returns_to_tiles(self):
         nav, *_ = self._in_topbar()
         nav.handle_pad("cancel")
+        assert nav.in_tiles is True
+
+    def test_section_next_returns_to_tiles(self):
+        # RB drops back to the tiles, mirroring the Home Overlay's SECTION_NEXT.
+        nav, *_ = self._in_topbar()
+        nav.handle_pad("section_next")
         assert nav.in_tiles is True
 
 

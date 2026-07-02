@@ -68,7 +68,9 @@ class FocusNavigator:
                 if self._tilebar.move(+1):
                     self._feedback.play(Cue.CURSOR)
                 self._sync_hints()
-            elif event == Event.UP and self._topbar.count:
+            elif event in (Event.UP, Event.SECTION_PREV) and self._topbar.count:
+                # LB (§7.10 "jump to topbar") mirrors the Home Overlay's
+                # SECTION_PREV, which lands on its header zone — here the top bar.
                 self._mode = _Mode.TOPBAR
                 self._topbar_index = 0
                 self._moved()
@@ -86,7 +88,9 @@ class FocusNavigator:
             elif event == Event.RIGHT:
                 self._topbar_index = (self._topbar_index + 1) % self._topbar.count
                 self._moved()
-            elif event in (Event.DOWN, Event.CANCEL):
+            elif event in (Event.DOWN, Event.CANCEL, Event.SECTION_NEXT):
+                # RB (SECTION_NEXT) drops back to the tiles, mirroring the Home
+                # Overlay's step down out of its header zone.
                 self._mode = _Mode.TILES
                 self._moved()
             elif event == Event.SELECT:
