@@ -178,7 +178,10 @@ def main() -> None:
         # Network status indicator: the concrete adapter (NetworkManager) is the
         # only NM-aware piece; everything downstream depends on the domain
         # NetworkMonitor port, so it can be swapped for another backend here.
-        network_monitor = NMNetworkMonitor()
+        # Parented to `app`: the only reference to this QObject is its lifetime,
+        # so without a parent it would be GC'd once this method returns, silently
+        # tearing down its D-Bus subscriptions (the icon would then never update).
+        network_monitor = NMNetworkMonitor(parent=app)
         network_monitor.on_changed(desktop.update_network_status)
         desktop.update_network_status(network_monitor.current())
 
