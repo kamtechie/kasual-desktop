@@ -22,8 +22,7 @@ from domain.notifications.center import NotificationCenter
 from domain.network import view as network_view
 from domain.network.control import NetworkControl
 from domain.network.status import NetworkStatus
-from domain.system.actions import ACTIONS, NETWORK, NOTIFICATIONS, SLEEP
-from domain.system.action_view import topbar_items
+from domain.system.actions import ACTIONS
 from domain.system.volume import VolumeControl
 from domain.system.brightness import BrightnessControl
 from domain.system.power_control import PowerControl
@@ -58,7 +57,6 @@ from infrastructure.common.qt._meta import ProtocolQtMeta
 from .hint_bar import HintBar
 from .home_surface import HomeSurface
 from .tile_bar import TileBar
-from .topbar import TopBar
 from infrastructure.common.qt.overlays.home_header import HomeHeader
 from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
 
@@ -108,7 +106,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         parent_of: 'Callable[[int], int | None] | None' = None,
         app_adder: AppAdder | None = None,
         power_preference: PowerPreference | None = None,
-        home_surface_enabled: bool = False,
     ):
         super().__init__()
         self._apps        = apps
@@ -168,32 +165,22 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         main = QVBoxLayout(self)
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(0)
-        # §8 / Faza 5: in persistent-surface mode the top bar dissolves into the
-        # Home surface's collapsed header. That header is also the navigable top
-        # bar — created here (it needs no Power menu, so it can exist before
-        # set_power_menu builds the surface around it) and handed to the
-        # FocusNavigator as the TopBarView, so "up" from the tiles enters it. Its
-        # Network / Notifications buttons open the same overlays the old top bar did.
-        self._home_surface_enabled = home_surface_enabled
+        # §8: the top bar is the Home surface's collapsed header. That header is
+        # also the navigable top bar — created here (it needs no Power menu, so it
+        # can exist before set_power_menu builds the surface around it) and handed
+        # to the FocusNavigator as the TopBarView, so "up" from the tiles enters it.
+        # Its Network / Notifications buttons open their overlays.
         self._home_surface: 'HomeSurface | None' = None
-        self._home_header: 'HomeHeader | None' = None
-        if home_surface_enabled:
-            self._home_header = HomeHeader(self._open_system_action, CARD_WIDTH)
-            if power_preference is not None:
-                self._home_header.set_power_icon(ACTIONS[power_preference.default()].icon)
-            # Mouse parity with the tile bar: hover moves the highlight, a click
-            # activates the button — routed through the same navigator slots the
-            # plain top bar uses (and gamepad A follows).
-            self._home_header.button_hovered.connect(self._on_topbar_hovered)
-            self._home_header.button_activated.connect(self._on_topbar_activated)
-            self._home_header.button_context_menu.connect(self._on_topbar_context_menu)
-            self._topbar = self._home_header
-        else:
-            power_default = power_preference.default() if power_preference else SLEEP
-            self._topbar = TopBar(items=topbar_items(power_default))
-            self._topbar.action_triggered.connect(self._topbar_action)
-            self._topbar.button_hovered.connect(self._on_topbar_hovered)
-            main.addWidget(self._topbar)
+        self._home_header = HomeHeader(self._open_system_action, CARD_WIDTH)
+        if power_preference is not None:
+            self._home_header.set_power_icon(ACTIONS[power_preference.default()].icon)
+        # Mouse parity with the tile bar: hover moves the highlight, a click
+        # activates the button — routed through the same navigator slots gamepad A
+        # follows.
+        self._home_header.button_hovered.connect(self._on_topbar_hovered)
+        self._home_header.button_activated.connect(self._on_topbar_activated)
+        self._home_header.button_context_menu.connect(self._on_topbar_context_menu)
+        self._topbar = self._home_header
         main.addStretch(1)
         self._tilebar = TileBar(self._apps, self._app_manager, parent_of=parent_of)
         self._tilebar.tile_hovered.connect(self._on_tile_hovered)
@@ -775,28 +762,15 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     # ── Top bar actions ────────────────────────────────────────────────────
 
-    def _topbar_action(self, action_type: str) -> None:
-        # The Power button carries the abstract POWER action; run whatever the
-        # persisted default currently is (the same source of truth the Home Overlay
-        # uses). Every other button dispatches on its own key.
-        if action_type == POWER:
-            if self._power_preference is not None:
-                self._action_runner.run(self._power_preference.default())
-            return
-        self._action_runner.run(action_type)
-
     def _refresh_power_default(self) -> None:
-        """Re-read the persisted default and update the Power button's glyph.
-        Cheap, event-driven (on show/resume): the default only changes by executing
-        a power action, and Sleep is the one that returns to this session. In
-        persistent-surface mode it updates the header's Power button (§8)."""
+        """Re-read the persisted default and update the header's Power button glyph
+        (§8). Cheap, event-driven (on show/resume): the default only changes by
+        executing a power action, and Sleep is the one that returns to this
+        session."""
         if self._power_preference is None:
             return
         action = ACTIONS[self._power_preference.default()]
-        if self._home_header is not None:
-            self._home_header.set_power_icon(action.icon)
-        else:
-            self._topbar.set_power_default(action.icon, action.color)
+        self._home_header.set_power_icon(action.icon)
 
     def _open_system_action(self, action_type: str) -> None:
         """Act on a header button via A (the FocusNavigator's trigger path in the
@@ -813,21 +787,20 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         """Open the Sleep/Restart/Shut Down chooser below the header's Power button
         (§8). A pick runs and (once confirmed) becomes the new default, via the
         Power menu — the same flow as the old top-bar dropdown."""
-        if self._home_header is not None:
-            # A touch more clearance so the dropdown sits below the header card,
-            # not over the Power glyph it springs from.
-            self._open_power_popover(self._home_header.power_button(),
-                                     parent=self._home_surface, gap=22)
+        # A touch more clearance so the dropdown sits below the header card,
+        # not over the Power glyph it springs from.
+        self._open_power_popover(self._home_header.power_button(),
+                                 parent=self._home_surface, gap=22)
 
     def set_power_menu(self, power_menu: PowerMenu) -> None:
         """Inject the Power menu (built after this Desktop, since it needs the
         confirm dialog) so the top-bar Power dropdown can run + persist a pick.
 
-        In persistent-surface mode this is also where the Home surface is built:
-        it needs the same Power menu, and by now ``attach`` has wired the action
-        runner its menu items dispatch through."""
+        This is also where the Home surface is built: it needs the same Power menu,
+        and by now ``attach`` has wired the action runner its menu items dispatch
+        through."""
         self._power_menu = power_menu
-        if self._home_surface_enabled and self._home_surface is None:
+        if self._home_surface is None:
             self._home_surface = HomeSurface(
                 self._gamepad, self._feedback,
                 self._volume_control, self._brightness_control, power_menu,
@@ -871,16 +844,11 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def _show_topbar_power_menu(self, index: int) -> None:
         """X on the Power button opens the Sleep/Restart/Shut Down chooser (the same
         button that opens a tile's popover) — the pick-runs-and-persists flow as the
-        Home Overlay's Power card. In persistent-surface mode the header's chooser
-        anchors over the Home surface (§8; the correct position); otherwise the top-
-        bar dropdown anchors on the Desktop. X elsewhere does nothing (only Power
-        has a dropdown)."""
+        Home Overlay's Power card. The header's chooser anchors over the Home surface
+        (§8). X elsewhere does nothing (only Power has a dropdown)."""
         if self._topbar.action_key_at(index) != POWER:
             return
-        if self._home_header is not None:
-            self._open_header_power_chooser()
-        else:
-            self._open_power_popover(self._topbar.button_at(index), parent=self)
+        self._open_header_power_chooser()
 
     def _open_power_popover(self, button, *, parent, gap: int = 12) -> None:
         """Open the Sleep/Restart/Shut Down chooser anchored below *button*: a pick
@@ -941,24 +909,18 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._nav.focus_topbar()
 
     def refresh_notification_badge(self) -> None:
-        """Sync the notifications badge to the unread count in memory — on the top
-        bar, or on the Home header when the top bar has dissolved (§8)."""
+        """Sync the notifications badge to the unread count in memory — on the Home
+        header (§8)."""
         count = self._notifications.unread_count
-        if self._home_header is not None:
-            self._home_header.set_notification_badge(count)
-        else:
-            self._topbar.set_badge(NOTIFICATIONS, count)
+        self._home_header.set_notification_badge(count)
 
     def update_network_status(self, status: NetworkStatus) -> None:
-        """Store the latest network status and reflect its kind in the top-bar
-        icon (driven by the NetworkMonitor; the popup reads the stored status) —
-        or on the Home header when the top bar has dissolved (§8)."""
+        """Store the latest network status and reflect its kind in the Home header
+        icon (§8; driven by the NetworkMonitor; the popup reads the stored
+        status)."""
         self._network_status = status
         glyph = network_view.icon_for(status.kind)
-        if self._home_header is not None:
-            self._home_header.set_network_icon(glyph)
-        else:
-            self._topbar.set_action_icon(NETWORK, glyph)
+        self._home_header.set_network_icon(glyph)
 
     def open_network_overlay(self) -> None:
         overlay = NetworkOverlay(

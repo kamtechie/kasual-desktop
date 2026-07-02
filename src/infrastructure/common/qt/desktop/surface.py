@@ -10,7 +10,7 @@ OS is how it becomes (and is driven as) a fullscreen, stay-on-top surface:
     WS_EX_TOPMOST top-level window (the Windows infra's ``WindowsDesktopSurface``).
 
 Capturing that one difference behind this small port lets the rest of the UI
-(TopBar, TileBar, overlays, the whole Desktop widget) stay shared across both
+(HomeHeader, TileBar, overlays, the whole Desktop widget) stay shared across both
 platforms instead of being forked. This module holds the platform-neutral port
 plus a plain fallback; each platform's concrete surface lives in its own package.
 """

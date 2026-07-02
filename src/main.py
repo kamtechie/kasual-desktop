@@ -163,8 +163,6 @@ def main() -> None:
             is_game_pid=is_game_pid,
             app_adder=app_adder,
             power_preference=power_preference,
-            # §8 / Faza 5: collapse the top bar into a persistent Home-view surface.
-            home_surface_enabled=True,
             deferred_hide_factory=lambda wm_, pm_, apps_, on_hide:
                 DeferredHide(wm_, pm_, apps_, on_hide=on_hide),
         )

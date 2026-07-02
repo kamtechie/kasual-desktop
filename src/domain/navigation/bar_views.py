@@ -32,7 +32,7 @@ class TileReorderView(Protocol):
 
 
 class TopBarView(Protocol):
-    """The top bar as focus navigation drives it (TopBar)."""
+    """The top bar as focus navigation drives it (the Home surface's header)."""
 
     @property
     def count(self) -> int: ...

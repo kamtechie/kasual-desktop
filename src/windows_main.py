@@ -198,10 +198,6 @@ def main():
             deferred_hide_factory=lambda _wm, _pm, _apps, _on_hide:
                 TimedLaunchHide(on_hide=surface.hide_for_launch),
             power_preference=power_preference,
-            # §8 / Faza 5: the persistent Home surface uses the same internal morph
-            # here, with no layer-shell — a plain WS_EX_TOPMOST top-level the Desktop
-            # positions at the top edge (promote_overlay_surface + position_at_top).
-            home_surface_enabled=True,
         )
 
         # In-process log viewer (Windows has no layer-shell, so unlike Linux we
