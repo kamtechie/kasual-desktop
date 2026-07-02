@@ -9,7 +9,11 @@ COLOR_CARD_BG  = "#2e3440"
 CARD_RADIUS_PX = 40
 _TOPBAR_RADIUS = 30
 _DIALOG_RADIUS = 25
-_MENU_RADIUS   = 30
+# Kept at most half the menu-row min-height (58px, see home_menu_content): a Qt
+# QSS quirk renders *square* corners when 2×border-radius exceeds the widget
+# height, which the Home menu's rows hit once the HUD section compresses them to
+# their minimum height.
+_MENU_RADIUS   = 24
 
 
 def apply_card_shadow(
