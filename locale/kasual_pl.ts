@@ -51,48 +51,48 @@
         <translation>Nie udało się uruchomić aplikacji: {0}</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="69" />
+        <location filename="../src/domain/menu/tile.py" line="68" />
         <source>Launch</source>
         <translation>Uruchom</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="71" />
+        <location filename="../src/domain/menu/tile.py" line="70" />
         <source>Restore</source>
         <translation>Przywróć</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="72" />
+        <location filename="../src/domain/menu/tile.py" line="71" />
         <source>Close</source>
         <translation>Zamknij</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="88" />
+        <location filename="../src/domain/menu/tile.py" line="87" />
         <source>Move</source>
         <translation>Przesuń</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/tile_color_picker.py" line="65" />
-        <location filename="../src/domain/menu/tile.py" line="89" />
+        <location filename="../src/domain/menu/tile.py" line="88" />
         <source>Change color</source>
         <translation>Zmień kolor</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="90" />
+        <location filename="../src/domain/menu/tile.py" line="89" />
         <source>Unpin</source>
         <translation>Odepnij z menu</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="92" />
+        <location filename="../src/domain/menu/tile.py" line="91" />
         <source>Pin to menu</source>
         <translation>Przypnij do menu</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="467" />
+        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="567" />
         <source>Add app</source>
         <translation>Dodaj aplikację</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="566" />
+        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="666" />
         <source>Are you sure you want to unpin
 "{0}"?</source>
         <translation>Czy na pewno chcesz odpiąć
@@ -101,93 +101,89 @@
 </context><context>
     <name>HintBar</name>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="77" />
+        <location filename="../src/domain/navigation/hints.py" line="83" />
         <source>Navigate</source>
         <translation>Nawigacja</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="78" />
+        <location filename="../src/domain/navigation/hints.py" line="84" />
         <source>Adjust</source>
         <translation>Zmień</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="84" />
-        <location filename="../src/domain/navigation/hints.py" line="83" />
+        <location filename="../src/domain/navigation/hints.py" line="90" />
+        <location filename="../src/domain/navigation/hints.py" line="89" />
         <source>Section</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/domain/navigation/hints.py" line="86" />
-        <location filename="../src/domain/navigation/hints.py" line="85" />
-        <source>Volume</source>
-        <translation type="unfinished">Głośność</translation>
+        <translation>Sekcja</translation>
     </message>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="92" />
+        <location filename="../src/domain/navigation/hints.py" line="91" />
+        <source>Volume</source>
+        <translation>Głośność</translation>
+    </message>
+    <message>
+        <location filename="../src/domain/navigation/hints.py" line="98" />
         <source>Show/Hide menu</source>
         <translation>Pokaż/ukryj menu</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="221" />
-        <location filename="../src/domain/navigation/hints.py" line="191" />
-        <location filename="../src/domain/navigation/hints.py" line="181" />
-        <location filename="../src/domain/navigation/hints.py" line="170" />
-        <location filename="../src/domain/navigation/hints.py" line="145" />
-        <location filename="../src/domain/navigation/hints.py" line="133" />
-        <location filename="../src/domain/navigation/hints.py" line="121" />
-        <location filename="../src/domain/navigation/hints.py" line="111" />
-        <location filename="../src/domain/navigation/hints.py" line="100" />
+        <location filename="../src/domain/navigation/hints.py" line="244" />
+        <location filename="../src/domain/navigation/hints.py" line="229" />
+        <location filename="../src/domain/navigation/hints.py" line="195" />
+        <location filename="../src/domain/navigation/hints.py" line="185" />
+        <location filename="../src/domain/navigation/hints.py" line="174" />
+        <location filename="../src/domain/navigation/hints.py" line="162" />
+        <location filename="../src/domain/navigation/hints.py" line="150" />
+        <location filename="../src/domain/navigation/hints.py" line="137" />
+        <location filename="../src/domain/navigation/hints.py" line="127" />
+        <location filename="../src/domain/navigation/hints.py" line="117" />
+        <location filename="../src/domain/navigation/hints.py" line="106" />
         <source>Select</source>
         <translation>Wybierz</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="101" />
+        <location filename="../src/domain/navigation/hints.py" line="107" />
         <source>Actions</source>
         <translation>Czynności</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="147" />
-        <location filename="../src/domain/navigation/hints.py" line="134" />
+        <location filename="../src/domain/navigation/hints.py" line="245" />
+        <location filename="../src/domain/navigation/hints.py" line="230" />
+        <location filename="../src/domain/navigation/hints.py" line="138" />
+        <source>Options</source>
+        <translation>Opcje</translation>
+    </message>
+    <message>
+        <location filename="../src/domain/navigation/hints.py" line="164" />
+        <location filename="../src/domain/navigation/hints.py" line="151" />
         <source>Back</source>
         <translation>Wstecz</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="146" />
+        <location filename="../src/domain/navigation/hints.py" line="163" />
         <source>Close menu</source>
-        <translation type="unfinished" />
+        <translation>Zamknij menu</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="158" />
-        <source>Confirm</source>
-        <translation>Zatwierdź</translation>
-    </message>
-    <message>
-        <location filename="../src/domain/navigation/hints.py" line="223" />
-        <location filename="../src/domain/navigation/hints.py" line="208" />
-        <location filename="../src/domain/navigation/hints.py" line="192" />
-        <location filename="../src/domain/navigation/hints.py" line="182" />
-        <location filename="../src/domain/navigation/hints.py" line="159" />
-        <source>Close</source>
-        <translation>Zamknij</translation>
-    </message>
-    <message>
-        <location filename="../src/domain/navigation/hints.py" line="171" />
+        <location filename="../src/domain/navigation/hints.py" line="175" />
         <source>Cancel</source>
         <translation>Anuluj</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="222" />
-        <source>Options</source>
-        <translation type="unfinished" />
+        <location filename="../src/domain/navigation/hints.py" line="246" />
+        <location filename="../src/domain/navigation/hints.py" line="231" />
+        <location filename="../src/domain/navigation/hints.py" line="214" />
+        <location filename="../src/domain/navigation/hints.py" line="196" />
+        <location filename="../src/domain/navigation/hints.py" line="186" />
+        <source>Close</source>
+        <translation>Zamknij</translation>
     </message>
-    <message>
-        <source>Manage</source>
-        <translation type="vanished">Zarządzaj</translation>
-    </message>
+
 </context><context>
     <name>HomeOverlay</name>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/home_overlay.py" line="97" />
+        <location filename="../src/infrastructure/common/qt/overlays/home_overlay.py" line="87" />
         <source>Kasual Desktop</source>
         <translation>Kasual Desktop</translation>
     </message>
@@ -201,22 +197,22 @@
 </context><context>
     <name>Kasual Desktop</name>
     <message>
-        <location filename="../src/domain/menu/home.py" line="35" />
+        <location filename="../src/domain/menu/home.py" line="30" />
         <source>Return to Home screen</source>
         <translation>Wróć do ekranu głównego</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/home.py" line="58" />
+        <location filename="../src/domain/menu/home.py" line="131" />
         <source>Return to {0}</source>
         <translation>Powrót do {0}</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/home.py" line="62" />
+        <location filename="../src/domain/menu/home.py" line="133" />
         <source>Close {0}</source>
         <translation>Zamknij {0}</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="107" />
+        <location filename="../src/domain/system/actions.py" line="114" />
         <location filename="../src/domain/network/view.py" line="54" />
         <location filename="../src/domain/network/view.py" line="37" />
         <source>Network</source>
@@ -283,52 +279,52 @@
         <translation>{0} godz. temu</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="77" />
+        <location filename="../src/domain/system/actions.py" line="82" />
         <source>Volume</source>
         <translation>Głośność</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="81" />
+        <location filename="../src/domain/system/actions.py" line="88" />
         <source>Brightness</source>
         <translation>Jasność</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="85" />
+        <location filename="../src/domain/system/actions.py" line="92" />
         <source>Sleep</source>
         <translation>Uśpij system</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="87" />
+        <location filename="../src/domain/system/actions.py" line="94" />
         <source>Are you sure you want to sleep?</source>
         <translation>Czy na pewno chcesz uśpić system?</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="91" />
+        <location filename="../src/domain/system/actions.py" line="98" />
         <source>Restart</source>
         <translation>Zrestartuj komputer</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="93" />
+        <location filename="../src/domain/system/actions.py" line="100" />
         <source>Are you sure you want to restart?</source>
         <translation>Czy na pewno chcesz zrestartować komputer?</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="97" />
+        <location filename="../src/domain/system/actions.py" line="104" />
         <source>Shut Down</source>
         <translation>Zamknij system</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="99" />
+        <location filename="../src/domain/system/actions.py" line="106" />
         <source>Are you sure you want to shut down?</source>
         <translation>Czy na pewno chcesz wyłączyć komputer?</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="103" />
+        <location filename="../src/domain/system/actions.py" line="110" />
         <source>Notifications</source>
         <translation>Powiadomienia</translation>
     </message>
     <message>
-        <location filename="../src/domain/system/actions.py" line="111" />
+        <location filename="../src/domain/system/actions.py" line="118" />
         <source>Minimize Kasual Desktop</source>
         <translation>Minimalizuj Kasual Desktop</translation>
     </message>
@@ -341,6 +337,11 @@
         <location filename="../src/domain/system/hud.py" line="52" />
         <source>Enable HUD</source>
         <translation>Włącz HUD</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/home_header.py" line="260" />
+        <source>Power</source>
+        <translation>Zasilanie</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/notifications_overlay.py" line="149" />
@@ -375,12 +376,12 @@
 </context><context>
     <name>LogViewer</name>
     <message>
-        <location filename="../src/infrastructure/common/qt/ui/log_viewer.py" line="49" />
+        <location filename="../src/infrastructure/common/qt/ui/log_viewer.py" line="50" />
         <source>Kasual Desktop – Logs</source>
         <translation>Kasual Desktop – Logi</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/ui/log_viewer.py" line="88" />
+        <location filename="../src/infrastructure/common/qt/ui/log_viewer.py" line="89" />
         <source>Clear</source>
         <translation>Wyczyść</translation>
     </message>
