@@ -3,7 +3,8 @@
 from datetime import datetime
 
 import qtawesome as qta
-from PyQt6.QtCore import Qt, QLocale, QTimer, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QLocale, QTimer, QSize, QPoint, pyqtSignal
+from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QLabel
 
 from domain.menu.entry import POWER
@@ -15,6 +16,35 @@ from domain.navigation.bar_views import TopBarView
 
 BTN_SIZE    = 56
 BTN_SPACING = 14
+
+
+class _ActionButton(QPushButton):
+    """Top-bar action button that reports genuine pointer hovers.
+
+    ``enterEvent`` must be overridden at the class level: PyQt dispatches Qt
+    virtual events to class methods, not to attributes assigned per instance, so a
+    per-button lambda never fires and the highlight never follows the mouse.
+    Mirrors :class:`AppTile`'s synthetic-enter guard, so an overlay hiding over a
+    parked cursor doesn't yank the top-bar highlight to the button under it.
+    """
+
+    hovered = pyqtSignal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._pos_at_leave: QPoint | None = None
+
+    def enterEvent(self, event) -> None:
+        super().enterEvent(event)
+        pos = event.globalPosition().toPoint()
+        synthetic = pos == self._pos_at_leave
+        self._pos_at_leave = None
+        if not synthetic:
+            self.hovered.emit()
+
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
+        self._pos_at_leave = QCursor.pos()
 
 
 class TopBar(QWidget, TopBarView, metaclass=ProtocolQtMeta):
@@ -79,15 +109,9 @@ class TopBar(QWidget, TopBarView, metaclass=ProtocolQtMeta):
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(BTN_SPACING)
 
-        def _bind_hover(btn: QPushButton, idx: int) -> None:
-            def _enter(event) -> None:
-                QPushButton.enterEvent(btn, event)
-                self.button_hovered.emit(idx)
-            btn.enterEvent = _enter
-
         for i, item in enumerate(items):
             action_type = item.action
-            btn = QPushButton()
+            btn = _ActionButton()
             btn.setFixedSize(BTN_SIZE, BTN_SIZE)
             # Navigation is gamepad/highlight-driven, so the buttons must not take
             # Qt keyboard focus. Otherwise a clicked button (notably Volume, which
@@ -99,7 +123,7 @@ class TopBar(QWidget, TopBarView, metaclass=ProtocolQtMeta):
             btn.setIconSize(QSize(24, 24))
             btn.setStyleSheet(styles.topbar_normal(item.color))
             btn.clicked.connect(lambda _, t=action_type: self.action_triggered.emit(t))
-            _bind_hover(btn, i)
+            btn.hovered.connect(lambda i=i: self.button_hovered.emit(i))
             if action_type == POWER:
                 self._add_dropdown_badge(btn)
             btn_layout.addWidget(btn)

@@ -27,7 +27,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import (
     Qt, QTimer, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve, pyqtSignal,
 )
-from PyQt6.QtGui import QGuiApplication
+from PyQt6.QtGui import QGuiApplication, QRegion
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGraphicsOpacityEffect
 
 from domain.catalog.target import Target
@@ -107,11 +107,18 @@ class HomeSurface(QWidget):
         self.setWindowTitle("Kasual Home")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        # Gamepad-driven, like the hint bar: never intercept the pointer, so the
-        # transparent area below the collapsed header never blocks the tiles.
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setStyleSheet("background: transparent;")
         self.setFixedHeight(SURFACE_H)
+        # The surface is always SURFACE_H tall (sized for the expanded menu) but
+        # mostly empty when collapsed. A blanket WA_TransparentForMouseEvents used
+        # to keep the pointer off that empty strip so the tiles below stayed
+        # clickable — but on Wayland that sets an empty input region, so the header
+        # and menu never saw the mouse either. Instead we scope the input region to
+        # just the interactive area via a mask: the header alone when collapsed,
+        # the whole surface when the menu is open (see _refresh_input_region).
+        # Held open while a child popover (the Power chooser) floats over the
+        # collapsed header, so the header-only mask doesn't clip it.
+        self._input_open_hold = False
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(16, TOP_MARGIN, 16, TOP_MARGIN)
@@ -164,6 +171,54 @@ class HomeSurface(QWidget):
         while this holds even when the Desktop itself is down."""
         return self._expanded or self._on_demand
 
+    # ── Pointer input region ─────────────────────────────────────────────────
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # Geometry isn't laid out yet at the first show; settle the mask next tick.
+        QTimer.singleShot(0, self._refresh_input_region)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_input_region()
+
+    def _refresh_input_region(self) -> None:
+        """Scope the pointer input region to the interactive area.
+
+        Collapsed and idle → only the header strip takes the pointer, so the tiles
+        below the (tall) surface stay clickable. Open (expanded / on-demand) or
+        while a child popover is held over the header → the whole surface, so the
+        menu and any dropdown receive the mouse. The mask also clips painting, so
+        it is only narrowed to the header once nothing else is visible (the morph
+        has finished); callers time it accordingly."""
+        if not self.isVisible():
+            return
+        if self.is_open() or self._input_open_hold:
+            self.clearMask()
+        else:
+            self.setMask(QRegion(self._header.geometry()))
+
+    def hold_input_open(self, hold: bool) -> None:
+        """Keep the full input region while a child popover (the Power chooser)
+        floats over the collapsed header, then restore the header-only mask when it
+        closes — otherwise the header mask would clip the dropdown below it."""
+        self._input_open_hold = hold
+        self._refresh_input_region()
+
+    # ── Header mouse while expanded (the header is the menu's zone 0) ─────────
+    # Routed here by the Desktop when the menu is open, so a hover/click/right-click
+    # on the status header drives the menu's own zone navigation rather than the
+    # collapsed Home view's FocusNavigator.
+
+    def hover_header(self, index: int) -> None:
+        self._content.hover_header(index)
+
+    def activate_header(self, index: int) -> None:
+        self._content.activate_header(index)
+
+    def context_header(self, index: int) -> None:
+        self._content.context_header(index)
+
     # ── Surface ────────────────────────────────────────────────────────────────
 
     def install_surface(self) -> None:
@@ -208,6 +263,8 @@ class HomeSurface(QWidget):
         self._gamepad.push_handler(self._content.handle_pad)
         self._feedback.play(Cue.POPUP_OPEN)
         self._morph(open_=True)
+        # Widen to the full surface at once so the growing panel takes the mouse.
+        self._refresh_input_region()
 
     def collapse(self) -> None:
         """Morph closed: drop the pad, restore the screen hints, animate away.
@@ -219,6 +276,9 @@ class HomeSurface(QWidget):
         self._teardown_menu()
         self._morph(open_=False)
         self._end_hints()
+        # Narrow back to the header only *after* the panel has morphed away — the
+        # mask clips painting, so shrinking it early would snap the closing panel.
+        QTimer.singleShot(MORPH_MS, self._refresh_input_region)
 
     def collapse_immediately(self) -> None:
         """Snap to the collapsed visuals with no animation and drop the menu if it
@@ -237,6 +297,7 @@ class HomeSurface(QWidget):
         # commits a new one, and setting maxHeight/opacity while unmapped triggers
         # no repaint — so the old menu lingers as a dead (non-interactive) ghost.
         self._panel.hide()
+        self._refresh_input_region()   # snapped collapsed → header-only mask
         if self.isVisible():
             self.repaint()
             # And once more after the re-map settles: right after show() the
@@ -290,6 +351,7 @@ class HomeSurface(QWidget):
         self._opacity.setOpacity(1.0)
         self._gamepad.push_handler(self._content.handle_pad)
         self._feedback.play(Cue.POPUP_OPEN)
+        self._refresh_input_region()   # mapped already open → full input region
 
     def hide_overlay(self) -> None:
         """Unmap the on-demand overlay (contexts 2/3). Idempotent."""

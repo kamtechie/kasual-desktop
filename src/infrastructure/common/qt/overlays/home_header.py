@@ -22,7 +22,8 @@ Both roles ultimately open the same Network / Notifications overlay, so a single
 import qtawesome as qta
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt, QSize, QTimer, QLocale
+from PyQt6.QtCore import Qt, QSize, QTimer, QLocale, QPoint, pyqtSignal
+from PyQt6.QtGui import QCursor
 from datetime import datetime
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
@@ -52,8 +53,54 @@ def _btn_style(selected: bool) -> str:
     return f"background: transparent; border: 2px solid transparent; border-radius: {_BTN // 2}px;"
 
 
+class _HeaderButton(QPushButton):
+    """Header action button that reports genuine pointer hovers.
+
+    ``enterEvent`` must be overridden at the class level: PyQt dispatches Qt
+    virtual events to class methods, not to attributes assigned per instance, so
+    the highlight can follow the mouse only from here. Mirrors :class:`AppTile`'s
+    synthetic-enter guard, so an overlay hiding over a parked cursor doesn't yank
+    the header highlight to the button under it.
+    """
+
+    hovered       = pyqtSignal()
+    right_clicked = pyqtSignal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._pos_at_leave: QPoint | None = None
+
+    def enterEvent(self, event) -> None:
+        super().enterEvent(event)
+        pos = event.globalPosition().toPoint()
+        synthetic = pos == self._pos_at_leave
+        self._pos_at_leave = None
+        if not synthetic:
+            self.hovered.emit()
+
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
+        self._pos_at_leave = QCursor.pos()
+
+    def mousePressEvent(self, event) -> None:
+        # Right-click opens the button's dropdown (the Power chooser), mirroring a
+        # right-click on a tile opening its popover. The host decides which buttons
+        # actually have a menu.
+        if event.button() == Qt.MouseButton.RightButton:
+            self.right_clicked.emit()
+        else:
+            super().mousePressEvent(event)
+
+
 class HomeHeader(QWidget):
     """Clock + date + focusable Network / Notifications buttons (a TopBarView)."""
+
+    # Mouse parity with the tile bar: hover moves the highlight onto a button,
+    # a click activates it. Both carry the button index; the Desktop routes them
+    # through the FocusNavigator, exactly like the gamepad path.
+    button_hovered      = pyqtSignal(int)
+    button_activated    = pyqtSignal(int)
+    button_context_menu = pyqtSignal(int)   # right-click → the button's dropdown (Power)
 
     def __init__(self, on_activate: Callable[[str], None], width: int) -> None:
         super().__init__()
@@ -98,6 +145,11 @@ class HomeHeader(QWidget):
         self._power_btn = self._make_button(_POWER_GLYPH)
         row.addWidget(self._power_btn)
 
+        for i, btn in enumerate((self._net_btn, self._notif_btn, self._power_btn)):
+            btn.hovered.connect(lambda i=i: self.button_hovered.emit(i))
+            btn.clicked.connect(lambda _, i=i: self.button_activated.emit(i))
+            btn.right_clicked.connect(lambda i=i: self.button_context_menu.emit(i))
+
         # Notification count badge in the bell button's corner (hidden at 0).
         self._notif_badge = QLabel(self._notif_btn)
         self._notif_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -128,8 +180,8 @@ class HomeHeader(QWidget):
         timer.timeout.connect(self._tick_clock)
         timer.start(1000)
 
-    def _make_button(self, glyph: str) -> QPushButton:
-        btn = QPushButton()
+    def _make_button(self, glyph: str) -> _HeaderButton:
+        btn = _HeaderButton()
         btn.setFixedSize(_BTN, _BTN)
         btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         btn.setIcon(qta.icon(glyph, color="white"))

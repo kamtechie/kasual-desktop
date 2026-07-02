@@ -181,6 +181,12 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             self._home_header = HomeHeader(self._open_system_action, CARD_WIDTH)
             if power_preference is not None:
                 self._home_header.set_power_icon(ACTIONS[power_preference.default()].icon)
+            # Mouse parity with the tile bar: hover moves the highlight, a click
+            # activates the button — routed through the same navigator slots the
+            # plain top bar uses (and gamepad A follows).
+            self._home_header.button_hovered.connect(self._on_topbar_hovered)
+            self._home_header.button_activated.connect(self._on_topbar_activated)
+            self._home_header.button_context_menu.connect(self._on_topbar_context_menu)
             self._topbar = self._home_header
         else:
             power_default = power_preference.default() if power_preference else SLEEP
@@ -514,8 +520,37 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             return
         self._nav.hover_tiles()
 
+    def _menu_owns_header(self) -> bool:
+        """True while the expanded Home menu is up: the header is then its navigable
+        zone 0, so header mouse events drive the menu, not the collapsed-view nav."""
+        return self._home_surface is not None and self._home_surface.is_open()
+
     def _on_topbar_hovered(self, idx: int) -> None:
-        self._nav.hover_topbar(idx)
+        if self._menu_owns_header():
+            self._home_surface.hover_header(idx)
+        else:
+            self._nav.hover_topbar(idx)
+
+    def _on_topbar_activated(self, idx: int) -> None:
+        """A mouse click on a top-bar button: move focus onto it and fire it,
+        matching the gamepad A path (Network/Notifications open their overlay,
+        Power runs the current default). While the menu is expanded the header is
+        its zone 0, so the click dispatches through the menu instead."""
+        if self._menu_owns_header():
+            self._home_surface.activate_header(idx)
+        else:
+            self._nav.hover_topbar(idx)
+            self._topbar.trigger(idx)
+
+    def _on_topbar_context_menu(self, idx: int) -> None:
+        """A right-click on a top-bar button opens its dropdown — only Power has one
+        (the Sleep/Restart/Shut Down chooser), matching the gamepad X path. Mirrors
+        a right-click on a tile opening its popover."""
+        if self._menu_owns_header():
+            self._home_surface.context_header(idx)
+        else:
+            self._nav.hover_topbar(idx)
+            self._show_topbar_power_menu(idx)
 
     def _on_tile_context_menu(self) -> None:
         self._nav.focus_tiles()
@@ -874,11 +909,20 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._overlays.register(popover)
         popover.closed.connect(self._on_topbar_power_closed)
         self._hintbar.show_hints(home_hints.TILE_POPOVER)
+        # The chooser is a child of the Home surface; while the surface is collapsed
+        # its input region is masked to the header alone, which would clip this
+        # dropdown below it — hold the region open for the chooser's lifetime.
+        if self._home_surface is not None and parent is self._home_surface:
+            self._home_surface.hold_input_open(True)
         popover.show_below(button, gap=gap)
 
     def _on_topbar_power_closed(self) -> None:
         self._overlays.forget(self._topbar_power_popover)
         self._topbar_power_popover = None
+        # Release the input-region hold taken while the chooser floated over the
+        # collapsed header, so it narrows back to the header-only mask.
+        if self._home_surface is not None:
+            self._home_surface.hold_input_open(False)
         # Restore the controls of whatever the chooser floated over: the expanded
         # Home menu's own hints (§8) if it is up, else the navigator's screen hints.
         if self._home_surface is not None and self._home_surface.is_open():

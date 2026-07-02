@@ -21,8 +21,8 @@ import logging
 from collections.abc import Callable
 
 import qtawesome as qta
-from PyQt6.QtCore import Qt, QSize, QPoint
-from PyQt6.QtGui import QPainterPath, QRegion
+from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
+from PyQt6.QtGui import QPainterPath, QRegion, QCursor
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QSlider,
@@ -58,15 +58,63 @@ _QUICK_WIDTH = _LIST_WIDTH
 _QUICK_RADIUS = 20
 
 
+def _is_synthetic_enter(widget, event) -> bool:
+    """True if this enterEvent is the synthetic one Qt delivers when a widget maps
+    under a stationary cursor (same global pos as the last leave) rather than a real
+    move — mirrors AppTile, so the panel expanding under a parked pointer doesn't
+    hijack the pre-focused card. Latches the leave position on the widget."""
+    pos = event.globalPosition().toPoint()
+    synthetic = pos == getattr(widget, "_pos_at_leave", None)
+    widget._pos_at_leave = None
+    return synthetic
+
+
 class _RoundedFrame(QFrame):
-    """QFrame that clips its children to a rounded rectangle via setMask.
-    Mirrors the border-radius from _quick_row_style."""
+    """QFrame that clips its children to a rounded rectangle via setMask (mirrors the
+    border-radius from _quick_row_style) and reports genuine pointer hovers."""
+
+    hovered = pyqtSignal()
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._pos_at_leave: QPoint | None = None
+
+    def enterEvent(self, event) -> None:
+        super().enterEvent(event)
+        if not _is_synthetic_enter(self, event):
+            self.hovered.emit()
+
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
+        self._pos_at_leave = QCursor.pos()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         path = QPainterPath()
         path.addRoundedRect(0, 0, self.width(), self.height(), _QUICK_RADIUS, _QUICK_RADIUS)
         self.setMask(QRegion(path.toFillPolygon().toPolygon()))
+
+
+class _MenuCard(QPushButton):
+    """A menu action card that reports genuine pointer hovers (mouse parity with the
+    tile bar). enterEvent is overridden at the class level, since PyQt only
+    dispatches Qt virtual events to class methods; the synthetic-enter guard mirrors
+    AppTile."""
+
+    hovered = pyqtSignal()
+
+    def __init__(self, text: str, parent=None) -> None:
+        super().__init__(text, parent)
+        self._pos_at_leave: QPoint | None = None
+
+    def enterEvent(self, event) -> None:
+        super().enterEvent(event)
+        if not _is_synthetic_enter(self, event):
+            self.hovered.emit()
+
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
+        self._pos_at_leave = QCursor.pos()
 
 
 _SLIDER_QSS = """
@@ -124,6 +172,9 @@ class HomeMenuContent(QWidget):
 
         self._zones: list[_Zone] = []
         self._active = 0
+        # Guards the slider valueChanged handler against our own programmatic
+        # setValue (gamepad adjust / clamp reflection), so only user drags dispatch.
+        self._syncing_slider = False
         self._quick_state: list[dict] = []   # aligned with the quick zone's items
         self._power_card: QWidget | None = None  # the Power split-button (X opens its dropdown)
         self._dropdown: dict | None = None   # the open Power dropdown, while expanded
@@ -217,18 +268,20 @@ class HomeMenuContent(QWidget):
                 self._zones.append(self._build_cards(section))
 
     def _build_quick(self, section: HomeSection) -> _Zone:
+        zone_index = len(self._zones)   # the index this zone takes once appended
         container = QWidget()
         container.setStyleSheet("background: transparent;")
         col = QVBoxLayout(container)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(18)
         rows: list[QWidget] = []
-        for item in section.items:
+        for row_i, item in enumerate(section.items):
             control = self._control_for(item.action)
             value = control.get()
             row = _RoundedFrame()
             row.setFrameShape(QFrame.Shape.NoFrame)
             row.setStyleSheet(_quick_row_style(False))
+            row.hovered.connect(lambda zi=zone_index, ci=row_i: self._hover_item(zi, ci))
             rl = QHBoxLayout(row)
             rl.setContentsMargins(12, 8, 12, 8)
             rl.setSpacing(12)
@@ -241,6 +294,8 @@ class HomeMenuContent(QWidget):
             slider.setValue(value.value)
             slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             slider.setStyleSheet(_SLIDER_QSS)
+            slider.valueChanged.connect(
+                lambda raw, zi=zone_index, ci=row_i: self._on_slider(zi, ci, raw))
             rl.addWidget(slider, 1)
             vlabel = QLabel(f"{value.value}%")
             vlabel.setFixedWidth(52)
@@ -259,6 +314,7 @@ class HomeMenuContent(QWidget):
         return _Zone(SectionKind.QUICK, section.items, rows)
 
     def _build_cards(self, section: HomeSection) -> _Zone:
+        zone_index = len(self._zones)   # the index this zone takes once appended
         columns = _ACTIONS_COLUMNS if section.kind == SectionKind.ACTIONS else 1
         container = QWidget()
         container.setStyleSheet("background: transparent;")
@@ -271,13 +327,16 @@ class HomeMenuContent(QWidget):
             # bar's "Options") advertise the dropdown so it stays discoverable.
             is_power = item.action == POWER
             label = "  " + item.label + ("   ▾" if is_power else "")
-            card = QPushButton(label)
+            card = _MenuCard(label)
             card.setMinimumHeight(58)
             card.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             if item.icon:
                 card.setIcon(qta.icon(item.icon, color="white"))
                 card.setIconSize(QSize(22, 22))
             card.setStyleSheet(styles.home_menu_item_normal())
+            card.hovered.connect(lambda zi=zone_index, ci=idx: self._hover_item(zi, ci))
+            card.clicked.connect(
+                lambda _=False, zi=zone_index, ci=idx: self._click_item(zi, ci))
             grid.addWidget(card, idx // columns, idx % columns)
             cards.append(card)
             if is_power:
@@ -451,7 +510,9 @@ class HomeMenuContent(QWidget):
             return
         state["value"] = new
         state["control"].set(new)
+        self._syncing_slider = True
         state["slider"].setValue(new.value)
+        self._syncing_slider = False
         state["vlabel"].setText(f"{new.value}%")
         self._feedback.play(Cue.CURSOR)
 
@@ -493,6 +554,79 @@ class HomeMenuContent(QWidget):
         self._request_hide()
         if self._on_cancel is not None:
             self._on_cancel()
+
+    # ── Mouse (hover / click) — parity with the tile bar ─────────────────────
+
+    def _hover_item(self, zone_i: int, item_i: int) -> None:
+        """Pointer moved onto a card or quick row: take the selection there."""
+        if self._dropdown is not None:
+            return
+        zone = self._zones[zone_i]
+        if self._active == zone_i and zone.index == item_i:
+            return
+        self._active = zone_i
+        zone.index = item_i
+        self._render()
+        self._sync_hints()
+        self._feedback.play(Cue.CURSOR)
+
+    def _click_item(self, zone_i: int, item_i: int) -> None:
+        """Left-click on a card: select it, then activate (as gamepad A does)."""
+        if self._dropdown is not None:
+            return
+        zone = self._zones[zone_i]
+        self._active = zone_i
+        zone.index = item_i
+        self._activate(zone.items[item_i])
+
+    def _on_slider(self, zone_i: int, item_i: int, raw: int) -> None:
+        """A user drag on a quick-adjust slider: select the row and set the level.
+        Ignores our own programmatic setValue (guarded), and reflects the domain's
+        clamp (e.g. the brightness floor) back onto the slider."""
+        if self._syncing_slider:
+            return
+        state = self._quick_state[item_i]
+        self._active = zone_i
+        self._zones[zone_i].index = item_i
+        new = type(state["value"])(raw)
+        if new.value != state["value"].value:
+            state["value"] = new
+            state["control"].set(new)
+            state["vlabel"].setText(f"{new.value}%")
+            if new.value != raw:   # domain re-clamped → snap the handle to it
+                self._syncing_slider = True
+                state["slider"].setValue(new.value)
+                self._syncing_slider = False
+        self._render()
+        self._sync_hints()
+
+    # ── Header zone (§8) mouse — routed from the Desktop while the menu is open ──
+
+    def _header_zone(self) -> int | None:
+        return next((zi for zi, z in enumerate(self._zones)
+                     if z.kind == SectionKind.HEADER), None)
+
+    def hover_header(self, index: int) -> None:
+        zi = self._header_zone()
+        if zi is not None:
+            self._hover_item(zi, index)
+
+    def activate_header(self, index: int) -> None:
+        zi = self._header_zone()
+        if zi is not None:
+            self._click_item(zi, index)
+
+    def context_header(self, index: int) -> None:
+        """Right-click on a header button while the menu is open: open its dropdown
+        (only Power has one — the chooser); a no-op on the others."""
+        zi = self._header_zone()
+        if zi is None or self._dropdown is not None:
+            return
+        zone = self._zones[zi]
+        self._active = zi
+        zone.index = index
+        self._render()
+        self._open_dropdown(zone.items[index])
 
     # ── Power dropdown (X on the Power card) ─────────────────────────────────
 
