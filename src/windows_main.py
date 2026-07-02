@@ -156,7 +156,6 @@ def main():
         from domain.system.actions import ActionDeps
         from infrastructure.common.qt.ui.tray import SystemTray
         from infrastructure.common.qt.overlays.about_overlay import AboutOverlay
-        from infrastructure.common.qt.overlays.home_overlay import HomeOverlayFactory
         from domain.system.power_menu import PowerMenu
         from domain.system.action_view import make_action_confirm
         from infrastructure.windows.qt.log_window import LogWindow
@@ -170,7 +169,6 @@ def main():
         notification_source = WindowsNotificationSource()
         notification_source.on_notification(notification_center.record)
 
-        home_surface = bool(os.environ.get("KASUAL_HOME_SURFACE"))
         desktop = build_desktop(
             apps=load_apps(),
             gamepad=gamepad,
@@ -200,11 +198,10 @@ def main():
             deferred_hide_factory=lambda _wm, _pm, _apps, _on_hide:
                 TimedLaunchHide(on_hide=surface.hide_for_launch),
             power_preference=power_preference,
-            # §8 / Faza 5 (experimental, off by default): the persistent Home
-            # surface uses the same internal morph here, with no layer-shell — a
-            # plain WS_EX_TOPMOST top-level the Desktop positions at the top edge
-            # (promote_overlay_surface + position_at_top). Opt in: KASUAL_HOME_SURFACE=1.
-            home_surface_enabled=home_surface,
+            # §8 / Faza 5: the persistent Home surface uses the same internal morph
+            # here, with no layer-shell — a plain WS_EX_TOPMOST top-level the Desktop
+            # positions at the top edge (promote_overlay_surface + position_at_top).
+            home_surface_enabled=True,
         )
 
         # In-process log viewer (Windows has no layer-shell, so unlike Linux we
@@ -230,10 +227,7 @@ def main():
             action_deps=ActionDeps(desktop=desktop, power=power),
             tray=tray,
             wm=wm,
-            overlay_factory=(
-                desktop.home_overlay_factory() if home_surface
-                else HomeOverlayFactory(gamepad, feedback, volume, brightness, power_menu)
-            ),
+            overlay_factory=desktop.home_overlay_factory(),
             hud=WindowsRtssHudControl(),
         )
         _refs.update(desktop=desktop, tray=tray, controller=controller)
