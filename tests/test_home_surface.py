@@ -3,7 +3,8 @@
 Offscreen widget tests: drive expand/collapse and the embedded content's pad
 handler, asserting the morph state, the gamepad handler push/pop, the hint
 begin/end bracketing, and that activating an item dispatches and collapses. The
-sectioned content's own navigation is covered by test_home_overlay (same widget).
+sectioned content's own navigation is covered by test_home_sections (the pure
+model); here we test the surface's lifecycle and side effects.
 """
 
 from unittest.mock import MagicMock
@@ -183,9 +184,9 @@ class TestDispatch:
         surface.expand()
         content = surface._content
         zi, ci = next((zi, ci)
-                      for zi, z in enumerate(content._zones)
+                      for zi, z in enumerate(content.zones)
                       for ci, it in enumerate(z.items) if it.action == NETWORK)
-        content._active, content._zones[zi].index = zi, ci
+        content.active, content.zones[zi].index = zi, ci
         content.handle_pad(Event.SELECT)
         assert spy.actions == [NETWORK]
         assert surface.is_expanded() is False
@@ -194,7 +195,7 @@ class TestDispatch:
         surface, _ = _surface(qapp)
         surface.expand()
         from domain.menu.home import SectionKind
-        actions = next(z for z in surface._content._zones
+        actions = next(z for z in surface._content.zones
                        if z.kind == SectionKind.ACTIONS)
         assert all(it.action != NETWORK for it in actions.items)
 
@@ -206,10 +207,10 @@ class TestDispatch:
         from domain.menu.home import SectionKind
         # Walk up until we land on the header zone (header ← quick ← actions).
         for _ in range(5):
-            if content._zones[content._active].kind == SectionKind.HEADER:
+            if content.zones[content.active].kind == SectionKind.HEADER:
                 break
             content.handle_pad(Event.UP)
-        assert content._zones[content._active].kind == SectionKind.HEADER
+        assert content.zones[content.active].kind == SectionKind.HEADER
         # The header navigates left/right, so its hint set advertises that (not the
         # up/down of the Actions list).
         from domain.navigation import hints as nav_hints
@@ -221,14 +222,14 @@ class TestDispatch:
         surface.expand()
         from domain.menu.home import SectionKind
         from domain.navigation import hints as nav_hints
-        assert surface._content._zones[surface._content._active].kind == SectionKind.ACTIONS
+        assert surface._content.zones[surface._content.active].kind == SectionKind.ACTIONS
         assert spy.pushed_hints[-1] is nav_hints.OVERLAY_ACTIONS
 
     def _focus_header_power(self, content):
         zi, ci = next((zi, ci)
-                      for zi, z in enumerate(content._zones)
+                      for zi, z in enumerate(content.zones)
                       for ci, it in enumerate(z.items) if it.action == POWER)
-        content._active, content._zones[zi].index = zi, ci
+        content.active, content.zones[zi].index = zi, ci
 
     def test_power_in_header_A_runs_default_and_collapses(self, qapp):
         # A on the header's Power runs the current default action and collapses the
@@ -260,7 +261,7 @@ class TestDispatch:
         surface, _ = _surface(qapp)
         surface.expand()
         from domain.menu.home import SectionKind
-        actions = next(z for z in surface._content._zones
+        actions = next(z for z in surface._content.zones
                        if z.kind == SectionKind.ACTIONS)
         assert all(it.action != POWER for it in actions.items)
 
@@ -367,6 +368,43 @@ class TestOnDemand:
         assert [i.action for i in dispatched] == [RETURN_TO_APP]
         assert surface.is_showing() is False
 
+    def test_cancel_invokes_on_cancel_and_hides(self, qapp):
+        # B over an app runs the controller's on_cancel (return to the app) and
+        # tears down the on-demand overlay.
+        cancelled = []
+        surface, _ = _surface(qapp)
+        self._show_over_app(surface, on_cancel=lambda: cancelled.append(1))
+        surface._content.handle_pad(Event.CANCEL)
+        assert cancelled == [1]
+        assert surface.is_showing() is False
+
+    def test_minimized_focuses_hide_desktop(self, qapp):
+        # Over a minimized Kasual the surface opens focused on "Minimize"'s
+        # counterpart — HIDE_DESKTOP is the restore entry, pre-focused so A
+        # brings the Desktop back.
+        from domain.menu.home import SectionKind
+        surface, _ = _surface(qapp)
+        surface.show_for_context(
+            foreground=None, foreground_is_game=False, hud=FakeHud(),
+            on_action=lambda i: None, on_cancel=None, set_hints=lambda h: None,
+            desktop_minimized=True,
+        )
+        content = surface._content
+        zone = content.zones[content.active]
+        assert zone.kind == SectionKind.ACTIONS
+        assert zone.items[zone.index].action == "hide_desktop"
+
+    def test_x_on_non_power_card_hides_like_cancel(self, qapp):
+        # X (the tile-popover button) on anything but Power dismisses the overlay
+        # the same way B does — over an app it runs on_cancel and hides.
+        cancelled = []
+        surface, _ = _surface(qapp)
+        self._show_over_app(surface, on_cancel=lambda: cancelled.append(1))
+        # Pre-focus is "Return to {app}" (not Power), so X dismisses.
+        surface._content.handle_pad(Event.CLOSE)
+        assert cancelled == [1]
+        assert surface.is_showing() is False
+
     def test_dispose_is_noop(self, qapp):
         surface, _ = _surface(qapp)
         surface.dispose()        # persistent surface — must not raise or delete
@@ -382,10 +420,10 @@ class TestOnDemand:
         # Focus the "Return to Home screen" card and activate it.
         content = surface._content
         zi, ci = next((zi, ci)
-                      for zi, z in enumerate(content._zones)
+                      for zi, z in enumerate(content.zones)
                       for ci, it in enumerate(z.items)
                       if it.action == RETURN_TO_DESKTOP)
-        content._active, content._zones[zi].index = zi, ci
+        content.active, content.zones[zi].index = zi, ci
         content.handle_pad(Event.SELECT)
         assert [i.action for i in dispatched] == [RETURN_TO_DESKTOP]
         assert surface.is_showing() is False        # overlay torn down, not left up

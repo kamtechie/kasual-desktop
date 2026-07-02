@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class Application:
     """
     Connects all application components and handles global events:
-      - BTN_MODE → builds context menu and shows HomeOverlay
+      - BTN_MODE → builds context menu and shows the Home overlay (HomeSurface)
       - connect / disconnect → synchronizes state of desktop, overlay, and tray
     """
 

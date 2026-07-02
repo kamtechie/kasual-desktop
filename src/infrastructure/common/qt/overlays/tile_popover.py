@@ -14,6 +14,7 @@ from domain.menu.entry import SEPARATOR
 from domain.menu.item import MenuItem
 from domain.shared.feedback import Cue, Feedback
 from infrastructure.common.qt.ui import styles
+from infrastructure.common.qt.ui.nav_key_map import nav_key_map
 
 logger = logging.getLogger(__name__)
 
@@ -150,12 +151,8 @@ class TilePopoverMenu(QWidget):
             self.deleteLater()
 
     _KEY_MAP = {
-        Qt.Key.Key_Up:     Event.UP,
-        Qt.Key.Key_Down:   Event.DOWN,
-        Qt.Key.Key_Return: Event.SELECT,
-        Qt.Key.Key_Enter:  Event.SELECT,
-        Qt.Key.Key_Escape: Event.CANCEL,
-        Qt.Key.Key_Q:      Event.CANCEL,
+        **nav_key_map(),
+        Qt.Key.Key_Q: Event.CANCEL,
     }
 
     def keyPressEvent(self, event) -> None:

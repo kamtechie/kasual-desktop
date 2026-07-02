@@ -4,7 +4,7 @@ Windows gamepad implementation using pygame.
 Cooperative model: ALL apps see gamepad events simultaneously.
 There is no exclusive grab on Windows without a kernel driver.
 
-BTN_MODE handling: On Windows, BTN_MODE always triggers HomeOverlay
+BTN_MODE handling: On Windows, BTN_MODE always triggers the Home overlay
 (because we can't intercept it without grab). This is a design
 decision - the Windows shell takeover model means we're the only
 active shell anyway.
@@ -177,10 +177,11 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
         elif button == BTN_TR:
             self._hop_nav(Event.SECTION_NEXT)
         elif button == BTN_START:
+            # Start+Select is the home-recall chord; Start alone is a no-op. (It
+            # used to emit Event.MANAGE for the tile-management popover, but that
+            # was superseded by the unified Y popover, §7.3.)
             if BTN_SELECT in self._held:
                 self._hop_btn_mode()
-            else:
-                self._hop_nav(Event.MANAGE)
 
     def _handle_button_up(self, button: int):
         """Handle button release."""

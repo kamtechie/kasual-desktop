@@ -18,7 +18,6 @@ from PyQt6.QtWidgets import (
 )
 
 from domain.input.pad_control import PadControl
-from domain.input.vocabulary import Event
 from domain.menu.cursor import MenuCursor
 from domain.notifications.center import NotificationCenter
 from domain.notifications.view import relative_age
@@ -26,6 +25,7 @@ from domain.shared.feedback import Cue, Feedback
 from domain.shared.text import truncate
 from domain.shared.i18n import translate
 from infrastructure.common.qt.ui import styles
+from infrastructure.common.qt.ui.nav_key_map import nav_key_map
 from .base_overlay import BaseOverlay
 
 _MAX_ROWS        = 12     # how many recent notifications to show
@@ -269,13 +269,7 @@ class NotificationsOverlay(BaseOverlay):
         if 0 <= index < len(self._rows):
             self._scroll.ensureWidgetVisible(self._rows[index])
 
-    _KEY_MAP = {
-        Qt.Key.Key_Up:     Event.UP,
-        Qt.Key.Key_Down:   Event.DOWN,
-        Qt.Key.Key_Return: Event.SELECT,
-        Qt.Key.Key_Enter:  Event.SELECT,
-        Qt.Key.Key_Escape: Event.CANCEL,
-    }
+    _KEY_MAP = nav_key_map()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         mapped = self._KEY_MAP.get(event.key())

@@ -388,10 +388,10 @@ class HomeSurface(QWidget):
     def refresh_hints(self) -> None:
         """Re-push the menu's own hint set — used after a chooser popover that
         floated over the open menu closes (§8)."""
-        self._content._sync_hints()
+        self._content.sync_hints()
 
     def _teardown_menu(self) -> None:
-        self._content._close_dropdown()
+        self._content.close_dropdown()
         self._gamepad.pop_handler(self._content.handle_pad)
 
     def _morph(self, *, open_: bool) -> None:

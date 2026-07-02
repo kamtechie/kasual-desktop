@@ -178,13 +178,6 @@
         <translation type="unfinished" />
     </message>
 </context><context>
-    <name>HomeOverlay</name>
-    <message>
-        <location filename="../src/infrastructure/common/qt/overlays/home_overlay.py" line="87" />
-        <source>Kasual Desktop</source>
-        <translation type="unfinished" />
-    </message>
-</context><context>
     <name>InfoDialog</name>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/info_dialog.py" line="47" />

@@ -269,7 +269,7 @@ class AppLifecycle(AppControl):
                 # Re-establish gamepad control even when the Desktop window is
                 # already visible: restore_app() popped our handler, so a bare
                 # visible window would leave the pad unresponsive. Only seize
-                # input if nobody else owns it (an open HomeOverlay sits on top
+                # input if nobody else owns it (an open Home surface sits on top
                 # of the handler stack and must keep receiving events).
                 top = self._gamepad.top_handler()
                 if top is None or top == self._pad_handler:

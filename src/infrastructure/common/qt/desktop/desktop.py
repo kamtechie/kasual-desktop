@@ -54,6 +54,7 @@ from domain.shell.open_overlays import OpenOverlays
 from domain.system.desktop_shell import DesktopShell
 from domain.shell.wallpaper import SystemWallpaper
 from infrastructure.common.qt._meta import ProtocolQtMeta
+from infrastructure.common.qt.ui.nav_key_map import nav_key_map
 from .hint_bar import HintBar
 from .home_surface import HomeSurface
 from .tile_bar import TileBar
@@ -64,21 +65,16 @@ logger = logging.getLogger(__name__)
 
 # Keyboard keys → navigation events, so a keyboard drives the same handler stack
 # (injected via the gamepad). Translating Qt key codes is an input-edge concern;
-# FocusNavigator itself deals only in abstract domain events.
+# FocusNavigator itself deals only in abstract domain events. The directional +
+# confirm/dispatch core is shared (see nav_key_map); here we add the desktop-only
+# shortcuts (Q → close, the Section bumpers, and the Volume triggers).
 _KEY_MAP = {
-    Qt.Key.Key_Left:   Event.LEFT,
-    Qt.Key.Key_Right:  Event.RIGHT,
-    Qt.Key.Key_Up:     Event.UP,
-    Qt.Key.Key_Down:   Event.DOWN,
-    Qt.Key.Key_Return: Event.SELECT,
-    Qt.Key.Key_Enter:  Event.SELECT,
-    Qt.Key.Key_Escape: Event.CANCEL,
-    Qt.Key.Key_Q:      Event.CLOSE,
-    Qt.Key.Key_F2:     Event.MANAGE,
-    Qt.Key.Key_BracketLeft:  Event.SECTION_PREV,   # LB
-    Qt.Key.Key_BracketRight: Event.SECTION_NEXT,   # RB
-    Qt.Key.Key_Minus:        Event.VOLUME_DOWN,    # LT
-    Qt.Key.Key_Equal:        Event.VOLUME_UP,      # RT
+    **nav_key_map(),
+    Qt.Key.Key_Q:               Event.CLOSE,
+    Qt.Key.Key_BracketLeft:    Event.SECTION_PREV,   # LB
+    Qt.Key.Key_BracketRight:   Event.SECTION_NEXT,   # RB
+    Qt.Key.Key_Minus:          Event.VOLUME_DOWN,    # LT
+    Qt.Key.Key_Equal:          Event.VOLUME_UP,      # RT
 }
 
 
@@ -816,7 +812,16 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def home_overlay_factory(self) -> 'PersistentOverlayFactory':
         """The SectionedOverlayFactory the controller uses in persistent-surface
         mode: every BTN_MODE over an app / minimized Kasual (contexts 2/3) reuses
-        this one surface instead of mapping a fresh overlay (§8)."""
+        this one surface instead of mapping a fresh overlay (§8).
+
+        Fail fast if :meth:`set_power_menu` hasn't built the surface yet — the
+        factory dereferences it, so a wrong wiring order would otherwise surface
+        as an opaque AttributeError later."""
+        if self._home_surface is None:
+            raise RuntimeError(
+                "home_overlay_factory() called before set_power_menu() — the "
+                "Home surface is not built yet."
+            )
         from .home_surface import PersistentOverlayFactory
         return PersistentOverlayFactory(self._home_surface)
 

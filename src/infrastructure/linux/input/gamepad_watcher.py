@@ -281,12 +281,11 @@ class GamepadWatcher(BaseGamepadWatcher):
             elif ev.code == ecodes.BTN_TR:
                 self._hop_nav(Event.SECTION_NEXT)
             elif ev.code == ecodes.BTN_START:
-                # Start+Select is the home-recall chord; Start alone opens the
-                # tile management popover (Select must be held first for the chord).
+                # Start+Select is the home-recall chord; Start alone is a no-op.
+                # (It used to emit Event.MANAGE for the tile-management popover,
+                # but that was superseded by the unified Y popover, §7.3.)
                 if ecodes.BTN_SELECT in held:
                     self._hop_btn_mode()
-                else:
-                    self._hop_nav(Event.MANAGE)
         elif ev.value == 0:
             held.discard(ev.code)
 

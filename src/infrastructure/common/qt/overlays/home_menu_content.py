@@ -2,13 +2,11 @@
 
 A plain ``QWidget`` holding the two-zone (Quick adjust ⇄ Actions ⇄ HUD) menu the
 gamepad drives. It owns *no* surface and pushes *no* handler: the host decides
-how it appears and feeds it pad events. Two hosts embed it:
-
-  * :class:`~infrastructure.common.qt.overlays.home_overlay.HomeOverlay` — the
-    map-on-demand overlay shown on BTN_MODE over a running app or a minimized
-    Kasual (contexts 2/3);
-  * :class:`~infrastructure.common.qt.desktop.home_surface.HomeSurface` — the
-    persistent collapse/expand surface in the Home view (context 1, §8 / Faza 5).
+how it appears and feeds it pad events. The host is
+:class:`infrastructure.common.qt.desktop.home_surface.HomeSurface` — the
+persistent collapse/expand surface in the Home view (context 1) which doubles as
+the map-on-demand overlay shown on BTN_MODE over a running app or a minimized
+Kasual (contexts 2/3, §8 / Faza 5).
 
 The widget composes its own sections (via :func:`domain.menu.home.compose_home_sections`)
 from the volume/brightness controls and the power menu handed in; everything the
@@ -19,6 +17,7 @@ sliders and the Power split-button are handled internally.
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import qtawesome as qta
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
@@ -38,11 +37,13 @@ from domain.menu.item import MenuItem
 from domain.navigation import hints as nav_hints
 from domain.shared.feedback import Cue, Feedback
 from domain.system.actions import HIDE_DESKTOP, VOLUME
+from domain.system.bounded_value import BoundedValue
 from domain.system.brightness import BrightnessControl
 from domain.system.hud import HudControl
 from domain.system.power_menu import PowerMenu
 from domain.system.volume import VolumeControl
 from infrastructure.common.qt.ui import styles
+from .power_dropdown import PowerDropdown
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,16 @@ class _Zone:
         self.index = 0
 
 
+@dataclass
+class _QuickRow:
+    """One Quick-adjust slider row: the control it drives, the cached level
+    value, the slider widget, and the live percentage label."""
+    control: VolumeControl | BrightnessControl
+    value: BoundedValue
+    slider: QSlider
+    vlabel: QLabel
+
+
 class HomeMenuContent(QWidget):
     """The sectioned Home menu (§7.10) as an embeddable, surface-less widget.
 
@@ -175,9 +186,9 @@ class HomeMenuContent(QWidget):
         # Guards the slider valueChanged handler against our own programmatic
         # setValue (gamepad adjust / clamp reflection), so only user drags dispatch.
         self._syncing_slider = False
-        self._quick_state: list[dict] = []   # aligned with the quick zone's items
+        self._quick_state: list[_QuickRow] = []   # aligned with the quick zone's items
         self._power_card: QWidget | None = None  # the Power split-button (X opens its dropdown)
-        self._dropdown: dict | None = None   # the open Power dropdown, while expanded
+        self._dropdown: PowerDropdown | None = None   # the open Power dropdown, while expanded
         self._on_action: Callable[[MenuItem], None] | None = None
         self._on_cancel: Callable[[], None] | None = None
         self._set_hints: Callable | None = None
@@ -237,7 +248,31 @@ class HomeMenuContent(QWidget):
         self._build(sections.sections)
         self._focus_default(foreground, desktop_minimized)
         self._render()
-        self._sync_hints()
+        self.sync_hints()
+
+    # ── Host / test seam ──────────────────────────────────────────────────────
+    # The host (HomeSurface) drives the menu through handle_pad and these few
+    # public members; the properties below expose the live state without leaking
+    # the private backing fields for direct mutation.
+
+    @property
+    def zones(self) -> "list[_Zone]":
+        """The rendered sections, in zone order (header ⇄ quick ⇄ actions ⇄ hud)."""
+        return self._zones
+
+    @property
+    def active(self) -> int:
+        """The index (into :attr:`zones`) of the section currently holding focus."""
+        return self._active
+
+    @active.setter
+    def active(self, zone_index: int) -> None:
+        self._active = zone_index
+
+    @property
+    def dropdown(self) -> "PowerDropdown | None":
+        """The open Power dropdown, or ``None`` when collapsed."""
+        return self._dropdown
 
     # ── Building ─────────────────────────────────────────────────────────────
 
@@ -248,7 +283,7 @@ class HomeMenuContent(QWidget):
                 item.widget().deleteLater()
         self._zones = []
         self._quick_state = []
-        self._close_dropdown()
+        self.close_dropdown()
         self._power_card = None
 
         # The header (when present) is zone 0 — a navigable row whose buttons live
@@ -305,7 +340,7 @@ class HomeMenuContent(QWidget):
             col.addWidget(row)
             rows.append(row)
             self._quick_state.append(
-                {"control": control, "value": value, "slider": slider, "vlabel": vlabel})
+                _QuickRow(control, value, slider, vlabel))
         # Fix the width (not just a max) so the sliders actually span two-thirds —
         # under AlignHCenter a mere maximum collapses to the slider's tiny size
         # hint. The wider card is for the Actions grid, not for edge-to-edge sliders.
@@ -394,7 +429,7 @@ class HomeMenuContent(QWidget):
             self._nudge_volume(+1)
             return
         if self._dropdown is not None:
-            self._dropdown_event(event)
+            self._dropdown.handle_pad(event)
             return
         if event == Event.SECTION_PREV:
             self._switch_zone(-1)
@@ -403,7 +438,7 @@ class HomeMenuContent(QWidget):
             self._switch_zone(+1)
             return
         if event == Event.CANCEL:
-            self._cancel()
+            self.cancel()
             return
         zone = self._zones[self._active] if self._zones else None
         if event == Event.CLOSE:
@@ -413,7 +448,7 @@ class HomeMenuContent(QWidget):
                     and zone.items[zone.index].action == POWER):
                 self._open_dropdown(zone.items[zone.index])
             else:
-                self._cancel()
+                self.cancel()
             return
         if zone is None:
             return
@@ -427,7 +462,7 @@ class HomeMenuContent(QWidget):
         if new != self._active:
             self._active = new
             self._render()
-            self._sync_hints()
+            self.sync_hints()
             self._feedback.play(Cue.CURSOR)
 
     def _cross_to_zone(self, delta: int, *, landing: str) -> None:
@@ -442,7 +477,7 @@ class HomeMenuContent(QWidget):
         zone = self._zones[new]
         zone.index = 0 if landing == "first" else len(zone.items) - 1
         self._render()
-        self._sync_hints()
+        self.sync_hints()
         self._feedback.play(Cue.CURSOR)
 
     def _quick_event(self, zone: _Zone, event: str) -> None:
@@ -503,17 +538,17 @@ class HomeMenuContent(QWidget):
     def _adjust(self, slider_index: int, sign: int) -> None:
         self._adjust_state(self._quick_state[slider_index], sign)
 
-    def _adjust_state(self, state: dict, sign: int) -> None:
-        value = state["value"]
+    def _adjust_state(self, state: _QuickRow, sign: int) -> None:
+        value = state.value
         new = value.adjusted(sign * type(value).STEP)
         if new.value == value.value:
             return
-        state["value"] = new
-        state["control"].set(new)
+        state.value = new
+        state.control.set(new)
         self._syncing_slider = True
-        state["slider"].setValue(new.value)
+        state.slider.setValue(new.value)
         self._syncing_slider = False
-        state["vlabel"].setText(f"{new.value}%")
+        state.vlabel.setText(f"{new.value}%")
         self._feedback.play(Cue.CURSOR)
 
     def _nudge_volume(self, sign: int) -> None:
@@ -529,9 +564,9 @@ class HomeMenuContent(QWidget):
             self._volume.set(new)
             self._feedback.play(Cue.CURSOR)
 
-    def _volume_state(self) -> dict | None:
+    def _volume_state(self) -> _QuickRow | None:
         for state in self._quick_state:
-            if state["control"] is self._volume:
+            if state.control is self._volume:
                 return state
         return None
 
@@ -549,7 +584,7 @@ class HomeMenuContent(QWidget):
         if self._on_action is not None:
             self._on_action(item)
 
-    def _cancel(self) -> None:
+    def cancel(self) -> None:
         self._feedback.play(Cue.POPUP_CLOSE)
         self._request_hide()
         if self._on_cancel is not None:
@@ -567,7 +602,7 @@ class HomeMenuContent(QWidget):
         self._active = zone_i
         zone.index = item_i
         self._render()
-        self._sync_hints()
+        self.sync_hints()
         self._feedback.play(Cue.CURSOR)
 
     def _click_item(self, zone_i: int, item_i: int) -> None:
@@ -588,17 +623,17 @@ class HomeMenuContent(QWidget):
         state = self._quick_state[item_i]
         self._active = zone_i
         self._zones[zone_i].index = item_i
-        new = type(state["value"])(raw)
-        if new.value != state["value"].value:
-            state["value"] = new
-            state["control"].set(new)
-            state["vlabel"].setText(f"{new.value}%")
+        new = type(state.value)(raw)
+        if new.value != state.value.value:
+            state.value = new
+            state.control.set(new)
+            state.vlabel.setText(f"{new.value}%")
             if new.value != raw:   # domain re-clamped → snap the handle to it
                 self._syncing_slider = True
-                state["slider"].setValue(new.value)
+                state.slider.setValue(new.value)
                 self._syncing_slider = False
         self._render()
-        self._sync_hints()
+        self.sync_hints()
 
     # ── Header zone (§8) mouse — routed from the Desktop while the menu is open ──
 
@@ -647,76 +682,29 @@ class HomeMenuContent(QWidget):
         # Open with the cursor on the current default (highlighted + focused) —
         # no separate marker needed to show which one is active (§8).
         index = next((i for i, it in enumerate(items) if it.action == default), 0)
-
-        frame = QFrame(self)
-        frame.setStyleSheet(
-            "background-color: #2e3440; border: 1px solid #4c566a; border-radius: 30px;"
+        self._dropdown = PowerDropdown(
+            items, index, anchor=self._power_card, parent=self,
+            feedback=self._feedback,
+            on_pick=self._on_power_picked, on_dismiss=self._drop_dropdown,
         )
-        col = QVBoxLayout(frame)
-        col.setContentsMargins(8, 8, 8, 8)
-        col.setSpacing(4)
-        buttons: list[QPushButton] = []
-        for it in items:
-            button = QPushButton(it.label)
-            button.setMinimumHeight(46)
-            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            if it.icon:
-                button.setIcon(qta.icon(it.icon, color="white"))
-                button.setIconSize(QSize(20, 20))
-            col.addWidget(button)
-            buttons.append(button)
-
-        self._dropdown = {"items": items, "index": index, "buttons": buttons, "frame": frame}
-        frame.adjustSize()
-        anchor = self._power_card.mapTo(self, QPoint(0, self._power_card.height() + 6))
-        frame.move(anchor)
-        frame.show()
-        frame.raise_()
-        self._render_dropdown()
         self._feedback.play(Cue.POPUP_OPEN)
 
-    def _dropdown_event(self, event: str) -> None:
-        dd = self._dropdown
-        if dd is None:
-            return
-        if event == Event.UP:
-            self._move_dropdown(-1)
-        elif event == Event.DOWN:
-            self._move_dropdown(+1)
-        elif event == Event.SELECT:
-            self._choose_power(dd["items"][dd["index"]])
-        elif event in (Event.CANCEL, Event.CLOSE, Event.ACTIONS):
-            self._close_dropdown()
-            self._feedback.play(Cue.POPUP_CLOSE)
-
-    def _move_dropdown(self, delta: int) -> None:
-        dd = self._dropdown
-        target = max(0, min(dd["index"] + delta, len(dd["items"]) - 1))
-        if target != dd["index"]:
-            dd["index"] = target
-            self._render_dropdown()
-            self._feedback.play(Cue.CURSOR)
-
-    def _render_dropdown(self) -> None:
-        dd = self._dropdown
-        for i, button in enumerate(dd["buttons"]):
-            button.setStyleSheet(
-                styles.home_menu_item_selected() if i == dd["index"]
-                else styles.home_menu_item_normal()
-            )
-
-    def _choose_power(self, item: MenuItem) -> None:
+    def _on_power_picked(self, item: MenuItem) -> None:
         """A picked action runs *and* (once confirmed) becomes the new default —
         the persist-only-on-confirm rule lives in PowerMenu.select. Hide first so
         the confirm dialog owns the pad (the menu merely floated over it)."""
-        self._feedback.play(Cue.SELECT)
-        self._close_dropdown()
+        self._dropdown = None
         self._request_hide()
         self._power.select(item.action)
 
-    def _close_dropdown(self) -> None:
+    def _drop_dropdown(self) -> None:
+        """The dropdown dismissed itself (B/X/Y) — drop the handle so the menu
+        resumes its own navigation."""
+        self._dropdown = None
+
+    def close_dropdown(self) -> None:
         if self._dropdown is not None:
-            self._dropdown["frame"].deleteLater()
+            self._dropdown.close()
             self._dropdown = None
 
     # ── Rendering ────────────────────────────────────────────────────────────
@@ -739,7 +727,7 @@ class HomeMenuContent(QWidget):
                         else styles.home_menu_item_normal()
                     )
 
-    def _sync_hints(self) -> None:
+    def sync_hints(self) -> None:
         if self._set_hints is None or not self._zones:
             return
         kind = self._zones[self._active].kind

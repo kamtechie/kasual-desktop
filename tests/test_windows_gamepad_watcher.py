@@ -6,7 +6,7 @@ same navigation-event mapping, but the source events come from pygame
 
 Tests:
   - handler stack (push/pop, LIFO, top_handler, inject)
-  - button mapping: SOUTH→SELECT, EAST→CANCEL, NORTH→CLOSE, START→MANAGE
+  - button mapping: SOUTH→SELECT, EAST→CANCEL, NORTH→CLOSE, START alone→no-op
   - START+SELECT held → BTN_MODE
   - stick axis: threshold/hysteresis (_handle_stick_axis, _handle_axis)
   - D-pad via _handle_hat (pygame hat value tuple)
@@ -189,11 +189,11 @@ class TestButtonMapping:
         self._press(mock_watcher, BTN_NORTH, qapp)
         assert received == [Event.ACTIONS]
 
-    def test_start_alone_emits_manage(self, mock_watcher, qapp):
+    def test_start_alone_is_a_noop(self, mock_watcher, qapp):
         received = []
         mock_watcher.push_handler(lambda e: received.append(e))
         self._press(mock_watcher, BTN_START, qapp)
-        assert received == [Event.MANAGE]
+        assert received == []
 
     def test_start_plus_select_emits_btn_mode(self, mock_watcher, qapp):
         """BTN_START pressed while BTN_SELECT held → BTN_MODE (Home Overlay)."""
