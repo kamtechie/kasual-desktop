@@ -17,7 +17,6 @@ from infrastructure.common.qt.overlays.tile_popover import TilePopoverMenu
 from infrastructure.common.qt.overlays.tile_color_picker import TileColorPicker
 from infrastructure.common.qt.overlays.notifications_overlay import NotificationsOverlay
 from infrastructure.common.qt.overlays.network_overlay import NetworkOverlay
-from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlay
 from domain.notifications.center import NotificationCenter
 from domain.network import view as network_view
 from domain.network.control import NetworkControl
@@ -28,7 +27,6 @@ from domain.system.brightness import BrightnessControl
 from domain.system.power_control import PowerControl
 from domain.system.power_preference import PowerPreference
 from domain.system.power_menu import PowerMenu
-from domain.menu.home import power_dropdown_items
 from domain.shared.scheduler import Scheduler
 from domain.lifecycle.app_control import AppControl
 from domain.lifecycle.process_manager import ProcessManager
@@ -55,8 +53,10 @@ from domain.system.desktop_shell import DesktopShell
 from domain.shell.wallpaper import SystemWallpaper
 from infrastructure.common.qt._meta import ProtocolQtMeta
 from infrastructure.common.qt.ui.nav_key_map import nav_key_map
+from .app_add_controller import AppAddController
 from .hint_bar import HintBar
 from .home_surface import HomeSurface
+from .power_popover_controller import PowerPopoverController
 from .tile_bar import TileBar
 from infrastructure.common.qt.overlays.home_header import HomeHeader
 from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
@@ -134,7 +134,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         # backs the top-bar Power dropdown (X), so a pick runs + persists the new
         # default like the Home Overlay's Power card.
         self._power_menu: PowerMenu | None = None
-        self._topbar_power_popover = None
+        # The Power-chooser collaborator (built in set_power_menu, once the Home
+        # surface and Power menu exist); the thin delegates below forward to it.
+        self._power_popover: PowerPopoverController | None = None
         # How this widget becomes a fullscreen, stay-on-top surface — the one
         # OS-specific seam, injected by the composition root: Linux passes the
         # KDE LayerShellSurface, Windows the WS_EX_TOPMOST WindowsDesktopSurface.
@@ -143,7 +145,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._confirm_dialog = None
         self._tile_popover   = None
         self._color_picker   = None
-        self._add_picker     = None
 
         # Desktop visibility + paused + what the BTN_MODE menu targets (foreground).
         # The foreground is shared by reference with the AppLifecycle coordinator.
@@ -181,7 +182,13 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._tilebar = TileBar(self._apps, self._app_manager, parent_of=parent_of)
         self._tilebar.tile_hovered.connect(self._on_tile_hovered)
         self._tilebar.tile_context_menu.connect(self._on_tile_context_menu)
-        self._tilebar.add_requested.connect(self._show_add_apps)
+        # The [＋] add-app flow lives in its own controller (§8); the tile bar's
+        # add-requested signal drives it directly.
+        self._app_add = AppAddController(
+            self._apps, self._app_adder, self._gamepad, self._feedback,
+            self._tilebar, self._overlays,
+        )
+        self._tilebar.add_requested.connect(self._app_add.show)
         main.addWidget(self._tilebar)
         main.addStretch(1)
 
@@ -281,7 +288,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._overlays.cancel()
         self._confirm_dialog = None
         self._color_picker = None
-        self._add_picker = None
+        self._app_add.cancel()
         if self._tile_mover is not None:
             self._tile_mover.cancel()
 
@@ -539,44 +546,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._nav.focus_tiles()
         self._show_tile_popover()
 
-    # ── Adding apps (the [＋] tile) ──────────────────────────────────────────
-
-    def _show_add_apps(self) -> None:
-        """Open the add-app picker for the [＋] tile (§7.4).
-
-        Reuses the onboarding overlay with the starter list filtered to the
-        not-yet-pinned apps. With nothing left to add (or no adder wired) it just
-        plays a back cue rather than opening an empty picker."""
-        if self._app_adder is None or self._add_picker is not None:
-            return
-        candidates = self._app_adder.available(self._apps)
-        if not candidates:
-            self._feedback.play(Cue.EXIT)
-            return
-        picker = OnboardingOverlay(self._gamepad, self._feedback)
-        self._add_picker = picker
-        self._overlays.register(picker)
-        picker.present(
-            candidates,
-            on_confirm=self._on_apps_added,
-            on_cancel=self._forget_add_picker,
-            title=translate("Desktop", "Add app"),
-        )
-
-    def _on_apps_added(self, chosen) -> None:
-        """Persist the chosen candidates and add their tiles live (before the [＋])."""
-        self._forget_add_picker()
-        if not chosen:
-            return
-        self._app_adder.add(chosen)
-        for candidate in chosen:
-            self._tilebar.add_app(candidate.app)
-        self._feedback.play(Cue.SELECT)
-
-    def _forget_add_picker(self) -> None:
-        self._overlays.forget(self._add_picker)
-        self._add_picker = None
-
     # ── Closing an application ─────────────────────────────────────────────
 
     def _show_tile_popover(self) -> None:
@@ -780,13 +749,10 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             self._action_runner.run(action_type)
 
     def _open_header_power_chooser(self) -> None:
-        """Open the Sleep/Restart/Shut Down chooser below the header's Power button
-        (§8). A pick runs and (once confirmed) becomes the new default, via the
-        Power menu — the same flow as the old top-bar dropdown."""
-        # A touch more clearance so the dropdown sits below the header card,
-        # not over the Power glyph it springs from.
-        self._open_power_popover(self._home_header.power_button(),
-                                 parent=self._home_surface, gap=22)
+        """Delegate the header's Power chooser to the collaborator (built in
+        :meth:`set_power_menu`). Wired as the Home surface's on_power_chooser."""
+        if self._power_popover is not None:
+            self._power_popover.open_header_chooser()
 
     def set_power_menu(self, power_menu: PowerMenu) -> None:
         """Inject the Power menu (built after this Desktop, since it needs the
@@ -794,7 +760,8 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
         This is also where the Home surface is built: it needs the same Power menu,
         and by now ``attach`` has wired the action runner its menu items dispatch
-        through."""
+        through. The Power-chooser collaborator is wired here too — it needs the
+        Power menu, the Home surface, and the navigator (all set by this point)."""
         self._power_menu = power_menu
         if self._home_surface is None:
             self._home_surface = HomeSurface(
@@ -808,6 +775,10 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
                 end_hints=self.end_overlay_hints,
             )
             self._home_surface.install_surface()
+        self._power_popover = PowerPopoverController(
+            power_menu, self._gamepad, self._feedback, self._home_header,
+            self._home_surface, self._nav, self._hintbar, self._overlays,
+        )
 
     def home_overlay_factory(self) -> 'PersistentOverlayFactory':
         """The SectionedOverlayFactory the controller uses in persistent-surface
@@ -847,61 +818,11 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         return True
 
     def _show_topbar_power_menu(self, index: int) -> None:
-        """X on the Power button opens the Sleep/Restart/Shut Down chooser (the same
-        button that opens a tile's popover) — the pick-runs-and-persists flow as the
-        Home Overlay's Power card. The header's chooser anchors over the Home surface
-        (§8). X elsewhere does nothing (only Power has a dropdown)."""
-        if self._topbar.action_key_at(index) != POWER:
-            return
-        self._open_header_power_chooser()
-
-    def _open_power_popover(self, button, *, parent, gap: int = 12) -> None:
-        """Open the Sleep/Restart/Shut Down chooser anchored below *button*: a pick
-        runs and (once confirmed) becomes the new default, via the Power menu.
-        Shared by the top-bar dropdown and the §8 header Power button. *parent* is
-        the surface the button lives in, so the popover renders in (and positions
-        within) that surface — the Home surface for the header, the Desktop for the
-        top bar. *gap* is the clearance below the button."""
-        if self._power_menu is None or button is None:
-            return
-        default = self._power_menu.default_key()
-        items = power_dropdown_items()
-        # Open with the cursor on the current default (highlighted + focused);
-        # no marker needed to show which one is active (§8).
-        default_index = next(
-            (i for i, item in enumerate(items) if item.action == default), 0)
-        popover = TilePopoverMenu(
-            items=items,
-            on_select=lambda item: self._power_menu.select(item.action),
-            gamepad=self._gamepad,
-            feedback=self._feedback,
-            parent=parent,
-            initial_index=default_index,
-        )
-        self._topbar_power_popover = popover
-        self._overlays.register(popover)
-        popover.closed.connect(self._on_topbar_power_closed)
-        self._hintbar.show_hints(home_hints.TILE_POPOVER)
-        # The chooser is a child of the Home surface; while the surface is collapsed
-        # its input region is masked to the header alone, which would clip this
-        # dropdown below it — hold the region open for the chooser's lifetime.
-        if self._home_surface is not None and parent is self._home_surface:
-            self._home_surface.hold_input_open(True)
-        popover.show_below(button, gap=gap)
-
-    def _on_topbar_power_closed(self) -> None:
-        self._overlays.forget(self._topbar_power_popover)
-        self._topbar_power_popover = None
-        # Release the input-region hold taken while the chooser floated over the
-        # collapsed header, so it narrows back to the header-only mask.
-        if self._home_surface is not None:
-            self._home_surface.hold_input_open(False)
-        # Restore the controls of whatever the chooser floated over: the expanded
-        # Home menu's own hints (§8) if it is up, else the navigator's screen hints.
-        if self._home_surface is not None and self._home_surface.is_open():
-            self._home_surface.refresh_hints()
-        else:
-            self._nav.render()
+        """Delegate the top-bar Power chooser (X / right-click on Power) to the
+        collaborator. Wired as the FocusNavigator's on_topbar_menu; a no-op on
+        the other header buttons and before set_power_menu builds the controller."""
+        if self._power_popover is not None:
+            self._power_popover.show_topbar(index)
 
     def _present(self, overlay: BaseOverlay) -> None:
         """Track a freshly opened top-bar overlay; return focus to the bar when
