@@ -100,6 +100,8 @@ class TopBar(QWidget, TopBarView, metaclass=ProtocolQtMeta):
             btn.setStyleSheet(styles.topbar_normal(item.color))
             btn.clicked.connect(lambda _, t=action_type: self.action_triggered.emit(t))
             _bind_hover(btn, i)
+            if action_type == POWER:
+                self._add_dropdown_badge(btn)
             btn_layout.addWidget(btn)
             self._buttons.append(btn)
         layout.addWidget(btn_area)
@@ -114,6 +116,12 @@ class TopBar(QWidget, TopBarView, metaclass=ProtocolQtMeta):
     @property
     def count(self) -> int:
         return len(self._buttons)
+
+    @property
+    def default_index(self) -> int:
+        """Entering the bar lands on Power (the primary action) when present,
+        else the first button."""
+        return self._action_keys.index(POWER) if POWER in self._action_keys else 0
 
     def set_selected(self, index: int | None) -> None:
         """Highlight the button at *index*, or clear all if None."""
@@ -193,6 +201,24 @@ class TopBar(QWidget, TopBarView, metaclass=ProtocolQtMeta):
         badge.setFixedSize(20, 20)
         badge.move(BTN_SIZE - 20 - 2, 2)
         badge.show()
+        badge.raise_()
+
+    def _add_dropdown_badge(self, btn: QPushButton) -> None:
+        """Mark the Power button as a split-button with a small chevron badge in
+        its bottom-right corner — the visual cue that Y opens a dropdown to change
+        its default action. Distinct from the notification count badge (top-right,
+        red): a chevron on a light circle in the opposite corner."""
+        size = 20
+        badge = QLabel(btn)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        badge.setPixmap(
+            qta.icon("fa5s.chevron-down", color="white").pixmap(QSize(10, 10))
+        )
+        badge.setStyleSheet(
+            "background-color: #2e3440; border: 1px solid white; border-radius: 10px;"
+        )
+        badge.setFixedSize(size, size)
+        badge.move(BTN_SIZE - size - 2, BTN_SIZE - size - 2)
         badge.raise_()
 
     # ── Clock ───────────────────────────────────────────────────────────────

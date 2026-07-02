@@ -72,7 +72,7 @@ class FocusNavigator:
                 # LB (§7.10 "jump to topbar") mirrors the Home Overlay's
                 # SECTION_PREV, which lands on its header zone — here the top bar.
                 self._mode = _Mode.TOPBAR
-                self._topbar_index = 0
+                self._topbar_index = self._topbar.default_index
                 self._moved()
             elif event == Event.SELECT:
                 self._tilebar.select_current()

@@ -108,6 +108,19 @@ class HomeHeader(QWidget):
         self._notif_badge.move(_BTN - 20, 2)
         self._notif_badge.hide()
 
+        # Chevron badge in the Power button's bottom-right corner — the cue that
+        # it is a split-button (A opens the dropdown to change its default). Sits
+        # opposite the notification count badge so the two never collide.
+        self._power_badge = QLabel(self._power_btn)
+        self._power_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._power_badge.setPixmap(
+            qta.icon("fa5s.chevron-down", color="white").pixmap(QSize(10, 10)))
+        self._power_badge.setStyleSheet(
+            "background-color: #2e3440; border: 1px solid white; border-radius: 9px;")
+        self._power_badge.setFixedSize(18, 18)
+        self._power_badge.move(_BTN - 20, _BTN - 20)
+        self._power_badge.raise_()
+
         self._buttons = [self._net_btn, self._notif_btn, self._power_btn]
 
         self._tick_clock()
@@ -151,6 +164,12 @@ class HomeHeader(QWidget):
     @property
     def count(self) -> int:
         return len(_NAV_KEYS)
+
+    @property
+    def default_index(self) -> int:
+        """Entering the header lands on Power (the primary action), not the
+        left-most Network button."""
+        return _NAV_KEYS.index(POWER)
 
     def set_selected(self, index: int | None) -> None:
         self._selected = index

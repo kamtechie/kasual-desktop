@@ -295,26 +295,31 @@ class TestHeaderAsTopBar:
         nav.handle_pad(Event.UP)
         assert nav.in_tiles is False
 
+    def test_up_lands_on_power(self, qapp):
+        # Entering the header focuses Power (the primary action), not Network.
+        nav, _header, activated = self._nav_with_header()
+        nav.handle_pad(Event.UP)         # into the header, focus on Power
+        nav.handle_pad(Event.SELECT)
+        assert activated == [POWER]
+
     def test_select_in_header_opens_network(self, qapp):
         nav, _header, activated = self._nav_with_header()
-        nav.handle_pad(Event.UP)         # into the header (index 0 = Network)
+        nav.handle_pad(Event.UP)         # into the header (Power, index 2)
+        nav.handle_pad(Event.RIGHT)      # Power → Network (wraps to index 0)
         nav.handle_pad(Event.SELECT)
         assert activated == ["network"]
 
-    def test_right_then_select_opens_notifications(self, qapp):
+    def test_left_then_select_opens_notifications(self, qapp):
         nav, _header, activated = self._nav_with_header()
-        nav.handle_pad(Event.UP)
-        nav.handle_pad(Event.RIGHT)      # Network → Notifications
+        nav.handle_pad(Event.UP)         # into the header (Power, index 2)
+        nav.handle_pad(Event.LEFT)       # Power → Notifications (index 1)
         nav.handle_pad(Event.SELECT)
         assert activated == ["notifications"]
 
-    def test_power_is_rightmost_and_triggers_power(self, qapp):
-        nav, _header, activated = self._nav_with_header()
-        nav.handle_pad(Event.UP)
-        nav.handle_pad(Event.RIGHT)      # Network → Notifications
-        nav.handle_pad(Event.RIGHT)      # Notifications → Power (far right)
-        nav.handle_pad(Event.SELECT)
-        assert activated == [POWER]
+    def test_power_is_rightmost(self, qapp):
+        nav, header, _activated = self._nav_with_header()
+        assert header.action_key_at(header.count - 1) == POWER
+        assert header.default_index == header.count - 1
 
     def test_set_power_icon_changes_glyph(self, qapp):
         from infrastructure.common.qt.overlays.home_header import HomeHeader

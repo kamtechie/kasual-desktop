@@ -16,6 +16,7 @@ def _make(topbar_count=3, hint_bar=None, on_topbar_menu=None):
     tilebar.current_is_add.return_value = False   # the [＋] tile is not focused
     topbar = MagicMock()
     topbar.count = topbar_count
+    topbar.default_index = 0   # entry lands here (real bars point this at Power)
     topbar.has_menu_at.return_value = False   # no Power split-button by default
     on_tile_menu = MagicMock()
     feedback = MagicMock()
@@ -58,6 +59,14 @@ class TestPadInTiles:
         nav, *_ = _make(topbar_count=3)
         nav.handle_pad("up")
         assert nav.in_tiles is False
+
+    def test_up_lands_on_default_index(self):
+        # Entry focuses the bar's default button (Power), not the left-most one.
+        nav, _, topbar, *_ = _make(topbar_count=3)
+        topbar.default_index = 2
+        nav.handle_pad("up")
+        nav.handle_pad("select")
+        topbar.trigger.assert_called_once_with(2)
 
     def test_up_ignored_when_no_topbar_buttons(self):
         nav, *_ = _make(topbar_count=0)
