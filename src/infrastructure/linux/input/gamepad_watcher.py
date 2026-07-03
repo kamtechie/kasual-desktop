@@ -9,7 +9,9 @@ from evdev import InputDevice, InputEvent, UInput, ecodes, list_devices
 from domain.input.direction_repeat import DirectionRepeat
 from domain.input.recall import RecallTrigger
 from domain.input.vocabulary import Event, Trigger
-from infrastructure.common.input.gamepad_watcher_base import BaseGamepadWatcher
+from infrastructure.common.input.gamepad_watcher_base import (
+    BaseGamepadWatcher, PadButton, _AxisEdge,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -265,27 +267,27 @@ class GamepadWatcher(BaseGamepadWatcher):
         elif ev.type == ecodes.EV_ABS:
             self._translate_axis(ev, stick, pending)
 
+    # evdev key code → abstract PadButton (the button→Event mapping and the
+    # Start+Select chord live in BaseGamepadWatcher._dispatch_button).
+    _EVDEV_TO_PAD_BUTTON = {
+        ecodes.BTN_SOUTH:  PadButton.SOUTH,
+        ecodes.BTN_EAST:   PadButton.EAST,
+        ecodes.BTN_WEST:   PadButton.WEST,
+        ecodes.BTN_NORTH:  PadButton.NORTH,
+        ecodes.BTN_TL:     PadButton.TL,
+        ecodes.BTN_TR:     PadButton.TR,
+        ecodes.BTN_START:  PadButton.START,
+        ecodes.BTN_SELECT: PadButton.SELECT,
+    }
+
     def _translate_key(self, ev: InputEvent, held: set[int], pending: list) -> None:
         if ev.value == 1:
             held.add(ev.code)
-            if ev.code == ecodes.BTN_SOUTH:
-                self._hop_nav(Event.SELECT)
-            elif ev.code == ecodes.BTN_EAST:
-                self._hop_nav(Event.CANCEL)
-            elif ev.code == ecodes.BTN_WEST:
-                self._hop_nav(Event.CLOSE)
-            elif ev.code == ecodes.BTN_NORTH:
-                self._hop_nav(Event.ACTIONS)
-            elif ev.code == ecodes.BTN_TL:
-                self._hop_nav(Event.SECTION_PREV)
-            elif ev.code == ecodes.BTN_TR:
-                self._hop_nav(Event.SECTION_NEXT)
-            elif ev.code == ecodes.BTN_START:
-                # Start+Select is the home-recall chord; Start alone is a no-op.
-                # (It used to emit Event.MANAGE for the tile-management popover,
-                # but that was superseded by the unified Y popover, §7.3.)
-                if ecodes.BTN_SELECT in held:
-                    self._hop_btn_mode()
+            button = self._EVDEV_TO_PAD_BUTTON.get(ev.code)
+            if button is not None:
+                self._dispatch_button(
+                    button, select_held=ecodes.BTN_SELECT in held
+                )
         elif ev.value == 0:
             held.discard(ev.code)
 
@@ -325,24 +327,29 @@ class GamepadWatcher(BaseGamepadWatcher):
         stick: dict,
         pending: list,
     ) -> None:
-        if value < -STICK_THRESHOLD and stick[axis] != neg_event:
-            self._press_direction(stick, axis, neg_event, pending)
-        elif value > STICK_THRESHOLD and stick[axis] != pos_event:
-            self._press_direction(stick, axis, pos_event, pending)
-        elif abs(value) < STICK_RESET:
+        edge, direction = self._stick_transition(
+            value, threshold=STICK_THRESHOLD, reset=STICK_RESET,
+            current=stick[axis], neg_event=neg_event, pos_event=pos_event,
+        )
+        if edge is _AxisEdge.PRESS:
+            self._press_direction(stick, axis, direction, pending)
+        elif edge is _AxisEdge.RELEASE:
             self._release_direction(stick, axis)
 
     def _handle_trigger_axis(self, value: int, key: str, event: str, stick: dict) -> None:
-        """Fire one volume event when a trigger is pulled past TRIGGER_THRESHOLD.
+        """Fire one volume event when a trigger is pulled (no auto-repeat).
 
-        Unlike the stick this carries no auto-repeat — it's a discrete "nudge
-        volume" gesture. The state in ``stick[key]`` latches so a held trigger
-        emits once; it must relax below TRIGGER_RESET before it can fire again.
+        The state in ``stick[key]`` latches — see _trigger_transition for the
+        press-once / relax-below-reset hysteresis.
         """
-        if value > TRIGGER_THRESHOLD and stick.get(key) != event:
+        edge, _ = self._trigger_transition(
+            value, threshold=TRIGGER_THRESHOLD, reset=TRIGGER_RESET,
+            current=stick.get(key), event=event,
+        )
+        if edge is _AxisEdge.PRESS:
             stick[key] = event
             self._hop_nav(event)
-        elif value < TRIGGER_RESET:
+        elif edge is _AxisEdge.RELEASE:
             stick[key] = None
 
     def _press_direction(self, stick: dict, axis: str, direction: str, pending: list) -> None:

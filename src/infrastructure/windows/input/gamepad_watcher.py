@@ -25,7 +25,9 @@ import pygame
 from domain.input.direction_repeat import DirectionRepeat
 from domain.input.recall import RecallTrigger
 from domain.input.vocabulary import Event, Trigger
-from infrastructure.common.input.gamepad_watcher_base import BaseGamepadWatcher
+from infrastructure.common.input.gamepad_watcher_base import (
+    BaseGamepadWatcher, PadButton, _AxisEdge,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +158,19 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
             if repeated is not None:
                 self._hop_nav(repeated)
 
+    # pygame button index → abstract PadButton (the button→Event mapping and the
+    # Start+Select chord live in BaseGamepadWatcher._dispatch_button).
+    _PYGAME_TO_PAD_BUTTON = {
+        BTN_SOUTH:  PadButton.SOUTH,
+        BTN_EAST:   PadButton.EAST,
+        BTN_WEST:   PadButton.WEST,
+        BTN_NORTH:  PadButton.NORTH,
+        BTN_TL:     PadButton.TL,
+        BTN_TR:     PadButton.TR,
+        BTN_START:  PadButton.START,
+        BTN_SELECT: PadButton.SELECT,
+    }
+
     def _handle_button_down(self, button: int):
         """Handle button press."""
         self._held.add(button)
@@ -164,24 +179,11 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
         if button == BTN_MODE:
             # CLICK / Kasual active → recall now; HOLD_1S app → arm the hold.
             self._recall.press(kasual_active=bool(self._stack), trigger=self._app_trigger)
-        elif button == BTN_SOUTH:
-            self._hop_nav(Event.SELECT)
-        elif button == BTN_EAST:
-            self._hop_nav(Event.CANCEL)
-        elif button == BTN_WEST:
-            self._hop_nav(Event.CLOSE)
-        elif button == BTN_NORTH:
-            self._hop_nav(Event.ACTIONS)
-        elif button == BTN_TL:
-            self._hop_nav(Event.SECTION_PREV)
-        elif button == BTN_TR:
-            self._hop_nav(Event.SECTION_NEXT)
-        elif button == BTN_START:
-            # Start+Select is the home-recall chord; Start alone is a no-op. (It
-            # used to emit Event.MANAGE for the tile-management popover, but that
-            # was superseded by the unified Y popover, §7.3.)
-            if BTN_SELECT in self._held:
-                self._hop_btn_mode()
+            return
+
+        pad_button = self._PYGAME_TO_PAD_BUTTON.get(button)
+        if pad_button is not None:
+            self._dispatch_button(pad_button, select_held=BTN_SELECT in self._held)
 
     def _handle_button_up(self, button: int):
         """Handle button release."""
@@ -205,29 +207,32 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
 
     def _handle_stick_axis(self, axis: str, value: float, neg_event: str, pos_event: str):
         """Handle stick axis with threshold and hysteresis."""
-        if value < -STICK_THRESHOLD and self._stick[axis] != neg_event:
-            self._stick[axis] = neg_event
-            self._hop_nav(neg_event)
-            self._repeat.press(neg_event)
-        elif value > STICK_THRESHOLD and self._stick[axis] != pos_event:
-            self._stick[axis] = pos_event
-            self._hop_nav(pos_event)
-            self._repeat.press(pos_event)
-        elif abs(value) < STICK_RESET:
+        edge, direction = self._stick_transition(
+            value, threshold=STICK_THRESHOLD, reset=STICK_RESET,
+            current=self._stick[axis], neg_event=neg_event, pos_event=pos_event,
+        )
+        if edge is _AxisEdge.PRESS:
+            self._stick[axis] = direction
+            self._hop_nav(direction)
+            self._repeat.press(direction)
+        elif edge is _AxisEdge.RELEASE:
             if self._stick[axis] is not None:
                 self._repeat.release(self._stick[axis])
             self._stick[axis] = None
 
     def _handle_trigger_axis(self, key: str, value: float, event: str):
-        """Fire one volume event per trigger pull past THRESHOLD (no auto-repeat).
+        """Fire one volume event per trigger pull (no auto-repeat).
 
-        ``self._trigger[key]`` latches so a held trigger emits once and only
-        re-fires after relaxing below TRIGGER_RESET — mirrors the stick's
-        hysteresis but for a discrete "nudge volume" gesture."""
-        if value > TRIGGER_THRESHOLD and self._trigger[key] != event:
+        ``self._trigger[key]`` latches — see _trigger_transition for the
+        press-once / relax-below-reset hysteresis."""
+        edge, _ = self._trigger_transition(
+            value, threshold=TRIGGER_THRESHOLD, reset=TRIGGER_RESET,
+            current=self._trigger[key], event=event,
+        )
+        if edge is _AxisEdge.PRESS:
             self._trigger[key] = event
             self._hop_nav(event)
-        elif value < TRIGGER_RESET:
+        elif edge is _AxisEdge.RELEASE:
             self._trigger[key] = None
 
     def _handle_hat(self, hat: int, value: tuple[int, int]):

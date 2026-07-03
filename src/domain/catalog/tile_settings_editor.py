@@ -25,15 +25,10 @@ class TileSettingsEditor:
         self._store   = store
 
     def set_color(self, index: int, color: str) -> None:
-        # The modal's live preview already recoloured the on-screen tile, so this
-        # recolour is an idempotent rebind — kept so the use-case is correct even
-        # when called without a prior preview.
         self._catalog.recolour(index, color)
         self._store.set_color(index, color)
 
     def set_recall_trigger(self, index: int, trigger: str) -> None:
-        # Unlike colour, the trigger has no live preview, so this is where it
-        # first reaches the live model.
         self._catalog.set_recall_trigger(index, trigger)
         self._store.set_recall_trigger(index, trigger)
 
