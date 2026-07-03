@@ -8,12 +8,18 @@
 #
 # Version is the single source of truth from pyproject.toml.
 
-# Version's source of truth is the git tag (e.g. v0.2.0 -> 0.2.0). Falls back to
-# pyproject.toml when there's no tag / no git (tarball builds). CI overrides this
-# explicitly with the release tag: `make VERSION=<tag> all`.
-VERSION  ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+# Version from git tag (e.g. v0.2.0 -> 0.2.0) when HEAD is tagged (official release).
+# When HEAD is not tagged (development), use full git describe (e.g. 0.1.0-74-g9b3d5f9).
+# Falls back to pyproject.toml when there's no tag / no git (tarball builds).
+# CI overrides explicitly: `make VERSION=<tag> all`.
+TAG_AT_HEAD := $(shell git tag --points-at HEAD 2>/dev/null | head -1)
+ifneq ($(strip $(TAG_AT_HEAD)),)
+VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+else
+VERSION ?= $(shell git describe --tags 2>/dev/null | sed 's/^v//')
+endif
 ifeq ($(strip $(VERSION)),)
-VERSION  := $(shell grep -oP 'version\s*=\s*"\K[^"]+' pyproject.toml)
+VERSION := $(shell grep -oP 'version\s*=\s*"\K[^"]+' pyproject.toml)
 endif
 STAGE    := build/stage
 APPROOT  := $(STAGE)/usr/share/kasual-desktop
