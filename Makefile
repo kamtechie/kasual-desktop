@@ -43,12 +43,15 @@ stage:
 	rm -rf $(STAGE)
 	mkdir -p $(APPROOT)
 	rsync -a $(RSYNC_EXCLUDES) src apps sounds locale fonts $(APPROOT)/
+	cp pyproject.toml $(APPROOT)/
 	printf '%s' "$(VERSION)" > $(APPROOT)/src/_version.txt
 	find $(APPROOT) -type d -exec chmod 0755 {} +
 	find $(APPROOT) -type f -exec chmod 0644 {} +
 	install -Dm755 packaging/kasual-desktop          $(STAGE)/usr/bin/kasual-desktop
 	install -Dm644 packaging/kasual-desktop.desktop  $(STAGE)/usr/share/applications/kasual-desktop.desktop
 	install -Dm644 packaging/kasual-desktop.png      $(STAGE)/usr/share/icons/hicolor/256x256/apps/kasual-desktop.png
+	# evdev gamepad access — vendor udev rule, reloaded at install by postinstall.sh.
+	install -Dm644 packaging/99-kasual-desktop.rules $(STAGE)/usr/lib/udev/rules.d/99-kasual-desktop.rules
 	chmod +x $(APPROOT)/apps/*/*.sh
 
 deb: stage

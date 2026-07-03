@@ -97,11 +97,21 @@ Then log out and log back in (or reboot) for the change to take effect. You can 
 groups | grep input
 ```
 
-Alternatively, you can create a udev rule for a more targeted approach:
+> **Installing from a package?** The `.deb`/`.rpm`/`.pkg.tar.zst` packages
+> already ship a udev rule (`/usr/lib/udev/rules.d/99-kasual-desktop.rules`)
+> that grants the active user gamepad access via `uaccess`, and reload udev
+> on install — so nothing of the above is needed when you install from a
+> package. The steps below are only for running from source.
+
+Alternatively, you can create a udev rule for a more targeted approach (this is
+essentially what the package installs, restricted to joystick/gamepad devices):
 
 ```bash
-echo 'SUBSYSTEM=="input", GROUP="input", MODE="0664"' | sudo tee /etc/udev/rules.d/99-kasual-desktop.rules
-sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo tee /etc/udev/rules.d/99-kasual-desktop.rules <<'EOF'
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_JOYSTICK}=="1", GROUP="input", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_GAMEPAD}=="1", GROUP="input", MODE="0660", TAG+="uaccess"
+EOF
+sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=input
 ```
 
 ### Installation

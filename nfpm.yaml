@@ -24,6 +24,14 @@ contents:
     dst: /usr
     type: tree
 
+# Reload udev after install/upgrade so the bundled gamepad access rule
+# (packaging/99-kasual-desktop.rules) applies without a reboot. The same
+# script runs as %post (rpm), postinst (deb) and post_install (Arch); pacman
+# additionally needs post_upgrade to reload on upgrades (the shared postinstall
+# runs on install for all three formats, but on upgrade only for deb/rpm).
+scripts:
+  postinstall: packaging/postinstall.sh
+
 overrides:
   deb:
     depends:
@@ -71,3 +79,10 @@ overrides:
       - python-xlib
       - layer-shell-qt
       - qt6-wayland
+
+# pacman runs post_upgrade (not post_install) on upgrades, so mirror the shared
+# postinstall there as well — keeps the udev reload idempotent across package
+# updates on Arch.
+archlinux:
+  scripts:
+    postupgrade: packaging/postinstall.sh

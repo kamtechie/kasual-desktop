@@ -1,0 +1,11 @@
+# Kasual Desktop reads gamepad input directly via evdev, which requires
+# read/write access to the /dev/input/event* device nodes. This rule, shipped
+# by the kasual-desktop package, grants the active seat user (via the uaccess
+# tag) and the `input` group access to joystick/gamepad class devices only —
+# not keyboards or mice — so no manual `usermod -aG input` is needed.
+#
+# After editing, reload with:
+#   sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=input
+
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_JOYSTICK}=="1", GROUP="input", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_GAMEPAD}=="1", GROUP="input", MODE="0660", TAG+="uaccess"
