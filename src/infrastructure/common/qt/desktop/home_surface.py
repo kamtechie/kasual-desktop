@@ -27,7 +27,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import (
     Qt, QTimer, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve, pyqtSignal,
 )
-from PyQt6.QtGui import QGuiApplication, QRegion
+from PyQt6.QtGui import QGuiApplication, QPainter, QRegion
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGraphicsOpacityEffect
 
 from domain.catalog.target import Target
@@ -177,6 +177,16 @@ class HomeSurface(QWidget):
         return self._expanded or self._on_demand
 
     # ── Pointer input region ─────────────────────────────────────────────────
+
+    def paintEvent(self, event) -> None:
+        # The header background is semi-transparent, so a repaint that doesn't
+        # first wipe the layer-shell buffer composites the new background over
+        # the old one and darkens it (mirrors HintBar's paintEvent — see
+        # hint_bar.py). Without this, the clock area renders opaque on the
+        # first frame and only settles to the correct alpha on the next tick.
+        painter = QPainter(self)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
