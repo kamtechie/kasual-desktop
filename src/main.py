@@ -26,7 +26,7 @@ from infrastructure.common.qt.overlays.about_overlay import AboutOverlay
 from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlayFactory
 from infrastructure.common.qt.ui.tray import SystemTray
 from infrastructure.common.catalog.app_config import (
-    DesktopAppProvisioning, DesktopTileColorStore, DesktopTileOrderStore,
+    DesktopAppProvisioning, DesktopTileSettingsStore, DesktopTileOrderStore,
     load_apps,
 )
 from infrastructure.linux.catalog.app_discovery import WhichAppDiscovery
@@ -156,7 +156,7 @@ def main() -> None:
             process_manager=AppManager(), notifications=notification_center,
             network_control=NMNetworkControl(),
             order_store=DesktopTileOrderStore(),
-            color_store=DesktopTileColorStore(),
+            settings_store=DesktopTileSettingsStore(),
             app_pinning=DesktopAppPinning(),
             surface=LayerShellSurface(),
             parent_of=parent_pid,

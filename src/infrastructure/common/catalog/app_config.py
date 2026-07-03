@@ -16,7 +16,8 @@ from pathlib import Path
 
 from domain.catalog.app import App
 from domain.catalog.catalog import AppCatalog
-from domain.menu.ports import TileColorStore, TileOrderStore
+from domain.input.vocabulary import Trigger
+from domain.menu.ports import TileSettingsStore, TileOrderStore
 from domain.provisioning.candidate import CandidateApp
 from domain.provisioning.ports import AppProvisioning
 
@@ -154,17 +155,8 @@ class DesktopTileOrderStore(TileOrderStore):
                 logger.error("Cannot rewrite order in %s: %s", path, exc)
 
 
-class DesktopTileColorStore(TileColorStore):
-    """Persist a tile's per-tile settings by rewriting ``X-Kasual-Color`` and
-    ``X-Kasual-RecallMenuTrigger`` in its ``.desktop`` file.
-
-    Resolves the *index* to a file through the same render-order mapping the order
-    store uses, then rewrites that one file's keys line-based, leaving every other
-    key and comment untouched. The recall trigger's default value
-    (``Trigger.CLICK``) is the sentinel the App omits when serialising, so passing
-    it here removes any previously-written key rather than writing the default —
-    a default value never lives in the file.
-    """
+class DesktopTileSettingsStore(TileSettingsStore):
+    """Persist a tile's settings by rewriting keys in its ``.desktop`` file."""
 
     def set_color(self, index: int, color: str) -> None:
         ordered = _ordered_desktop_paths()
@@ -177,7 +169,6 @@ class DesktopTileColorStore(TileColorStore):
             logger.error("Cannot rewrite colour in %s: %s", ordered[index], exc)
 
     def set_recall_trigger(self, index: int, trigger: str) -> None:
-        from domain.input.vocabulary import Trigger   # local: avoid a cycle at import
         ordered = _ordered_desktop_paths()
         if not (0 <= index < len(ordered)):
             logger.warning("Tile recall trigger set out of range: %d of %d",

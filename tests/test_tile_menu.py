@@ -30,17 +30,18 @@ class TestCompose:
 
 
 class TestComposeTileMenu:
-    """The single, state-dependent menu (§7.3): lifecycle on top, then —
-    unless the app is running — a separator and the management group."""
+    """The single, state-dependent menu (§7.3): lifecycle on top, then a
+    separator and the management group — even for a running app, which can still
+    be moved / recoloured / unpinned (unpinning it moves its tile to the dynamic
+    section)."""
 
     def test_idle_app_has_launch_separator_then_management(self):
         items = compose_tile_menu(AppTarget(0, "Steam"), is_running=False)
         assert [i.action for i in items] == [LAUNCH, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
-    def test_running_app_hides_management(self):
+    def test_running_app_keeps_management(self):
         items = compose_tile_menu(AppTarget(0, "Steam"), is_running=True)
-        assert [i.action for i in items] == [RESTORE, CLOSE]
-        assert SEPARATOR not in [i.action for i in items]
+        assert [i.action for i in items] == [RESTORE, CLOSE, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
     def test_window_offers_restore_close_separator_pin(self):
         items = compose_tile_menu(WindowTarget("w1", "Firefox"), is_running=True)
@@ -65,9 +66,9 @@ class TestTileMenuFor:
         assert calls == [3]
         assert [i.action for i in items] == [LAUNCH, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
-    def test_app_running_offers_restore_and_close_only(self):
+    def test_app_running_keeps_lifecycle_and_management(self):
         items = tile_menu_for(AppTarget(0, "Steam"), lambda idx: True)
-        assert [i.action for i in items] == [RESTORE, CLOSE]
+        assert [i.action for i in items] == [RESTORE, CLOSE, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
     def test_window_never_queries_and_is_running(self):
         called = False

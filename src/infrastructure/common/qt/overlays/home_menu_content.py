@@ -20,7 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import qtawesome as qta
-from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, QPoint, QSignalBlocker, pyqtSignal
 from PyQt6.QtGui import QPainterPath, QRegion, QCursor
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -47,12 +47,7 @@ from .power_dropdown import PowerDropdown
 
 logger = logging.getLogger(__name__)
 
-# The Actions section is a single-column vertical list navigated up/down (the
-# Quick-adjust sliders keep their own left/right handling).
-_ACTIONS_COLUMNS = 1
 CARD_WIDTH  = 832
-# The list and the sliders share this width, centred within the wider card so the
-# header can still span it — the menu reads as one centred column.
 _LIST_WIDTH = round(CARD_WIDTH * 2 / 3)
 _QUICK_WIDTH = _LIST_WIDTH
 
@@ -150,12 +145,27 @@ class _Zone:
 
 @dataclass
 class _QuickRow:
-    """One Quick-adjust slider row: the control it drives, the cached level
-    value, the slider widget, and the live percentage label."""
+    """One Quick-adjust slider row, owning its own value mechanics."""
     control: VolumeControl | BrightnessControl
     value: BoundedValue
     slider: QSlider
     vlabel: QLabel
+
+    def adjust(self, sign: int) -> bool:
+        return self._commit(self.value.adjusted(sign * type(self.value).STEP))
+
+    def set_from_raw(self, raw: int) -> bool:
+        return self._commit(type(self.value)(raw))
+
+    def _commit(self, new: BoundedValue) -> bool:
+        if new.value == self.value.value:
+            return False
+        self.value = new
+        self.control.set(new)
+        with QSignalBlocker(self.slider):
+            self.slider.setValue(new.value)
+        self.vlabel.setText(f"{new.value}%")
+        return True
 
 
 class HomeMenuContent(QWidget):
@@ -183,9 +193,6 @@ class HomeMenuContent(QWidget):
 
         self._zones: list[_Zone] = []
         self._active = 0
-        # Guards the slider valueChanged handler against our own programmatic
-        # setValue (gamepad adjust / clamp reflection), so only user drags dispatch.
-        self._syncing_slider = False
         self._quick_state: list[_QuickRow] = []   # aligned with the quick zone's items
         self._power_card: QWidget | None = None  # the Power split-button (X opens its dropdown)
         self._dropdown: PowerDropdown | None = None   # the open Power dropdown, while expanded
@@ -296,7 +303,7 @@ class HomeMenuContent(QWidget):
 
         for i, section in enumerate(sections):
             if i:
-                self._zones_layout.addWidget(self._separator())
+                self._zones_layout.addWidget(styles.separator())
             if section.kind == SectionKind.QUICK:
                 self._zones.append(self._build_quick(section))
             else:
@@ -349,8 +356,7 @@ class HomeMenuContent(QWidget):
         return _Zone(SectionKind.QUICK, section.items, rows)
 
     def _build_cards(self, section: HomeSection) -> _Zone:
-        zone_index = len(self._zones)   # the index this zone takes once appended
-        columns = _ACTIONS_COLUMNS if section.kind == SectionKind.ACTIONS else 1
+        zone_index = len(self._zones)
         container = QWidget()
         container.setStyleSheet("background: transparent;")
         grid = QGridLayout(container)
@@ -358,8 +364,6 @@ class HomeMenuContent(QWidget):
         grid.setSpacing(8)
         cards: list[QWidget] = []
         for idx, item in enumerate(section.items):
-            # The Power card is a split-button: a trailing chevron (and the hint
-            # bar's "Options") advertise the dropdown so it stays discoverable.
             is_power = item.action == POWER
             label = "  " + item.label + ("   ▾" if is_power else "")
             card = _MenuCard(label)
@@ -372,21 +376,13 @@ class HomeMenuContent(QWidget):
             card.hovered.connect(lambda zi=zone_index, ci=idx: self._hover_item(zi, ci))
             card.clicked.connect(
                 lambda _=False, zi=zone_index, ci=idx: self._click_item(zi, ci))
-            grid.addWidget(card, idx // columns, idx % columns)
+            grid.addWidget(card, idx, 0)
             cards.append(card)
             if is_power:
                 self._power_card = card
-        # Single-column list, centred at the shared width so it lines up under the
-        # Quick-adjust sliders (matching AlignHCenter there).
         container.setFixedWidth(_LIST_WIDTH)
         self._zones_layout.addWidget(container, alignment=Qt.AlignmentFlag.AlignHCenter)
-        return _Zone(section.kind, section.items, cards, columns)
-
-    def _separator(self) -> QWidget:
-        line = QFrame()
-        line.setFixedHeight(1)
-        line.setStyleSheet("background-color: #3b4252;")
-        return line
+        return _Zone(section.kind, section.items, cards, columns=1)
 
     def _control_for(self, action: str):
         return self._volume if action == VOLUME else self._brightness
@@ -536,27 +532,16 @@ class HomeMenuContent(QWidget):
             self._feedback.play(Cue.CURSOR)
 
     def _adjust(self, slider_index: int, sign: int) -> None:
-        self._adjust_state(self._quick_state[slider_index], sign)
-
-    def _adjust_state(self, state: _QuickRow, sign: int) -> None:
-        value = state.value
-        new = value.adjusted(sign * type(value).STEP)
-        if new.value == value.value:
-            return
-        state.value = new
-        state.control.set(new)
-        self._syncing_slider = True
-        state.slider.setValue(new.value)
-        self._syncing_slider = False
-        state.vlabel.setText(f"{new.value}%")
-        self._feedback.play(Cue.CURSOR)
+        if self._quick_state[slider_index].adjust(sign):
+            self._feedback.play(Cue.CURSOR)
 
     def _nudge_volume(self, sign: int) -> None:
         """Adjust global volume from the LT/RT triggers, reflecting it in the
         Quick-adjust slider when one is on screen (it always is, in practice)."""
         state = self._volume_state()
         if state is not None:
-            self._adjust_state(state, sign)
+            if state.adjust(sign):
+                self._feedback.play(Cue.CURSOR)
             return
         value = self._volume.get()
         new = value.adjusted(sign * type(value).STEP)
@@ -616,22 +601,11 @@ class HomeMenuContent(QWidget):
 
     def _on_slider(self, zone_i: int, item_i: int, raw: int) -> None:
         """A user drag on a quick-adjust slider: select the row and set the level.
-        Ignores our own programmatic setValue (guarded), and reflects the domain's
-        clamp (e.g. the brightness floor) back onto the slider."""
-        if self._syncing_slider:
-            return
-        state = self._quick_state[item_i]
+        Programmatic setValue is signal-blocked at the source, so this only ever
+        runs for genuine drags; the row snaps the handle to any domain re-clamp."""
         self._active = zone_i
         self._zones[zone_i].index = item_i
-        new = type(state.value)(raw)
-        if new.value != state.value.value:
-            state.value = new
-            state.control.set(new)
-            state.vlabel.setText(f"{new.value}%")
-            if new.value != raw:   # domain re-clamped → snap the handle to it
-                self._syncing_slider = True
-                state.slider.setValue(new.value)
-                self._syncing_slider = False
+        self._quick_state[item_i].set_from_raw(raw)
         self._render()
         self.sync_hints()
 

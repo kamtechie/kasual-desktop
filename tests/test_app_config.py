@@ -243,9 +243,9 @@ class TestTileOrderStore:
         assert [a.name for a in load_apps()] == ["A"]
 
 
-# ── DesktopTileColorStore ───────────────────────────────────────────────────
+# ── DesktopTileSettingsStore ───────────────────────────────────────────────────
 
-class TestTileColorStore:
+class TestTileSettingsStore:
     def _write_app(self, apps_root, filename, name, order, color=None):
         lines = [
             "[Desktop Entry]",
@@ -262,8 +262,8 @@ class TestTileColorStore:
         self._write_app(apps_root, "a.desktop", "A", 0, color="#111111")
         self._write_app(apps_root, "b.desktop", "B", 1, color="#222222")
 
-        from infrastructure.common.catalog.app_config import DesktopTileColorStore
-        DesktopTileColorStore().set_color(1, "#ff0000")
+        from infrastructure.common.catalog.app_config import DesktopTileSettingsStore
+        DesktopTileSettingsStore().set_color(1, "#ff0000")
 
         apps = {a.name: a for a in load_apps()}
         assert apps["B"].color == "#ff0000"
@@ -272,19 +272,19 @@ class TestTileColorStore:
     def test_adds_color_key_when_absent(self, apps_root):
         self._write_app(apps_root, "a.desktop", "A", 0)   # no X-Kasual-Color
 
-        from infrastructure.common.catalog.app_config import DesktopTileColorStore
-        DesktopTileColorStore().set_color(0, "#abcdef")
+        from infrastructure.common.catalog.app_config import DesktopTileSettingsStore
+        DesktopTileSettingsStore().set_color(0, "#abcdef")
 
         assert load_apps()[0].color == "#abcdef"
 
     def test_out_of_range_is_a_noop(self, apps_root):
         self._write_app(apps_root, "a.desktop", "A", 0, color="#111111")
-        from infrastructure.common.catalog.app_config import DesktopTileColorStore
-        DesktopTileColorStore().set_color(5, "#ff0000")
+        from infrastructure.common.catalog.app_config import DesktopTileSettingsStore
+        DesktopTileSettingsStore().set_color(5, "#ff0000")
         assert load_apps()[0].color == "#111111"
 
 
-# ── DesktopTileColorStore.set_recall_trigger ─────────────────────────────────
+# ── DesktopTileSettingsStore.set_recall_trigger ─────────────────────────────────
 
 class TestTileRecallTriggerStore:
     def _write_app(self, apps_root, filename, name, order, trigger=None):
@@ -302,16 +302,16 @@ class TestTileRecallTriggerStore:
     def test_writes_hold_trigger_when_absent(self, apps_root):
         self._write_app(apps_root, "a.desktop", "A", 0)   # no trigger key
 
-        from infrastructure.common.catalog.app_config import DesktopTileColorStore
-        DesktopTileColorStore().set_recall_trigger(0, "BTN_MODE_HOLD_1S")
+        from infrastructure.common.catalog.app_config import DesktopTileSettingsStore
+        DesktopTileSettingsStore().set_recall_trigger(0, "BTN_MODE_HOLD_1S")
 
         assert load_apps()[0].recall_menu_trigger == "BTN_MODE_HOLD_1S"
 
     def test_rewrites_existing_hold_trigger(self, apps_root):
         self._write_app(apps_root, "a.desktop", "A", 0, trigger="BTN_MODE_HOLD_1S")
 
-        from infrastructure.common.catalog.app_config import DesktopTileColorStore
-        DesktopTileColorStore().set_recall_trigger(0, "BTN_MODE_CLICK")
+        from infrastructure.common.catalog.app_config import DesktopTileSettingsStore
+        DesktopTileSettingsStore().set_recall_trigger(0, "BTN_MODE_CLICK")
 
         # Default trigger means the key must NOT live in the file.
         text = (apps_root / "a.desktop").read_text(encoding="utf-8")
@@ -321,8 +321,8 @@ class TestTileRecallTriggerStore:
     def test_default_removes_key_even_when_present(self, apps_root):
         self._write_app(apps_root, "a.desktop", "A", 0, trigger="BTN_MODE_HOLD_1S")
 
-        from infrastructure.common.catalog.app_config import DesktopTileColorStore
-        DesktopTileColorStore().set_recall_trigger(0, "BTN_MODE_CLICK")
+        from infrastructure.common.catalog.app_config import DesktopTileSettingsStore
+        DesktopTileSettingsStore().set_recall_trigger(0, "BTN_MODE_CLICK")
 
         text = (apps_root / "a.desktop").read_text(encoding="utf-8")
         assert "X-Kasual-RecallMenuTrigger" not in text
@@ -338,8 +338,8 @@ class TestTileRecallTriggerStore:
             "X-Kasual-Order=0\n"
         ))
 
-        from infrastructure.common.catalog.app_config import DesktopTileColorStore
-        DesktopTileColorStore().set_recall_trigger(0, "BTN_MODE_CLICK")
+        from infrastructure.common.catalog.app_config import DesktopTileSettingsStore
+        DesktopTileSettingsStore().set_recall_trigger(0, "BTN_MODE_CLICK")
 
         a = load_apps()[0]
         assert a.color == "#123456"
@@ -348,6 +348,6 @@ class TestTileRecallTriggerStore:
     def test_out_of_range_is_a_noop(self, apps_root):
         self._write_app(apps_root, "a.desktop", "A", 0,
                         trigger="BTN_MODE_HOLD_1S")
-        from infrastructure.common.catalog.app_config import DesktopTileColorStore
-        DesktopTileColorStore().set_recall_trigger(5, "BTN_MODE_CLICK")
+        from infrastructure.common.catalog.app_config import DesktopTileSettingsStore
+        DesktopTileSettingsStore().set_recall_trigger(5, "BTN_MODE_CLICK")
         assert load_apps()[0].recall_menu_trigger == "BTN_MODE_HOLD_1S"

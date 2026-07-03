@@ -24,7 +24,7 @@ from domain.lifecycle.launch_hide import LaunchHide
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.prompts import LocalizedPrompts
 from domain.lifecycle.window_manager import WindowManager
-from domain.menu.ports import AppPinning, TileColorStore, TileOrderStore
+from domain.menu.ports import AppPinning, TileSettingsStore, TileOrderStore
 from domain.navigation.focus_navigator import FocusNavigator
 from domain.navigation.tile_mover import TileMover
 from domain.network.control import NetworkControl
@@ -84,7 +84,7 @@ def build_desktop(
     notifications: NotificationCenter,
     network_control: NetworkControl,
     order_store: TileOrderStore,
-    color_store: TileColorStore,
+    settings_store: TileSettingsStore,
     app_pinning: AppPinning,
     surface: DesktopSurface | None = None,
     deferred_hide_factory: 'Callable[[WindowManager, ProcessManager, LiveCatalog, Callable[[], None]], LaunchHide] | None' = None,
@@ -124,7 +124,7 @@ def build_desktop(
         notifications=notifications,
         network_control=network_control,
         overlays=overlays,
-        color_store=color_store,
+        settings_store=settings_store,
         app_pinning=app_pinning,
         surface=surface,
         parent_of=parent_of,

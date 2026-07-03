@@ -40,7 +40,7 @@ from domain.system.runner import ActionRunner
 from domain.menu.entry import SETTINGS, MOVE, PIN, POWER, RETURN_TO_DESKTOP, UNPIN
 from domain.menu.item import MenuItem
 from domain.menu.palette import TILE_COLORS
-from domain.menu.ports import AppPinning, TileColorStore
+from domain.menu.ports import AppPinning, TileSettingsStore
 from domain.menu.tile import tile_menu_for
 from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Cue, Feedback
@@ -96,7 +96,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         notifications: NotificationCenter,
         network_control: NetworkControl,
         overlays: OpenOverlays,
-        color_store: TileColorStore,
+        settings_store: TileSettingsStore,
         app_pinning: AppPinning,
         surface: DesktopSurface | None = None,
         parent_of: 'Callable[[int], int | None] | None' = None,
@@ -121,7 +121,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         # the domain registry; only the confirm dialog keeps a named handle, for
         # its single-instance guard and the app-ended force-close.
         self._overlays       = overlays
-        self._color_store    = color_store
+        self._settings_store    = settings_store
         self._app_pinning    = app_pinning
         # The add-app use-case behind the [＋] tile (offers the not-yet-pinned
         # starter candidates and persists the chosen ones). Optional so offscreen
@@ -659,9 +659,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
         def _on_save(color: str, trigger: str) -> None:
             self._forget_tile_settings()
-            self._color_store.set_color(index, color)
+            self._settings_store.set_color(index, color)
             self._tilebar.set_app_recall_trigger(index, trigger)
-            self._color_store.set_recall_trigger(index, trigger)
+            self._settings_store.set_recall_trigger(index, trigger)
 
         def _on_cancel() -> None:
             self._forget_tile_settings()

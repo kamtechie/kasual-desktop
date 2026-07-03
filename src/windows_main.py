@@ -131,7 +131,7 @@ def main():
     from domain.provisioning.add_apps import AppAdder
     from infrastructure.common.catalog.app_config import (
         load_apps, DesktopAppProvisioning,
-        DesktopTileOrderStore, DesktopTileColorStore,
+        DesktopTileOrderStore, DesktopTileSettingsStore,
     )
     from infrastructure.windows.catalog.app_discovery import WindowsAppDiscovery
 
@@ -183,7 +183,7 @@ def main():
             notifications=notification_center,
             network_control=WindowsNetworkControl(),
             order_store=DesktopTileOrderStore(),
-            color_store=DesktopTileColorStore(),
+            settings_store=DesktopTileSettingsStore(),
             app_pinning=WindowsAppPinning(),
             surface=surface,
             # Parent-PID reader for recall-trigger inheritance (a game window

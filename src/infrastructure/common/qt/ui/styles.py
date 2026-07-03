@@ -1,11 +1,12 @@
 from domain.shared.text import truncate  # noqa: F401 - re-exported: callers use styles.truncate
 
-COLOR_ACCENT   = "#88c0d0"
-COLOR_BG_DARK  = "#0b140e"
-COLOR_TEXT     = "white"
-COLOR_TOPBAR   = "rgba(15, 17, 25, 210)"
-COLOR_RUNNING  = "#a3be8c"
-COLOR_CARD_BG  = "#2e3440"
+COLOR_ACCENT    = "#88c0d0"
+COLOR_BG_DARK   = "#0b140e"
+COLOR_TEXT      = "white"
+COLOR_TOPBAR    = "rgba(15, 17, 25, 210)"
+COLOR_RUNNING   = "#a3be8c"
+COLOR_CARD_BG   = "#2e3440"
+COLOR_SEPARATOR = "#3b4252"
 CARD_RADIUS_PX = 40
 _TOPBAR_RADIUS = 30
 _DIALOG_RADIUS = 25
@@ -53,6 +54,15 @@ def make_card(width: int):
     )
     apply_card_shadow(card)
     return card
+
+
+def separator():
+    from PyQt6.QtWidgets import QFrame
+
+    line = QFrame()
+    line.setFixedHeight(1)
+    line.setStyleSheet(f"background-color: {COLOR_SEPARATOR};")
+    return line
 
 
 def tile_normal(color: str) -> str:

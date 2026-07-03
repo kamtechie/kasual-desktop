@@ -21,7 +21,7 @@ from collections.abc import Callable, Sequence
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import (
-    QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
+    QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
 
 from domain.input.pad_control import PadControl
@@ -151,8 +151,7 @@ class TileSettings(BaseOverlay):
             self._recall_buttons.append(btn)
         layout.addLayout(recall_row)
 
-        # ── Separator ────────────────────────────────────────────────────────
-        layout.addWidget(self._make_separator())
+        layout.addWidget(styles.separator())
 
         # ── Colour section ───────────────────────────────────────────────────
         color_label = QLabel(translate("Desktop", "Tile color:"))
@@ -370,9 +369,3 @@ class TileSettings(BaseOverlay):
                 f"QPushButton {{ background-color: {color};"
                 f" border: {border}; border-radius: {_SWATCH_RADIUS}px; }}"
             )
-
-    def _make_separator(self) -> QFrame:
-        line = QFrame()
-        line.setFixedHeight(1)
-        line.setStyleSheet("background-color: #3b4252;")
-        return line
