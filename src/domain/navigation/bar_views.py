@@ -6,6 +6,8 @@ role-interfaces than the lifecycle's TileBarView (ISP): TileBar satisfies both.
 
 from typing import Protocol
 
+from domain.catalog.app import App
+from domain.catalog.window import Window
 from domain.navigation.hints import Hints
 
 
@@ -29,6 +31,15 @@ class TileReorderView(Protocol):
     def current_app_index(self) -> int: ...
     def swap_app_tiles(self, i: int, j: int) -> None: ...
     def set_move_mode(self, active: bool) -> None: ...
+
+
+class TilePinView(Protocol):
+    """The tile bar as the pin/unpin coordinator drives it; persistence is a
+    separate port (AppPinning)."""
+
+    def window_for(self, window_id: str) -> Window | None: ...
+    def pin_window(self, app: App, window_id: str) -> None: ...
+    def unpin_app(self, index: int) -> None: ...
 
 
 class TopBarView(Protocol):

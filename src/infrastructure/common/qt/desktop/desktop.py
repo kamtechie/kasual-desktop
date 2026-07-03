@@ -42,9 +42,10 @@ from domain.menu.item import MenuItem
 from domain.menu.palette import TILE_COLORS
 from domain.menu.ports import AppPinning, TileSettingsStore
 from domain.catalog.tile_settings_editor import TileSettingsEditor
+from domain.catalog.app_pinner import AppPinner
 from domain.menu.tile import tile_menu_for
 from domain.provisioning.add_apps import AppAdder
-from domain.shared.feedback import Cue, Feedback
+from domain.shared.feedback import Feedback
 from domain.shared.i18n import translate
 from domain.shared.text import truncate
 from domain.shell.desktop_view import DesktopView
@@ -124,7 +125,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._overlays       = overlays
         self._settings_store    = settings_store
         self._tile_settings_editor = TileSettingsEditor(self._apps, settings_store)
-        self._app_pinning    = app_pinning
         # The add-app use-case behind the [＋] tile (offers the not-yet-pinned
         # starter candidates and persists the chosen ones). Optional so offscreen
         # test builds can omit it — the [＋] tile then simply does nothing.
@@ -182,6 +182,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._topbar = self._home_header
         main.addStretch(1)
         self._tilebar = TileBar(self._apps, self._app_manager, parent_of=parent_of)
+        self._app_pinner = AppPinner(self._tilebar, app_pinning, self._feedback)
         self._tilebar.tile_hovered.connect(self._on_tile_hovered)
         self._tilebar.tile_context_menu.connect(self._on_tile_context_menu)
         # The [＋] add-app flow lives in its own controller (§8); the tile bar's
@@ -605,43 +606,19 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         elif item.action == SETTINGS:
             self._show_tile_settings()
         elif item.action == PIN:
-            self._pin_window(item.target)
+            self._app_pinner.pin(item.target.window_id)
         elif item.action == UNPIN:
             self._unpin_app(item.target)
 
-    def _pin_window(self, target) -> None:
-        """Promote the focused open-window tile to a persistent app tile.
-
-        Resolves the window behind *target*, lets the pin adapter write its Kasual
-        ``.desktop`` entry, and on success adds the tile live. A window that cannot
-        be resolved to a launchable command (e.g. no source ``.desktop``) fails
-        quietly with a back cue rather than a phantom tile."""
-        window = self._tilebar.window_for(target.window_id)
-        app = self._app_pinning.pin(window) if window is not None else None
-        if app is None:
-            self._feedback.play(Cue.EXIT)
-            return
-        self._tilebar.pin_window(app, target.window_id)
-        self._feedback.play(Cue.SELECT)
-
     def _unpin_app(self, target) -> None:
-        """Confirm, then remove the focused app tile from the menu — the reverse of
-        pinning. The index is captured for the confirm callback: the dialog is modal
-        so the focus cannot move underneath it (mirrors the colour picker)."""
+        """Confirm, then unpin. The index is captured for the confirm callback: the
+        dialog is modal so the focus cannot move underneath it."""
         index = target.index
         self._show_confirm(
             question=translate("Desktop", 'Are you sure you want to unpin\n"{0}"?')
                 .format(truncate(target.name, 40)),
-            on_confirmed=lambda: self._do_unpin(index),
+            on_confirmed=lambda: self._app_pinner.unpin(index),
         )
-
-    def _do_unpin(self, index: int) -> None:
-        """Delete the persisted ``.desktop`` (so it stays gone after a restart) and
-        drop the tile live; a still-running app reappears as a dynamic open-window
-        tile, an idle one simply disappears."""
-        self._app_pinning.unpin(index)
-        self._tilebar.unpin_app(index)
-        self._feedback.play(Cue.SELECT)
 
     def _show_tile_settings(self) -> None:
         """Open the Tile Settings modal for the focused app tile.

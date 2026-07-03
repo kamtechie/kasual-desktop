@@ -20,20 +20,30 @@ class SystemTray(ConnectionIndicator):
         on_about: Callable[[], None],
         on_quit:  Callable[[], None],
     ) -> None:
+        # Held as attributes: a Qt connection keeps only a weak ref to a bound
+        # method's object, so a bound-method callback (e.g. log_viewer.open) would
+        # die when its owner is GC'd — the menu item then silently does nothing.
+        self._on_show  = on_show
+        self._on_logs  = on_logs
+        self._on_about = on_about
+        self._on_quit  = on_quit
+
         self._tray = QSystemTrayIcon(self._make_icon(connected=False))
         self._tray.setToolTip("Kasual Desktop")
 
         menu = QMenu()
         show_action = menu.addAction(translate("Kasual Desktop", "Show Desktop"))
-        show_action.triggered.connect(on_show)
+        show_action.triggered.connect(self._on_show)
         logs_action = menu.addAction(translate("Kasual Desktop", "Logs"))
-        logs_action.triggered.connect(on_logs)
+        logs_action.triggered.connect(self._on_logs)
         about_action = menu.addAction(translate("Kasual Desktop", "About…"))
-        about_action.triggered.connect(on_about)
+        about_action.triggered.connect(self._on_about)
         menu.addSeparator()
         quit_action = menu.addAction(translate("Kasual Desktop", "Quit"))
-        quit_action.triggered.connect(on_quit)
+        quit_action.triggered.connect(self._on_quit)
 
+        # QSystemTrayIcon does not take ownership of the menu, so keep a reference.
+        self._menu = menu
         self._tray.setContextMenu(menu)
         self._tray.activated.connect(
             lambda reason: on_show()
