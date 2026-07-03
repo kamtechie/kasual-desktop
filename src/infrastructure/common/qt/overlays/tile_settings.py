@@ -209,8 +209,8 @@ class TileSettings(BaseOverlay):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(20)
         btn_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._btn_cancel = QPushButton(translate("Desktop", "Cancel"))
-        self._btn_save = QPushButton(translate("Desktop", "Save"))
+        self._btn_cancel = QPushButton("✘  " + translate("Desktop", "Cancel"))
+        self._btn_save = QPushButton("✔  " + translate("Desktop", "Save"))
         for btn in (self._btn_cancel, self._btn_save):
             btn.setMinimumSize(210, 80)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
