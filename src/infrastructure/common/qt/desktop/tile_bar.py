@@ -274,12 +274,6 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
             return self._apps[self._tile_index].recall_menu_trigger
         return None
 
-    def set_app_recall_trigger(self, index: int, trigger: str) -> None:
-        """Update the recall-menu trigger of the static app tile at *index* in the
-        shared catalog (the on-screen tile has no glyph for it)."""
-        if 0 <= index < len(self._tiles):
-            self._apps.set_recall_trigger(index, trigger)
-
     # ── Pin to menu (Tile Management Popover) ────────────────────────────────
 
     def window_for(self, window_id: str) -> Window | None:

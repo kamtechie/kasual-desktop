@@ -41,6 +41,7 @@ from domain.menu.entry import SETTINGS, MOVE, PIN, POWER, RETURN_TO_DESKTOP, UNP
 from domain.menu.item import MenuItem
 from domain.menu.palette import TILE_COLORS
 from domain.menu.ports import AppPinning, TileSettingsStore
+from domain.catalog.tile_settings_editor import TileSettingsEditor
 from domain.menu.tile import tile_menu_for
 from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Cue, Feedback
@@ -122,6 +123,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         # its single-instance guard and the app-ended force-close.
         self._overlays       = overlays
         self._settings_store    = settings_store
+        self._tile_settings_editor = TileSettingsEditor(self._apps, settings_store)
         self._app_pinning    = app_pinning
         # The add-app use-case behind the [＋] tile (offers the not-yet-pinned
         # starter candidates and persists the chosen ones). Optional so offscreen
@@ -659,9 +661,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
         def _on_save(color: str, trigger: str) -> None:
             self._forget_tile_settings()
-            self._settings_store.set_color(index, color)
-            self._tilebar.set_app_recall_trigger(index, trigger)
-            self._settings_store.set_recall_trigger(index, trigger)
+            self._tile_settings_editor.apply(index, color, trigger)
 
         def _on_cancel() -> None:
             self._forget_tile_settings()
