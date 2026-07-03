@@ -18,8 +18,9 @@ Escape / backdrop / BTN_MODE) reverts the preview and closes.
 
 from collections.abc import Callable, Sequence
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QKeyEvent
+import qtawesome as qta
+from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtGui import QColor, QIcon, QKeyEvent, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
@@ -41,9 +42,34 @@ _MAX_PER_ROW = 10   # wrap the palette into rows of at most this many swatches
 _RECALL_OPTIONS: tuple[tuple[str, str], ...] = (
     # (label, trigger value) — the first is the default; the order is the
     # left-to-right navigation order in the Recall section.
-    (translate("Desktop", "Pressing Home Button"),   Trigger.CLICK),
-    (translate("Desktop", "Holding Home Button"),    Trigger.HOLD_1S),
+    (translate("Desktop", "Pressing"),   Trigger.CLICK),
+    (translate("Desktop", "Holding"),     Trigger.HOLD_1S),
 )
+
+# The same glyph the hint bar shows for BTN_MODE, so both surfaces name one button.
+_HOME_GLYPH = "fa5s.home"
+_GLYPH_DISC = 40      # disc diameter, px
+_GLYPH_INNER = 22     # house glyph within the disc, px
+_GLYPH_GAP = 14       # transparent lead-in that keeps the disc off the label, px
+
+
+def _home_button_icon() -> QIcon:
+    """The recall button's BTN_MODE mark: a white house on a dark disc, legible
+    whether the button is idle (dark) or focused (light). The disc is inset from
+    the pixmap's leading edge so it never crowds the label beside it."""
+    canvas = QPixmap(_GLYPH_GAP + _GLYPH_DISC, _GLYPH_DISC)
+    canvas.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(canvas)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor("#3b4252"))
+    painter.drawEllipse(_GLYPH_GAP, 0, _GLYPH_DISC, _GLYPH_DISC)
+    house = qta.icon(_HOME_GLYPH, color="white").pixmap(
+        QSize(_GLYPH_INNER, _GLYPH_INNER))
+    inset = (_GLYPH_DISC - _GLYPH_INNER) // 2
+    painter.drawPixmap(_GLYPH_GAP + inset, inset, house)
+    painter.end()
+    return QIcon(canvas)
 
 # Staged-but-not-focused button: dialog_idle() background with accent border,
 # used when the recall trigger is selected but the focus group is elsewhere.
@@ -141,8 +167,13 @@ class TileSettings(BaseOverlay):
         recall_row.setSpacing(_SWATCH_GAP)
         recall_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._recall_buttons: list[QPushButton] = []
+        home_icon = _home_button_icon()
         for i, (label, _value) in enumerate(_RECALL_OPTIONS):
-            btn = QPushButton(label)
+            btn = QPushButton(translate("Desktop", label))
+            btn.setIcon(home_icon)
+            btn.setIconSize(QSize(_GLYPH_GAP + _GLYPH_DISC, _GLYPH_DISC))
+            # Right-to-left lays the glyph after the verb: "Pressing [home]".
+            btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
             btn.setFixedSize(400, _SWATCH)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             btn.clicked.connect(

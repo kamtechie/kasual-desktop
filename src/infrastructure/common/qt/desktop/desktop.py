@@ -185,27 +185,30 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._app_pinner = AppPinner(self._tilebar, app_pinning, self._feedback)
         self._tilebar.tile_hovered.connect(self._on_tile_hovered)
         self._tilebar.tile_context_menu.connect(self._on_tile_context_menu)
-        # The [＋] add-app flow lives in its own controller (§8); the tile bar's
-        # add-requested signal drives it directly.
-        self._app_add = AppAddController(
-            self._apps, self._app_adder, self._gamepad, self._feedback,
-            self._tilebar, self._overlays,
-        )
-        self._tilebar.add_requested.connect(self._app_add.show)
-        main.addWidget(self._tilebar)
-        main.addStretch(1)
 
         # The gamepad-hint bar is its own bottom-edge surface (not a child of this
         # window), so the animated Home Overlay never fades it in/out — it stays
         # put and only swaps content. The Desktop owns the single instance and
         # drives its visibility: shown while the Desktop is up or the Home Overlay
         # is showing (see _sync_hint_visibility / begin_overlay_hints). Populated
-        # by the FocusNavigator (build_desktop) once attached.
+        # by the FocusNavigator (build_desktop) once attached. Created before the
+        # add-app controller, which needs it.
         self._hintbar = HintBar()
         self._hintbar.install_surface()
         # True while the Home Overlay owns the hints (BTN_MODE menu), so the bar
         # stays visible over a running app and shows the overlay's own controls.
         self._overlay_hints = False
+
+        # The [＋] add-app flow lives in its own controller; the tile bar's
+        # add-requested signal drives it directly.
+        self._app_add = AppAddController(
+            self._apps, self._app_adder, self._gamepad, self._feedback,
+            self._tilebar, self._overlays, self._hintbar,
+            restore_hints=lambda: self._nav.render() if self._nav else None,
+        )
+        self._tilebar.add_requested.connect(self._app_add.show)
+        main.addWidget(self._tilebar)
+        main.addStretch(1)
 
         # Domain coordinators are assembled by the package builder (build_desktop)
         # and injected via attach(); the widget itself stays a pure view. The pad
@@ -658,10 +661,12 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             parent=self,
         )
         self._overlays.register(self._tile_settings)
+        self._hintbar.show_hints(home_hints.TILE_SETTINGS)
 
     def _forget_tile_settings(self) -> None:
         self._overlays.forget(self._tile_settings)
         self._tile_settings = None
+        self._nav.render()   # restore the tiles-screen hints
 
     def _close_active_dialog(self) -> None:
         if self._confirm_dialog is not None:

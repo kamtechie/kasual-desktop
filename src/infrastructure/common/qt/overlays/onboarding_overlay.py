@@ -230,18 +230,16 @@ class OnboardingOverlay(BaseOverlay, ProvisioningView, metaclass=ProtocolQtMeta)
     # ── Navigation (delegated to the domain cursor) ──────────────────────────
 
     def _handle_pad(self, event: str) -> None:
-        # B / Back dismisses the picker when a cancel path was supplied (the
-        # add-app reuse); first-run onboarding passes none and so ignores it.
         if event == Event.CANCEL and self._on_cancel is not None:
             self._cancel()
             return
-        # Left/Right jump between the list and the always-visible Confirm button:
-        # Right from any row → Confirm; Left from Confirm → the row last left.
-        if event == Event.RIGHT and self._rows and self._cursor.index < len(self._rows):
+        to_confirm = event in (Event.RIGHT, Event.SECTION_NEXT)
+        to_list    = event in (Event.LEFT, Event.SECTION_PREV)
+        if to_confirm and self._rows and self._cursor.index < len(self._rows):
             self._return_row = self._cursor.index
             self._cursor.hover(len(self._rows))
             return
-        if event == Event.LEFT and self._cursor.index == len(self._rows) and self._rows:
+        if to_list and self._cursor.index == len(self._rows) and self._rows:
             self._cursor.hover(min(self._return_row, len(self._rows) - 1))
             return
         self._cursor.handle_pad(event)

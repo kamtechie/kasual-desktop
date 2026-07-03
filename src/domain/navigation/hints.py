@@ -165,6 +165,34 @@ TILE_POPOVER = Hints(
     ),
 )
 
+# The Tile Settings modal (opened from the popover's Settings action): a
+# multi-section card whose focus groups (recall trigger, colour grid, action
+# buttons) are cycled with the bumpers or by spilling past a group edge with the
+# D-pad. Inside a group the D-pad moves the cursor; A stages the focused pick (or
+# commits on Save), B cancels the whole modal.
+TILE_SETTINGS = Hints(
+    directions=(Direction.LEFT, Direction.RIGHT, Direction.UP, Direction.DOWN),
+    overlay=_HOME_MENU,
+    actions=(
+        ButtonHint(Button.A, translate("HintBar", "Select")),
+        ButtonHint(Button.B, translate("HintBar", "Cancel")),
+    ),
+    bumpers=_SECTION,
+)
+
+# The Add-app picker (the [＋] tile, §7.4): up/down moves through the candidate
+# toggle rows, A toggles the focused app, B cancels. The bumpers jump between the
+# list and the trailing Confirm button (RB → Confirm, LB → back to the list).
+ADD_APP = Hints(
+    directions=(Direction.UP, Direction.DOWN),
+    overlay=_HOME_MENU,
+    actions=(
+        ButtonHint(Button.A, translate("HintBar", "Select")),
+        ButtonHint(Button.B, translate("HintBar", "Cancel")),
+    ),
+    bumpers=_SECTION,
+)
+
 # A confirmation dialog (unpin, close app, etc.): left/right switches between
 # Yes/No, A confirms the focused option, B cancels the whole dialog.
 CONFIRM = Hints(

@@ -6,34 +6,34 @@
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/about_overlay.py" line="53" />
         <source>Version {0}</source>
-        <translation type="unfinished" />
+        <translation>Version {0}</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/about_overlay.py" line="60" />
         <source>Author</source>
-        <translation type="unfinished" />
+        <translation>Author</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/about_overlay.py" line="62" />
         <source>License</source>
-        <translation type="unfinished" />
+        <translation>License</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/about_overlay.py" line="75" />
         <source>Close</source>
-        <translation type="unfinished" />
+        <translation>Close</translation>
     </message>
 </context><context>
     <name>ConfirmDialog</name>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/confirm_dialog.py" line="62" />
         <source>Yes</source>
-        <translation type="unfinished" />
+        <translation>Yes</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/confirm_dialog.py" line="63" />
         <source>No</source>
-        <translation type="unfinished" />
+        <translation>No</translation>
     </message>
 </context><context>
     <name>Desktop</name>
@@ -41,130 +41,135 @@
         <location filename="../src/domain/lifecycle/prompts.py" line="31" />
         <source>Are you sure you want to close
 "{0}"?</source>
-        <translation type="unfinished" />
+        <translation>Are you sure you want to close
+"{0}"?</translation>
     </message>
     <message>
         <location filename="../src/domain/lifecycle/prompts.py" line="36" />
         <source>Failed to launch application:
 {0}</source>
-        <translation type="unfinished" />
+        <translation>Failed to launch application:
+{0}</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="68" />
+        <location filename="../src/domain/menu/tile.py" line="64" />
         <source>Launch</source>
-        <translation type="unfinished" />
+        <translation>Launch</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="70" />
+        <location filename="../src/domain/menu/tile.py" line="66" />
         <source>Restore</source>
-        <translation type="unfinished" />
+        <translation>Restore</translation>
     </message>
     <message>
-        <location filename="../src/domain/menu/tile.py" line="71" />
+        <location filename="../src/domain/menu/tile.py" line="67" />
         <source>Close</source>
-        <translation type="unfinished" />
+        <translation>Close</translation>
+    </message>
+    <message>
+        <location filename="../src/domain/menu/tile.py" line="83" />
+        <source>Move</source>
+        <translation>Move</translation>
+    </message>
+    <message>
+        <location filename="../src/domain/menu/tile.py" line="84" />
+        <source>Settings</source>
+        <translation>Settings</translation>
+    </message>
+    <message>
+        <location filename="../src/domain/menu/tile.py" line="85" />
+        <source>Unpin</source>
+        <translation>Unpin</translation>
     </message>
     <message>
         <location filename="../src/domain/menu/tile.py" line="87" />
-        <source>Move</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/domain/menu/tile.py" line="88" />
-        <source>Settings</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/domain/menu/tile.py" line="89" />
-        <source>Unpin</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/domain/menu/tile.py" line="91" />
         <source>Pin to menu</source>
-        <translation type="unfinished" />
+        <translation>Pin to menu</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/desktop/app_add_controller.py" line="66" />
+        <location filename="../src/infrastructure/common/qt/desktop/app_add_controller.py" line="73" />
         <source>Add app</source>
-        <translation type="unfinished" />
+        <translation>Add app</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="631" />
+        <location filename="../src/infrastructure/common/qt/desktop/desktop.py" line="621" />
         <source>Are you sure you want to unpin
 "{0}"?</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="44" />
-        <source>Pressing Home Button</source>
-        <translation type="unfinished" />
+        <translation>Are you sure you want to unpin
+"{0}"?</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="45" />
-        <source>Holding Home Button</source>
-        <translation type="unfinished" />
+        <source>Pressing</source>
+        <translation>Pressing</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="116" />
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="46" />
+        <source>Holding</source>
+        <translation>Holding</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="153" />
         <source>Settings — {0}</source>
-        <translation type="unfinished" />
+        <translation>Settings — {0}</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="123" />
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="160" />
         <source>Call Kasual Desktop menu:</source>
-        <translation type="unfinished" />
+        <translation>Call Kasual Desktop menu:</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="146" />
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="187" />
         <source>Tile color:</source>
-        <translation type="unfinished" />
+        <translation>Tile color:</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="170" />
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="211" />
         <source>Cancel</source>
-        <translation type="unfinished" />
+        <translation>Cancel</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="171" />
+        <location filename="../src/infrastructure/common/qt/overlays/tile_settings.py" line="212" />
         <source>Save</source>
-        <translation type="unfinished" />
+        <translation>Save</translation>
     </message>
 </context><context>
     <name>HintBar</name>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="83" />
         <source>Navigate</source>
-        <translation type="unfinished" />
+        <translation>Navigate</translation>
     </message>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="84" />
         <source>Adjust</source>
-        <translation type="unfinished" />
+        <translation>Adjust</translation>
     </message>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="90" />
         <location filename="../src/domain/navigation/hints.py" line="89" />
         <source>Section</source>
-        <translation type="unfinished" />
+        <translation>Section</translation>
     </message>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="92" />
         <location filename="../src/domain/navigation/hints.py" line="91" />
         <source>Volume</source>
-        <translation type="unfinished" />
+        <translation>Volume</translation>
     </message>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="98" />
         <source>Show/Hide menu</source>
-        <translation type="unfinished" />
+        <translation>Show/Hide menu</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="244" />
-        <location filename="../src/domain/navigation/hints.py" line="229" />
-        <location filename="../src/domain/navigation/hints.py" line="195" />
-        <location filename="../src/domain/navigation/hints.py" line="185" />
-        <location filename="../src/domain/navigation/hints.py" line="174" />
+        <location filename="../src/domain/navigation/hints.py" line="272" />
+        <location filename="../src/domain/navigation/hints.py" line="257" />
+        <location filename="../src/domain/navigation/hints.py" line="223" />
+        <location filename="../src/domain/navigation/hints.py" line="213" />
+        <location filename="../src/domain/navigation/hints.py" line="202" />
+        <location filename="../src/domain/navigation/hints.py" line="190" />
+        <location filename="../src/domain/navigation/hints.py" line="177" />
         <location filename="../src/domain/navigation/hints.py" line="162" />
         <location filename="../src/domain/navigation/hints.py" line="150" />
         <location filename="../src/domain/navigation/hints.py" line="137" />
@@ -172,253 +177,255 @@
         <location filename="../src/domain/navigation/hints.py" line="117" />
         <location filename="../src/domain/navigation/hints.py" line="106" />
         <source>Select</source>
-        <translation type="unfinished" />
+        <translation>Select</translation>
     </message>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="107" />
         <source>Actions</source>
-        <translation type="unfinished" />
+        <translation>Actions</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="245" />
-        <location filename="../src/domain/navigation/hints.py" line="230" />
+        <location filename="../src/domain/navigation/hints.py" line="273" />
+        <location filename="../src/domain/navigation/hints.py" line="258" />
         <location filename="../src/domain/navigation/hints.py" line="138" />
         <source>Options</source>
-        <translation type="unfinished" />
+        <translation>Options</translation>
     </message>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="164" />
         <location filename="../src/domain/navigation/hints.py" line="151" />
         <source>Back</source>
-        <translation type="unfinished" />
+        <translation>Back</translation>
     </message>
     <message>
         <location filename="../src/domain/navigation/hints.py" line="163" />
         <source>Close menu</source>
-        <translation type="unfinished" />
+        <translation>Close menu</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="175" />
+        <location filename="../src/domain/navigation/hints.py" line="203" />
+        <location filename="../src/domain/navigation/hints.py" line="191" />
+        <location filename="../src/domain/navigation/hints.py" line="178" />
         <source>Cancel</source>
-        <translation type="unfinished" />
+        <translation>Cancel</translation>
     </message>
     <message>
-        <location filename="../src/domain/navigation/hints.py" line="246" />
-        <location filename="../src/domain/navigation/hints.py" line="231" />
+        <location filename="../src/domain/navigation/hints.py" line="274" />
+        <location filename="../src/domain/navigation/hints.py" line="259" />
+        <location filename="../src/domain/navigation/hints.py" line="242" />
+        <location filename="../src/domain/navigation/hints.py" line="224" />
         <location filename="../src/domain/navigation/hints.py" line="214" />
-        <location filename="../src/domain/navigation/hints.py" line="196" />
-        <location filename="../src/domain/navigation/hints.py" line="186" />
         <source>Close</source>
-        <translation type="unfinished" />
+        <translation>Close</translation>
     </message>
 </context><context>
     <name>InfoDialog</name>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/info_dialog.py" line="47" />
         <source>OK</source>
-        <translation type="unfinished" />
+        <translation>OK</translation>
     </message>
 </context><context>
     <name>Kasual Desktop</name>
     <message>
         <location filename="../src/domain/menu/home.py" line="30" />
         <source>Return to Home screen</source>
-        <translation type="unfinished" />
+        <translation>Return to Home screen</translation>
     </message>
     <message>
         <location filename="../src/domain/menu/home.py" line="131" />
         <source>Return to {0}</source>
-        <translation type="unfinished" />
+        <translation>Return to {0}</translation>
     </message>
     <message>
         <location filename="../src/domain/menu/home.py" line="133" />
         <source>Close {0}</source>
-        <translation type="unfinished" />
+        <translation>Close {0}</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="114" />
         <location filename="../src/domain/network/view.py" line="54" />
         <location filename="../src/domain/network/view.py" line="37" />
         <source>Network</source>
-        <translation type="unfinished" />
+        <translation>Network</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="45" />
         <source>Status</source>
-        <translation type="unfinished" />
+        <translation>Status</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="46" />
         <source>Not connected</source>
-        <translation type="unfinished" />
+        <translation>Not connected</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="50" />
         <source>Type</source>
-        <translation type="unfinished" />
+        <translation>Type</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="55" />
         <source>Connection</source>
-        <translation type="unfinished" />
+        <translation>Connection</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="58" />
         <source>Signal</source>
-        <translation type="unfinished" />
+        <translation>Signal</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="60" />
         <source>IP address</source>
-        <translation type="unfinished" />
+        <translation>IP address</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="62" />
         <source>Interface</source>
-        <translation type="unfinished" />
+        <translation>Interface</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="82" />
         <source>Disconnect</source>
-        <translation type="unfinished" />
+        <translation>Disconnect</translation>
     </message>
     <message>
         <location filename="../src/domain/network/view.py" line="85" />
         <source>Connect</source>
-        <translation type="unfinished" />
+        <translation>Connect</translation>
     </message>
     <message>
         <location filename="../src/domain/notifications/view.py" line="24" />
         <source>just now</source>
-        <translation type="unfinished" />
+        <translation>just now</translation>
     </message>
     <message>
         <location filename="../src/domain/notifications/view.py" line="26" />
         <source>{0} min ago</source>
-        <translation type="unfinished" />
+        <translation>{0} min ago</translation>
     </message>
     <message>
         <location filename="../src/domain/notifications/view.py" line="28" />
         <source>{0} h ago</source>
-        <translation type="unfinished" />
+        <translation>{0} h ago</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="82" />
         <source>Volume</source>
-        <translation type="unfinished" />
+        <translation>Volume</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="88" />
         <source>Brightness</source>
-        <translation type="unfinished" />
+        <translation>Brightness</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="92" />
         <source>Sleep</source>
-        <translation type="unfinished" />
+        <translation>Sleep</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="94" />
         <source>Are you sure you want to sleep?</source>
-        <translation type="unfinished" />
+        <translation>Are you sure you want to sleep?</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="98" />
         <source>Restart</source>
-        <translation type="unfinished" />
+        <translation>Restart</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="100" />
         <source>Are you sure you want to restart?</source>
-        <translation type="unfinished" />
+        <translation>Are you sure you want to restart?</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="104" />
         <source>Shut Down</source>
-        <translation type="unfinished" />
+        <translation>Shut Down</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="106" />
         <source>Are you sure you want to shut down?</source>
-        <translation type="unfinished" />
+        <translation>Are you sure you want to shut down?</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="110" />
         <source>Notifications</source>
-        <translation type="unfinished" />
+        <translation>Notifications</translation>
     </message>
     <message>
         <location filename="../src/domain/system/actions.py" line="118" />
         <source>Minimize Kasual Desktop</source>
-        <translation type="unfinished" />
+        <translation>Minimize Kasual Desktop</translation>
     </message>
     <message>
         <location filename="../src/domain/system/hud.py" line="51" />
         <source>Disable HUD</source>
-        <translation type="unfinished" />
+        <translation>Disable HUD</translation>
     </message>
     <message>
         <location filename="../src/domain/system/hud.py" line="52" />
         <source>Enable HUD</source>
-        <translation type="unfinished" />
+        <translation>Enable HUD</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/home_header.py" line="260" />
         <source>Power</source>
-        <translation type="unfinished" />
+        <translation>Power</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/notifications_overlay.py" line="149" />
         <source>Recent notifications</source>
-        <translation type="unfinished" />
+        <translation>Recent notifications</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/notifications_overlay.py" line="168" />
         <source>No notifications</source>
-        <translation type="unfinished" />
+        <translation>No notifications</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="27" />
+        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="35" />
         <source>Show Desktop</source>
-        <translation type="unfinished" />
+        <translation>Show Desktop</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="29" />
+        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="37" />
         <source>Logs</source>
-        <translation type="unfinished" />
+        <translation>Logs</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="31" />
+        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="39" />
         <source>About…</source>
-        <translation type="unfinished" />
+        <translation>About…</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="34" />
+        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="42" />
         <source>Quit</source>
-        <translation type="unfinished" />
+        <translation>Quit</translation>
     </message>
 </context><context>
     <name>LogViewer</name>
     <message>
         <location filename="../src/infrastructure/common/qt/ui/log_viewer.py" line="50" />
         <source>Kasual Desktop – Logs</source>
-        <translation type="unfinished" />
+        <translation>Kasual Desktop – Logs</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/ui/log_viewer.py" line="89" />
         <source>Clear</source>
-        <translation type="unfinished" />
+        <translation>Clear</translation>
     </message>
 </context><context>
     <name>OnboardingOverlay</name>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/onboarding_overlay.py" line="108" />
         <source>Welcome — pick your apps</source>
-        <translation type="unfinished" />
+        <translation>Welcome — pick your apps</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/overlays/onboarding_overlay.py" line="138" />
         <source>Confirm</source>
-        <translation type="unfinished" />
+        <translation>Confirm</translation>
     </message>
 </context></TS>

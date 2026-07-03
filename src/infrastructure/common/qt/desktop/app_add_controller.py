@@ -10,10 +10,12 @@ the picker's own cancel callback, so the handle is cleared explicitly).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from domain.catalog.live_catalog import LiveCatalog
 from domain.input.pad_control import PadControl
+from domain.navigation import hints as home_hints
 from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Cue, Feedback
 from domain.shared.i18n import translate
@@ -21,6 +23,7 @@ from domain.shell.open_overlays import OpenOverlays
 from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlay
 
 if TYPE_CHECKING:
+    from .hint_bar import HintBar
     from .tile_bar import TileBar
 
 
@@ -35,6 +38,8 @@ class AppAddController:
         feedback: Feedback,
         tilebar: TileBar,
         overlays: OpenOverlays,
+        hint_bar: HintBar,
+        restore_hints: Callable[[], None],
     ) -> None:
         self._apps = apps
         self._app_adder = app_adder
@@ -42,6 +47,8 @@ class AppAddController:
         self._feedback = feedback
         self._tilebar = tilebar
         self._overlays = overlays
+        self._hint_bar = hint_bar
+        self._restore_hints = restore_hints
         self._picker: OnboardingOverlay | None = None
 
     def show(self) -> None:
@@ -65,6 +72,7 @@ class AppAddController:
             on_cancel=self._forget,
             title=translate("Desktop", "Add app"),
         )
+        self._hint_bar.show_hints(home_hints.ADD_APP)
 
     def _on_added(self, chosen) -> None:
         """Persist the chosen candidates and add their tiles live."""
@@ -79,6 +87,7 @@ class AppAddController:
     def _forget(self) -> None:
         self._overlays.forget(self._picker)
         self._picker = None
+        self._restore_hints()   # restore the tiles-screen hints
 
     def cancel(self) -> None:
         """Drop the picker handle when the overlay group is dismissed (the
