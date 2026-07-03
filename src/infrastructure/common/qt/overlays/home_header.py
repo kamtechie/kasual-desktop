@@ -116,7 +116,7 @@ class HomeHeader(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(
             "#homeheader {"
-            "  background-color: #2e3440;"
+            "  background-color: rgba(46, 52, 64, 204);"  # transparency test: 20%
             "  border-radius: 40px;"
             "}"
         )

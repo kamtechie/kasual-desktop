@@ -92,7 +92,7 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
         bar.setFixedWidth(CARD_WIDTH)
         bar.setStyleSheet(
             "#hintbar {"
-            "  background-color: #2e3440;"
+            "  background-color: rgba(46, 52, 64, 204);"  # transparency test: 20%
             "  border-radius: 30px;"
             "}"
         )

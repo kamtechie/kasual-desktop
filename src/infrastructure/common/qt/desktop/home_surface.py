@@ -134,6 +134,11 @@ class HomeSurface(QWidget):
         # card. Its max-height + opacity are animated for the morph; collapsed it
         # is fully shrunk and transparent (but still mapped — no unmap).
         self._panel = styles.make_card(CARD_WIDTH)
+        # transparency test: 20% — overrides make_card's opaque #2e3440 for the
+        # Home overlay menu only (make_card is shared by the other dialogs).
+        self._panel.setStyleSheet(
+            "background-color: rgba(46, 52, 64, 204); border-radius: 40px;"
+        )
         panel_col = QVBoxLayout(self._panel)
         panel_col.setContentsMargins(28, 22, 28, 22)
         self._content = HomeMenuContent(feedback, volume, brightness, power)
