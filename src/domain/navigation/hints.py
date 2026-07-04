@@ -1,17 +1,8 @@
 """Gamepad control hints shown along the bottom of the Desktop.
 
-Which controls do what on each screen (the tile bar vs the top bar) is
-interaction knowledge, so it lives here in the navigation domain: the
-:class:`~domain.navigation.focus_navigator.FocusNavigator` owns the screen mode
-and pushes the matching :class:`Hints` to the ``HintBarView`` port whenever it
-changes. Drawing the glyphs and labels is the Qt adapter's concern (the
-``HintBar`` widget).
-
-The labels are English source strings re-translated at render time — the same
-extraction-marker pattern as :mod:`domain.system.actions`: the literal
-``translate("HintBar", "...")`` calls below run at import time (before any
-backend is installed) and pass through unchanged so pylupdate6 can harvest them;
-the adapter re-translates each stored label when it renders.
+Labels are English source strings harvested by pylupdate6 from the literal
+``translate("HintBar", ...)`` calls at import time and re-translated at render,
+so those calls must stay literal.
 """
 
 from __future__ import annotations
@@ -23,7 +14,7 @@ from domain.shared.i18n import translate
 
 
 class Direction(StrEnum):
-    """A directional input depicted in the navigation cluster (left side)."""
+    """A directional input."""
 
     UP    = "up"
     DOWN  = "down"
@@ -32,17 +23,17 @@ class Direction(StrEnum):
 
 
 class Button(StrEnum):
-    """A gamepad button depicted with its own glyph (right side / overlay)."""
+    """A gamepad button."""
 
-    A     = "a"      # BTN_SOUTH — select / launch / confirm
-    B     = "b"      # BTN_EAST — cancel / back (hide the overlay)
-    Y     = "y"      # the context popover ("actions")
-    START = "start"  # the management popover ("manage")
-    HOME  = "home"   # BTN_MODE — the home overlay menu
-    LB    = "lb"     # BTN_TL — previous overlay section
-    RB    = "rb"     # BTN_TR — next overlay section
-    LT    = "lt"     # BTN_TL2 / ABS_Z  — global volume −
-    RT    = "rt"     # BTN_TR2 / ABS_RZ — global volume +
+    A     = "a"
+    B     = "b"
+    Y     = "y"
+    START = "start"
+    HOME  = "home"
+    LB    = "lb"
+    RB    = "rb"
+    LT    = "lt"
+    RT    = "rt"
 
 
 @dataclass(frozen=True)
@@ -50,55 +41,35 @@ class ButtonHint:
     """One button paired with what it does on the current screen."""
 
     button: Button
-    label:  str   # English source string; re-translated by the adapter at render
+    label:  str   # source string, re-translated at render
 
 
 @dataclass(frozen=True)
 class Hints:
-    """The hint bar for one screen.
-
-    Directional navigation and the home-overlay button sit on the left; the
-    action buttons on the right. ``nav_label`` reads the directional cluster —
-    "Navigate" for menus, "Adjust" for a slider — and is re-translated at render.
-    """
+    """The hint bar for one screen."""
 
     directions: tuple[Direction, ...]
     overlay:    ButtonHint
     actions:    tuple[ButtonHint, ...]
     nav_label:  str = "Navigate"
-    # The Home Overlay switches sections with the bumpers (LB/RB) and
-    # offers global volume on the triggers (LT/RT). Empty on the classic screens.
     bumpers:    tuple[ButtonHint, ...] = ()
     triggers:   tuple[ButtonHint, ...] = ()
-    # A *second* directional cluster with its own label, rendered after the first
-    # (e.g. Quick adjust: ↕ moves between sliders, ◄► changes the value). When the
-    # two axes mean different things, one shared "Navigate" label would mislead —
-    # so the slider screen splits them. Empty on screens with a single meaning.
+    # A second directional cluster, so a screen whose two axes differ (slider:
+    # ↕ picks, ◄► adjusts) isn't misread under one shared label.
     adjust:       tuple[Direction, ...] = ()
     adjust_label: str = "Adjust"
 
 
-# Source strings for the directional-cluster label (harvested by pylupdate6;
-# re-translated at render). "Navigate" is also the default in Hints above.
 _NAVIGATE = translate("HintBar", "Navigate")
 _ADJUST   = translate("HintBar", "Adjust")
 
-# The bumpers step between Home Overlay sections (Quick adjust ⇄ Actions ⇄ HUD);
-# the triggers nudge global volume regardless of focus. Both clusters carry one
-# shared label — the adapter renders the LB/RB and LT/RT glyphs as a pair.
 _SECTION = ButtonHint(Button.LB, translate("HintBar", "Section")), \
            ButtonHint(Button.RB, translate("HintBar", "Section"))
 _VOLUME  = ButtonHint(Button.LT, translate("HintBar", "Volume")), \
            ButtonHint(Button.RT, translate("HintBar", "Volume"))
 
-
-# The home (BTN_MODE) button toggles the overlay menu, so its label reads the
-# same on every screen — it opens the menu from the Desktop and dismisses it
-# from within the overlay.
 _HOME_MENU = ButtonHint(Button.HOME, translate("HintBar", "Show/Hide menu"))
 
-# The main screen: navigate the tiles, open the home overlay, launch the focused
-# app, or open its single state-dependent menu with Y (§7.3 — Start is freed).
 TILES = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.UP),
     overlay=_HOME_MENU,
@@ -108,8 +79,6 @@ TILES = Hints(
     ),
 )
 
-# The [＋] add-app tile: it has no per-tile menu, so the bar drops the "Actions"
-# hint and advertises only A (which opens the add-app picker) plus navigation.
 TILES_ADD = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.UP),
     overlay=_HOME_MENU,
@@ -118,8 +87,6 @@ TILES_ADD = Hints(
     ),
 )
 
-# The top bar: move along the system-action buttons, drop back to the tiles, or
-# trigger the focused button.
 TOPBAR = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -128,8 +95,6 @@ TOPBAR = Hints(
     ),
 )
 
-# The top bar with the Power split-button focused: A runs the default, Y expands
-# the Sleep/Restart/Shut Down chooser (§7.10).
 TOPBAR_POWER = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -139,10 +104,6 @@ TOPBAR_POWER = Hints(
     ),
 )
 
-# A menu overlay (the Home Overlay, whether over the Desktop or over a running
-# app): step through the vertical menu, toggle it with the home button, confirm
-# with A, or hide it with B. The home button stays labelled "Menu" — pressing
-# BTN_MODE again is what dismisses the menu it summoned.
 OVERLAY_MENU = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -152,9 +113,6 @@ OVERLAY_MENU = Hints(
     ),
 )
 
-# The tile popover (the single state-dependent menu, §7.3): step through it with
-# up/down, activate with A, and dismiss with B *or* Y — Y both opens and closes
-# it (a toggle), so the bar advertises that BTN_NORTH closes the menu it opened.
 TILE_POPOVER = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -165,11 +123,6 @@ TILE_POPOVER = Hints(
     ),
 )
 
-# The Tile Settings modal (opened from the popover's Settings action): a
-# multi-section card whose focus groups (recall trigger, colour grid, action
-# buttons) are cycled with the bumpers or by spilling past a group edge with the
-# D-pad. Inside a group the D-pad moves the cursor; A stages the focused pick (or
-# commits on Save), B cancels the whole modal.
 TILE_SETTINGS = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -180,9 +133,6 @@ TILE_SETTINGS = Hints(
     bumpers=_SECTION,
 )
 
-# The Add-app picker (the [＋] tile, §7.4): up/down moves through the candidate
-# toggle rows, A toggles the focused app, B cancels. The bumpers jump between the
-# list and the trailing Confirm button (RB → Confirm, LB → back to the list).
 ADD_APP = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -193,8 +143,6 @@ ADD_APP = Hints(
     bumpers=_SECTION,
 )
 
-# A confirmation dialog (unpin, close app, etc.): left/right switches between
-# Yes/No, A confirms the focused option, B cancels the whole dialog.
 CONFIRM = Hints(
     directions=(Direction.LEFT, Direction.RIGHT),
     overlay=_HOME_MENU,
@@ -204,8 +152,6 @@ CONFIRM = Hints(
     ),
 )
 
-# The notifications panel: up/down scrolls through the list, A selects the
-# focused notification, B / Esc dismisses the panel.
 NOTIFICATIONS = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -215,7 +161,6 @@ NOTIFICATIONS = Hints(
     ),
 )
 
-# The network info popup: A activates the connect/disconnect toggle, B closes.
 NETWORK = Hints(
     directions=(),
     overlay=_HOME_MENU,
@@ -225,16 +170,9 @@ NETWORK = Hints(
     ),
 )
 
-# ── Home Overlay — zoned hint bars (§7.10) ───────────────────────────────────
-# The overlay has more than one kind of control, so the bumpers (LB/RB) own the
-# section jump and the D-pad stays inside a section. The hint bar swaps between
-# these two as focus moves between zones (FocusNavigator drives the swap — same
-# mechanism as TILES/TOPBAR).
+# ── Home Overlay — zoned hint bars ───────────────────────────────────────────
 
-# Quick adjust: up/down picks a slider (and crosses into the neighbouring section
-# at the edges), left/right adjusts it live; the triggers duplicate volume as an
-# always-at-hand shortcut. Two labelled clusters so the bar reads the axes apart:
-# ↕ Navigate, ◄► Adjust. No A here — sliders commit live.
+# No A: sliders commit live.
 OVERLAY_QUICK = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -248,8 +186,6 @@ OVERLAY_QUICK = Hints(
     triggers=_VOLUME,
 )
 
-# Actions list: up/down through the action items; A activates the focused item,
-# X expands a dropdown (the Power split-button), B closes the overlay.
 OVERLAY_ACTIONS = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
@@ -262,9 +198,6 @@ OVERLAY_ACTIONS = Hints(
     triggers=_VOLUME,
 )
 
-# The status header as the menu's top section (§8): left/right steps across the
-# Network / Notifications / Power buttons, down drops into the menu below. A acts
-# on the focused button; on Power, X expands the chooser (Options).
 OVERLAY_HEADER = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
     overlay=_HOME_MENU,

@@ -1,10 +1,4 @@
-"""One selectable starter app offered during provisioning.
-
-Pure domain — describes *what* could be seeded into the user's app catalog,
-not the live selection state (that mutable concern lives in
-:class:`domain.provisioning.selection.AppSelection`, so candidates stay
-immutable and reusable across sessions).
-"""
+"""One selectable starter app offered during provisioning."""
 
 from dataclasses import dataclass
 

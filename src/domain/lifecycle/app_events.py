@@ -1,9 +1,4 @@
-"""App-lifecycle event types — framework-agnostic dataclasses carrying event data.
-
-Replace Qt ``pyqtSignal`` argument types so the domain layer never imports
-PyQt. They carry the app index (and, for a failed launch, the error) — the
-minimum a consumer needs to react; add payload fields here if that ever grows.
-"""
+"""App-lifecycle event types — framework-agnostic dataclasses carrying event data."""
 
 from dataclasses import dataclass
 

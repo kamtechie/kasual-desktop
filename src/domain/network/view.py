@@ -1,11 +1,5 @@
-"""Presentation vocabulary for the network status — icon + popup content.
-
-Pure, Qt-free. Decides *which* glyph the top bar shows for a kind and *what* the
-info popup reads, given a `NetworkStatus`. Lives in the domain because it is the
-feature's vocabulary, not an adapter — its only outward need is translation,
-taken through `domain.shared.i18n.translate` (the calls double as extraction markers,
-exactly like `domain.system.action_view`).
-"""
+"""Presentation vocabulary for the network status — which glyph the top bar shows
+and what the info popup reads for a `NetworkStatus`."""
 
 from dataclasses import dataclass
 
@@ -13,7 +7,6 @@ from domain.network.status import NetworkKind, NetworkStatus
 from domain.shared.text import truncate
 from domain.shared.i18n import translate
 
-# qtawesome glyphs (verified available); swap here without touching adapters.
 _ICONS = {
     NetworkKind.WIFI:     "fa5s.wifi",
     NetworkKind.ETHERNET: "fa5s.network-wired",
@@ -65,9 +58,8 @@ def info_lines(status: NetworkStatus) -> list[tuple[str, str]]:
 
 @dataclass(frozen=True)
 class ConnectButton:
-    """How the connect/disconnect toggle should present for the current state:
-    its localized `label`, whether activating it *reconnects* (vs disconnects),
-    and whether it is `enabled` (usable)."""
+    """How the connect/disconnect toggle should present: its `label`, whether
+    activating it *reconnects* (vs disconnects), and whether it is `enabled`."""
 
     label:     str
     reconnect: bool

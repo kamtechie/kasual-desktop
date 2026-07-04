@@ -1,11 +1,5 @@
-"""Domain model for a configured, launchable application.
-
-Pure Python — no Qt, no I/O. The freedesktop ``.desktop`` format is part of the
-problem domain (Kasual Desktop is a launcher of freedesktop app definitions), so
-the *rules* for turning a ``[Desktop Entry]`` into an :class:`App` live here, in
-:meth:`App.from_desktop_entry`. Only the file/``configparser`` I/O stays in the
-``system.app_config`` adapter, which feeds raw key→value mappings to this.
-"""
+"""Domain model for a configured, launchable application, and the rules for
+turning a freedesktop ``[Desktop Entry]`` into one."""
 
 import os
 import re
@@ -15,8 +9,7 @@ from collections.abc import Mapping
 
 from domain.input.vocabulary import Trigger
 
-# freedesktop Exec field codes — meaningless for our launcher (we pass no files
-# or URLs), so they are stripped. See the Desktop Entry Specification.
+# freedesktop Exec field codes — we pass no files/URLs, so they are stripped.
 _FIELD_CODES = {
     "%f", "%F", "%u", "%U", "%i", "%c", "%k",
     "%d", "%D", "%n", "%N", "%v", "%m",
@@ -25,10 +18,8 @@ _FIELD_CODES = {
 # Apps without X-Kasual-Order sort after explicitly-ordered ones (ties: filename).
 ORDER_DEFAULT = 10_000
 
-# A Steam game launched through the `steam steam://rungameid/<id>` forwarder runs
-# in its own top-level window whose KWin resourceClass is `steam_app_<id>`. The
-# game id is extracted from the launch arguments so each game tile can be matched
-# to *its* window rather than the shared `steam` client.
+# A Steam game's own window has resourceClass `steam_app_<id>`; the id lets each
+# game tile match its window rather than the shared `steam` client.
 _STEAM_RUNGAMEID = re.compile(r"steam://rungameid/(\d+)")
 
 
@@ -39,8 +30,8 @@ class App:
     name:                 str
     command:              str
     args:                 tuple[str, ...]   = ()
-    icon:                 str | None        = None   # qtawesome glyph (X-Kasual-Icon)
-    icon_theme:           str | None        = None   # themed Icon name (freedesktop)
+    icon:                 str | None        = None   # X-Kasual-Icon
+    icon_theme:           str | None        = None   # freedesktop Icon
     color:                str               = "#2e3440"
     recall_menu_trigger:  str               = Trigger.CLICK
     launch_hide_grace_ms: int               = 0
@@ -50,18 +41,12 @@ class App:
 
     @property
     def command_basename(self) -> str:
-        """Lowercased basename of the command — used to match KWin windows
-        (resourceClass / desktopFile) back to this app."""
         return os.path.basename(self.command).lower()
 
     @property
     def steam_app_id(self) -> str | None:
-        """The Steam AppID this tile launches, if it is a `steam steam://
-        rungameid/<id>` forwarder tile — else None.
-
-        Steam games share the `steam` command, so every game tile has the same
-        ``command_basename`` ("steam"). The AppID is what tells them apart.
-        """
+        """The Steam AppID, if this is a `steam://rungameid/<id>` forwarder tile —
+        every game shares the `steam` command, so the AppID tells them apart."""
         if self.command_basename != "steam":
             return None
         for token in self.args:
@@ -72,46 +57,31 @@ class App:
 
     @property
     def window_match_keys(self) -> tuple[str, ...]:
-        """Identity strings a KWin window's resourceClass / desktopFile basename
-        is matched against to attribute the window to this app.
+        """Identity strings a window is matched against to attribute it to this app.
 
-        Normally the command basename, plus the ``StartupWMClass`` when set — a
-        window's reported class often differs from the command name (e.g.
-        ``org.kde.konsole`` vs ``konsole``), so a pinned tile carries the window's
-        own class to match it back. A Steam game tile, however, matches only its
-        own ``steam_app_<id>`` window — never the bare ``steam`` client whose
-        window stays open behind *every* running game. Matching on the shared
-        ``steam`` basename would light up every Steam tile at once.
-        """
+        The command basename plus ``StartupWMClass`` when set (a window's class
+        often differs from the command, e.g. ``org.kde.konsole`` vs ``konsole``).
+        A Steam game matches only its own ``steam_app_<id>`` window — matching the
+        shared ``steam`` basename would light up every Steam tile at once."""
         appid = self.steam_app_id
         if appid is not None:
             return (f"steam_app_{appid}",)
         keys = [self.command_basename]
         if self.wm_class:
             keys.append(self.wm_class.lower())
-        return tuple(dict.fromkeys(keys))   # de-duplicate, preserve order
+        return tuple(dict.fromkeys(keys))
 
     @property
     def is_game(self) -> bool:
-        """True for a game tile — carries the standard freedesktop ``Game``
-        category. Gates the in-game HUD toggle for the tile's own window even
-        before the MangoHud layer is detected (see :mod:`domain.system.hud`)."""
+        """Carries the freedesktop ``Game`` category — gates the in-game HUD toggle
+        before the MangoHud layer is detected."""
         return "Game" in self.categories
 
     @classmethod
     def from_desktop_entry(cls, entry: Mapping[str, str]) -> "tuple[int, App] | None":
-        """Build an :class:`App` from a freedesktop ``[Desktop Entry]`` mapping.
-
-        Applies the standard's rules as Kasual Desktop uses them: skip entries that
-        are not application tiles, strip Exec field codes, read the ``X-Kasual-*``
-        extensions, fall back to defaults. Returns ``(order, app)`` — *order* is
-        the placement key (``X-Kasual-Order``, default :data:`ORDER_DEFAULT`).
-
-        Returns ``None`` for entries that are deliberately not tiles (``Type``
-        other than Application, ``NoDisplay``/``Hidden`` true). Raises
-        :class:`ValueError` for a malformed entry (no usable ``Name``/``Exec``),
-        which the loader surfaces as a warning. Pure — no I/O, no logging.
-        """
+        """Returns ``(order, app)``, ``None`` for entries that are not tiles
+        (``Type`` ≠ Application, ``NoDisplay`` / ``Hidden``), or raises
+        ``ValueError`` for a malformed entry (no usable ``Name`` / ``Exec``)."""
         if entry.get("Type", "Application") != "Application":
             return None
         if _bool_entry(entry, "NoDisplay"):
@@ -146,15 +116,8 @@ class App:
         return order, app
 
     def to_desktop_entry(self, order: int) -> dict[str, str]:
-        """Render this app back into a freedesktop ``[Desktop Entry]`` mapping.
-
-        The inverse of :meth:`from_desktop_entry`: it owns the App→freedesktop
-        rules, the provisioning adapter does the file I/O. Emits only the keys
-        Kasual Desktop uses, and only when they carry a non-default value, so a
-        from→to→from round-trip is stable. *order* is the placement key
-        (``X-Kasual-Order``), passed in because it is not an :class:`App` field
-        (symmetric with ``from_desktop_entry`` returning ``(order, app)``).
-        """
+        """Inverse of :meth:`from_desktop_entry`. Emits a key only when non-default,
+        so a from→to→from round-trip is stable."""
         entry: dict[str, str] = {
             "Type": "Application",
             "Name": self.name,
@@ -201,8 +164,7 @@ def _parse_exec(exec_str: str) -> "tuple[str | None, list[str]]":
 
 
 def _join_exec(command: str, args: tuple[str, ...]) -> str:
-    """Re-join (command, args) into a desktop ``Exec`` value, quoting each token
-    so it survives the ``shlex.split`` in :func:`_parse_exec` (the inverse)."""
+    """Inverse of :func:`_parse_exec`; quotes each token to survive its shlex.split."""
     return " ".join(shlex.quote(token) for token in (command, *args))
 
 
@@ -223,8 +185,7 @@ def _parse_env(raw: str | None) -> dict:
 
 
 def _parse_categories(raw: str | None) -> tuple[str, ...]:
-    """Parse a freedesktop ``Categories`` value (``Game;ActionGame;``) into a
-    tuple, dropping the empty trailing field the spec's semicolons leave behind."""
+    """Parse a freedesktop ``Categories`` value, dropping the trailing empty field."""
     if not raw:
         return ()
     return tuple(part for part in (p.strip() for p in raw.split(";")) if part)

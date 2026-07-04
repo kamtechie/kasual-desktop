@@ -1,24 +1,7 @@
-"""Vertical menu navigation — a moving selection over a list of items.
+"""Vertical menu navigation — the 1-D up/down move over a list of items.
 
-Owns the selected index and the move / select / dismiss semantics shared by the
-home-menu overlay and the tile popover (previously copy-pasted in each, and
-duplicated again between their gamepad and keyboard handlers).
-
-Pure application logic: no Qt, no sound backend. It repaints through an injected
-`render(index)` callback and reports intent via `on_activate(index)` /
-`on_dismiss`, with cursor feedback through the `Feedback` port. Both gamepad
-events and translated keyboard events feed `handle_pad`; the widget owns only
-presentation and the dismiss sound.
-
-The state and the layout-independent behaviour (reset/hover/select/dismiss) live
-in :class:`domain.menu.cursor_base.Cursor`; this adds only the 1-D up/down move.
-
-`wrap`: True  → up/down wrap around the ends (home menu);
-        False → movement clamps at the ends (tile popover).
-
-`is_selectable`: a predicate skipped over when moving (e.g. a SEPARATOR row in
-the unified tile menu, §7.3). Defaults to "every row selectable", so menus
-without dividers behave exactly as before.
+`wrap`: up/down wrap around the ends vs clamp. `is_selectable`: a predicate
+skipped over when moving (e.g. a SEPARATOR row); defaults to every row selectable.
 """
 
 from __future__ import annotations
@@ -54,9 +37,9 @@ class MenuCursor(Cursor):
         return None
 
     def _shifted(self, delta: int) -> int:
-        """The next selectable index *delta*-wards, wrapping or clamping at the
-        ends and stepping over non-selectable rows. A no-op (current index) when
-        the list is empty or nothing selectable lies that way."""
+        """The next selectable index *delta*-wards, wrapping or clamping and
+        stepping over non-selectable rows; the current index when none lies that
+        way."""
         n = self._count()
         if n == 0:
             return self._index
@@ -67,7 +50,7 @@ class MenuCursor(Cursor):
             else:
                 nxt = idx + delta
                 if nxt < 0 or nxt >= n:
-                    return self._index  # clamped at an end → stay put
+                    return self._index
                 idx = nxt
             if self._is_selectable(idx):
                 return idx

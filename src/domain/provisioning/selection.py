@@ -1,11 +1,5 @@
-"""The mutable selection over the candidate list.
-
-The multi-select analogue of :class:`domain.menu.cursor.MenuCursor`: it owns
-*which* candidates are toggled on, seeded from each candidate's
-``default_selected``. The navigation cursor (which row is highlighted) stays in
-the view; this holds only the chosen-state, so the use-case and tests reason
-about selection without Qt.
-"""
+"""The mutable multi-select over the candidate list — which candidates are toggled
+on, seeded from each candidate's ``default_selected``."""
 
 from domain.provisioning.candidate import CandidateApp
 

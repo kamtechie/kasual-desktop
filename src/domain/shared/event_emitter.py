@@ -1,13 +1,7 @@
 """Generic event emitter — framework-agnostic pub/sub with unsubscribe tokens.
 
-Replaces Qt's signal/slot machinery with a simple, testable contract so the
-domain never imports PyQt: ``subscribe`` registers a handler and returns an
-``Unsubscribe`` token that removes it again.
-
-Note on threading: ``emit`` runs handlers synchronously in the calling thread.
-Infrastructure that emits from a background thread (e.g. the gamepad watcher
-reading evdev) is responsible for hopping onto the GUI thread *before* calling
-``emit`` — this hub does no marshalling of its own.
+``emit`` runs handlers synchronously in the calling thread; a caller emitting
+from a background thread must hop onto the GUI thread first — no marshalling here.
 """
 
 from collections.abc import Callable
@@ -17,11 +11,8 @@ T = TypeVar("T")
 
 
 class Unsubscribe:
-    """Opaque token returned by ``EventEmitter.subscribe``.
-
-    Calling it removes the associated handler from the emitter. Idempotent:
-    calling it more than once is harmless.
-    """
+    """Token from ``EventEmitter.subscribe``; calling it removes the handler.
+    Idempotent."""
 
     __slots__ = ("_callback",)
 
@@ -53,17 +44,13 @@ class EventEmitter(Generic[T]):
         self._handlers.append(handler)
 
         def _remove() -> None:
-            # Guard against double-unsubscribe: the token is idempotent.
             if handler in self._handlers:
                 self._handlers.remove(handler)
 
         return Unsubscribe(_remove)
 
     def emit(self, event: T) -> None:
-        """Dispatch ``event`` to every registered handler.
-
-        Iterates a snapshot so a handler may unsubscribe during dispatch.
-        """
+        """Iterates a snapshot so a handler may unsubscribe during dispatch."""
         for handler in list(self._handlers):
             handler(event)
 

@@ -1,8 +1,5 @@
-"""The tile bar and top bar as FocusNavigator drives them.
-
-Moving focus/selection and repainting the highlight. Separate, narrower
-role-interfaces than the lifecycle's TileBarView (ISP): TileBar satisfies both.
-"""
+"""The tile bar and top bar as FocusNavigator drives them — narrow role-interfaces
+one TileBar satisfies alongside the lifecycle's own."""
 
 from typing import Protocol
 
@@ -21,11 +18,7 @@ class TileFocusView(Protocol):
 
 
 class TileReorderView(Protocol):
-    """The tile bar as the move-mode coordinator drives it (TileBar).
-
-    A narrow role-interface for reordering the static app tiles: how many there are,
-    which one is focused, swapping two of them on screen, and toggling the move-mode
-    visual cue. The parallel persistence is a separate port (TileOrderStore)."""
+    """The tile bar as the move-mode coordinator drives it."""
 
     def app_tile_count(self) -> int: ...
     def current_app_index(self) -> int: ...
@@ -49,21 +42,18 @@ class TopBarView(Protocol):
     def count(self) -> int: ...
     @property
     def default_index(self) -> int:
-        """The button focus lands on when the top bar is first entered (via cursor
-        up or LB) — the Power button, not wherever it sits in the row."""
+        """The button focus lands on when the top bar is first entered — Power, not
+        wherever it sits in the row."""
         ...
     def set_selected(self, index: int | None) -> None: ...
     def trigger(self, index: int) -> None: ...
     def has_menu_at(self, index: int) -> bool:
-        """Whether the button at *index* opens a dropdown on Y (the Power
-        split-button). Lets the navigator advertise "Options" only there."""
+        """Whether the button at *index* opens a dropdown on Y, so the navigator
+        advertises "Options" only there."""
         ...
 
 
 class HintBarView(Protocol):
-    """The bottom hint bar as focus navigation drives it (HintBar).
-
-    The navigator pushes the :class:`Hints` for the current screen whenever the
-    focus mode changes; the adapter renders the glyphs/labels."""
+    """The bottom hint bar as focus navigation drives it."""
 
     def show_hints(self, hints: Hints) -> None: ...

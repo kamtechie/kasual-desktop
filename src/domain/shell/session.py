@@ -1,10 +1,5 @@
-"""Session policy — what happens as the game controller connects / disconnects.
-
-Pure use-case, no Qt. The rule ("no controller present → hide the experience;
-controller back → resume it") used to live inline in the `Application` wiring
-controller (`_on_connected_changed`); here it is named and unit-testable against
-fakes.
-"""
+"""Session policy — no controller present → hide the experience; controller back
+→ resume it."""
 
 from domain.shell.session_collaborators import ConnectionIndicator, Dismissable, SessionView
 

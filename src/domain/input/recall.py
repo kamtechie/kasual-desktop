@@ -1,21 +1,9 @@
 """The BTN_MODE recall policy: how the guide button summons the Kasual menu.
 
-Two per-app policies (see domain.input.Trigger):
-  • CLICK    — recall fires immediately on press.
-  • HOLD_1S  — recall fires only if the button is held HOLD_SECONDS; a shorter
-               press is *not* a recall.
-When Kasual itself is in control (its UI on the input-focus stack), recall is
-always immediate regardless of the app's policy.
-
-A press that did NOT recall is a "short press": it is forwarded to the
-foreground app as a synthetic press+release, so e.g. Steam still sees its guide
-button. `release()` reports whether such a forward is due — the caller owns the
-actual (virtual-gamepad) write.
-
-Pure decision logic (application layer): no Qt, no evdev. The menu-open is an
-injected `on_recall` callback; the hold timer is an injected factory
-(`threading.Timer` by default, matching the .start()/.cancel() interface) so
-tests can fire or cancel it deterministically.
+Under HOLD_1S a press shorter than HOLD_SECONDS is not a recall but a "short
+press", forwarded to the foreground app so e.g. Steam still sees its guide button;
+``release()`` reports whether that forward is due. When Kasual is in control,
+recall is always immediate regardless of the app's policy.
 """
 
 from __future__ import annotations
@@ -25,7 +13,7 @@ from collections.abc import Callable
 
 from domain.input.vocabulary import Trigger
 
-HOLD_SECONDS = 1.0   # how long BTN_MODE must be held for the menu, in HOLD_1S mode
+HOLD_SECONDS = 1.0
 
 
 class RecallTrigger:
@@ -39,8 +27,8 @@ class RecallTrigger:
         self._on_recall     = on_recall
         self._hold_seconds  = hold_seconds
         self._timer_factory = timer_factory
-        self._timer         = None    # pending hold timer (HOLD_1S), if armed
-        self._recalled      = False   # True once recall fired for the current press
+        self._timer         = None
+        self._recalled      = False
 
     def press(self, *, kasual_active: bool, trigger: str) -> None:
         """BTN_MODE went down. Recall now (CLICK / Kasual active) or arm the hold."""

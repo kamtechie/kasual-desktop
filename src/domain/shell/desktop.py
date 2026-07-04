@@ -1,17 +1,5 @@
 """The Desktop coordinator — showing, pausing and resuming the Desktop surface.
-
-The framework-agnostic "what happens" when the Desktop comes forward, is
-minimized to the tray, or is resumed after the controller reconnects. It drives
-the view, the input-focus, the window list and the sound through ports; the Qt
-widget is merely the view that carries each step out. The visibility / paused /
-foreground transitions are decided by the domain `DesktopState`.
-
-Reads as the vocabulary it implements:
-  - show_desktop → go to the bare Desktop: take input, refresh windows, show,
-    restore any paused overlays, activate;
-  - pause        → sound, mark paused, pause overlays, release input, hide;
-  - resume       → take input, sound, show, restore overlays if we were paused.
-"""
+Transitions are decided by the domain `DesktopState`."""
 
 from __future__ import annotations
 

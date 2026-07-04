@@ -1,13 +1,4 @@
-"""Focus navigation between the tile bar and top bar, driven by abstract events.
-
-Owns the focus mode (TILES | TOPBAR) and the top-bar selection index, and
-translates navigation events into tile/top-bar moves plus highlight repaint.
-
-Pure interaction logic (application layer): no Qt, no sound backend. It consumes
-domain `Event`s and drives the tile/top bars through the `TileFocusView` /
-`TopBarView` ports, with cursor feedback via the injected `Feedback` port. The
-Qt-key→event translation lives at the edge — the Desktop's eventFilter.
-"""
+"""Focus navigation between the tile bar and top bar, driven by abstract events."""
 
 from __future__ import annotations
 
@@ -39,10 +30,7 @@ class FocusNavigator:
     ) -> None:
         self._tilebar      = tilebar
         self._topbar       = topbar
-        self._on_tile_menu = on_tile_menu   # Event.CLOSE (X) in tiles → tile popover
-        # Event.CLOSE (X) on a top-bar button → its dropdown, if any (the Power
-        # split-button) — the same button that opens a tile's popover. Passed the
-        # focused index; the Desktop decides if it opens.
+        self._on_tile_menu = on_tile_menu
         self._on_topbar_menu = on_topbar_menu
         self._feedback     = feedback
         self._gamepad      = gamepad
@@ -50,27 +38,21 @@ class FocusNavigator:
         self._mode         = _Mode.TILES
         self._topbar_index = 0
 
-    # ── Queries (for the Desktop eventFilter) ────────────────────────────────
-
     @property
     def in_tiles(self) -> bool:
         return self._mode == _Mode.TILES
-
-    # ── Navigation ───────────────────────────────────────────────────────────
 
     def handle_pad(self, event: str) -> None:
         if self._mode == _Mode.TILES:
             if event == Event.LEFT:
                 if self._tilebar.move(-1):
                     self._feedback.play(Cue.CURSOR)
-                self._sync_hints()   # the [＋] tile has its own hint set
+                self._sync_hints()
             elif event == Event.RIGHT:
                 if self._tilebar.move(+1):
                     self._feedback.play(Cue.CURSOR)
                 self._sync_hints()
             elif event in (Event.UP, Event.SECTION_PREV) and self._topbar.count:
-                # LB (§7.10 "jump to topbar") mirrors the Home Overlay's
-                # SECTION_PREV, which lands on its header zone — here the top bar.
                 self._mode = _Mode.TOPBAR
                 self._topbar_index = self._topbar.default_index
                 self._moved()
@@ -89,37 +71,29 @@ class FocusNavigator:
                 self._topbar_index = (self._topbar_index + 1) % self._topbar.count
                 self._moved()
             elif event in (Event.DOWN, Event.CANCEL, Event.SECTION_NEXT):
-                # RB (SECTION_NEXT) drops back to the tiles, mirroring the Home
-                # Overlay's step down out of its header zone.
                 self._mode = _Mode.TILES
                 self._moved()
             elif event == Event.SELECT:
                 self._topbar.trigger(self._topbar_index)
             elif event == Event.CLOSE and self._on_topbar_menu is not None:
-                # X opens the focused button's dropdown (the Power chooser) — the
-                # same button that opens a tile's popover in TILES mode.
                 self._on_topbar_menu(self._topbar_index)
 
     def render(self) -> None:
-        """Repaint the focus highlight across the tile bar and top bar, and sync
-        the bottom hint bar to the current screen."""
+        """Repaint the focus highlight and sync the hint bar to the current screen."""
         in_tiles = self._mode == _Mode.TILES
         self._tilebar.set_focused(in_tiles)
         self._topbar.set_selected(self._topbar_index if not in_tiles else None)
         self._sync_hints()
 
     def _sync_hints(self) -> None:
-        """Push the hint set for the current screen to the hint bar (if wired).
-
-        Within the tiles row the [＋] add tile gets its own set (no "Actions"),
-        so the bar reflects which kind of tile is focused, not just the mode."""
+        # The [＋] add tile gets its own set (no "Actions").
         if self._hint_bar is None:
             return
         if self._mode == _Mode.TILES:
             tiles = hints.TILES_ADD if self._tilebar.current_is_add() else hints.TILES
             self._hint_bar.show_hints(tiles)
         elif self._topbar.has_menu_at(self._topbar_index):
-            self._hint_bar.show_hints(hints.TOPBAR_POWER)   # focused button has a Y dropdown
+            self._hint_bar.show_hints(hints.TOPBAR_POWER)
         else:
             self._hint_bar.show_hints(hints.TOPBAR)
 
@@ -127,21 +101,16 @@ class FocusNavigator:
         self.render()
         self._feedback.play(Cue.CURSOR)
 
-    # ── Mouse hover (delegated from the Desktop slots) ───────────────────────
-
     def hover_tiles(self) -> None:
-        """Pointer entered a tile: take focus into the tile bar."""
         if self._mode != _Mode.TILES:
             self._mode = _Mode.TILES
             self._topbar.set_selected(None)
             self._tilebar.set_focused(True, scroll=False)
-        # Always re-sync: hovering between tiles (e.g. onto the [＋]) changes the
-        # hint set even when the mode was already TILES.
+        # Hovering onto the [＋] changes the hint set even within TILES.
         self._sync_hints()
         self._feedback.play(Cue.CURSOR)
 
     def hover_topbar(self, idx: int) -> None:
-        """Pointer entered top-bar button *idx*."""
         if self._mode != _Mode.TOPBAR or self._topbar_index != idx:
             self._mode = _Mode.TOPBAR
             self._topbar_index = idx

@@ -1,10 +1,5 @@
-"""The app-control port the Application controller drives (AppLifecycle).
-
-Restoring, closing and querying the foreground app are app-lifecycle concerns,
-so the controller talks to the lifecycle coordinator directly through this port
-rather than routing the calls through the Desktop widget. Consumer-driven (ISP):
-exactly the four operations `Application` needs.
-"""
+"""The app-control port the Application controller drives — restoring, closing and
+querying the foreground app."""
 
 from typing import Protocol
 

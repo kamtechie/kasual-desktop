@@ -1,17 +1,5 @@
-"""Shared base for the menu cursors — the selection state and the bits that do
-not depend on the layout (1-D list vs 2-D grid).
-
-Owns the selected index plus the behaviour common to :class:`MenuCursor` and
-:class:`GridCursor`: ``reset`` / ``hover`` / ``index``, the "move there, repaint
-and play the cursor cue only when the index actually changes" rule (`_go_to`),
-and the SELECT / CANCEL / CLOSE handling (`_handle_common`). Subclasses add only
-the layout-specific movement by implementing ``_destination`` — the new index
-for a movement event, or ``None`` when the event is not a movement.
-
-Pure application logic: no Qt, no sound backend. It repaints through an injected
-``render(index)`` callback and reports intent via ``on_activate(index)`` /
-``on_dismiss``, with cursor feedback through the :class:`Feedback` port.
-"""
+"""Shared base for the menu cursors — the selection state and the layout-agnostic
+behaviour. Subclasses add only the movement by implementing ``_destination``."""
 
 from __future__ import annotations
 

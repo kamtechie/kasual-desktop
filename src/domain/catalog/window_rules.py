@@ -1,11 +1,6 @@
-"""Rules relating the open-window list to our apps.
-
-Compositor-agnostic decisions over a list of :class:`Window`s — which windows
-deserve their own dynamic tile, whether a just-launched app already has a mapped
-window, and which recall trigger a window inherits. They survive a rewrite to
-another compositor, so they live here rather than in the tile bar widget; the
-/proc and os.getpgid reads they need are injected from infrastructure.
-"""
+"""Rules relating the open-window list to our apps: which windows deserve a
+dynamic tile, whether a launched app has a window yet, which recall trigger a
+window inherits."""
 
 from collections.abc import Callable, Iterator, Mapping, Sequence
 
@@ -19,18 +14,9 @@ def external_windows(
     apps:                  Sequence[App],
     owned_by_running_group: Callable[[Window], bool],
 ) -> list[Window]:
-    """Windows that deserve their own dynamic tile — those NOT already shown as a
-    static app tile, in their original order.
-
-    A window is *managed* (and so excluded) when it belongs to a running app's
-    process group or is identifiable as one of our apps; everything else is
-    external. A window with no pid (``pid == 0``) is always external — KWin gave
-    us nothing to attribute it to, so we never fold it into a static tile even
-    if its class happens to match.
-
-    ``owned_by_running_group`` answers the process-group question (the
-    ``os.getpgid`` read is infrastructure, injected like ``parent_of`` below).
-    """
+    """Windows not already shown as a static tile, in original order. A window is
+    excluded when it belongs to a running app's process group or matches one of our
+    apps. A window with no pid is always external — nothing to attribute it to."""
     def managed(w: Window) -> bool:
         if w.pid == 0:
             return False
@@ -44,13 +30,10 @@ def app_window_present(
     app:        App,
     owned_pids: set[int],
 ) -> bool:
-    """True if a just-launched *app* already has a mapped window — matched either
-    by process subtree (the window's pid is among *owned_pids*, the launch and
-    its descendants) or by app identity (``matches_app``). Each key covers cases
-    the other misses: forwarder launchers (e.g. ``steam steam://...``) show a
-    window under an unrelated pid but a matching class, while a bootstrap window
-    may carry the right pid before its class is set. The /proc subtree expansion
-    that fills *owned_pids* is infrastructure, computed by the caller."""
+    """True if *app* already has a mapped window, matched by process subtree
+    (*owned_pids*) or app identity. Both keys are needed: a forwarder launch shows
+    a window under an unrelated pid but a matching class, while a bootstrap window
+    may carry the right pid before its class is set."""
     return any(w.pid in owned_pids or w.matches_app(app) for w in windows)
 
 
@@ -60,20 +43,12 @@ def is_app_running(
     windows:    Sequence[Window],
     is_process_running: Callable[[int], bool],
 ) -> bool:
-    """True if the app at *idx* is running — either via its process or via a
-    visible window.
+    """True if the app at *idx* is running, by its process or a visible window (the
+    window fallback covers an externally-launched or self-relaunched app).
 
-    This is the domain definition of "running" for a static app tile. The
-    process check (e.g. tracking by AppManager) is injected as *is_process_running*;
-    the window-presence fallback uses ``Window.matches_app`` to cover cases where
-    the app was launched externally or lost its process-group link (e.g. after a
-    self-relaunch).
-
-    A Steam game tile is the exception: the tracked process is the shared Steam
-    client (the `steam steam://...` forwarder), which outlives the game and is
-    common to every game tile — so its presence says nothing about *this* game.
-    Such a tile is "running" only while its own ``steam_app_<id>`` window exists.
-    """
+    A Steam game is the exception: the tracked process is the shared Steam client,
+    common to every game, so the tile is "running" only while its own
+    ``steam_app_<id>`` window exists."""
     if idx >= len(apps):
         return False
     app = apps[idx]
@@ -88,19 +63,10 @@ def active_unmanaged_window(
     windows: Sequence[Window],
     apps:    Sequence[App],
 ) -> Window | None:
-    """The active window that belongs to no configured app.
-
-    Covers a launcher (e.g. Steam in Big Picture) whose game runs in its own
-    top-level window: that window is active but matches none of our app tiles, so
-    reporting it lets the Home Overlay name and return to the game rather than to
-    the launcher underneath. Returns None when the active window *is* one of our
-    apps (its own window is up front) or when nothing is active.
-
-    Identity-based rather than process-based on purpose: a Steam-launched game
-    may run in its own process session, so ``getpgid`` against Steam's launcher
-    pid does not reliably attribute it — but it never matches the ``steam`` app
-    tile, which is the signal we actually need.
-    """
+    """The active window that belongs to no configured app — e.g. a game running
+    in its own window under a launcher, so the Home Overlay names and returns to
+    the game, not the launcher. Identity-based, since a Steam game's process
+    session isn't reliably attributable but never matches the ``steam`` tile."""
     active = next((w for w in windows if w.active and w.pid), None)
     if active is None or any(active.matches_app(app) for app in apps):
         return None
@@ -111,12 +77,8 @@ def walk_parent_chain(
     pid:       int,
     parent_of: Callable[[int], int | None],
 ) -> Iterator[int]:
-    """Yield *pid* and each ancestor up the process tree.
-
-    Stops at pid 1 (init), at an unknown parent (``parent_of`` returns None), or
-    on a cycle — each pid is visited at most once. The ``parent_of`` /proc read
-    is injected from infrastructure. Yields nothing for a pid of 0/1.
-    """
+    """Yield *pid* and each ancestor up the process tree. Stops at pid 1, an
+    unknown parent, or a cycle; each pid is visited at most once."""
     visited: set[int] = set()
     current = pid
     while current > 1 and current not in visited:
@@ -133,13 +95,9 @@ def resolve_recall_trigger(
     pid_to_app: Mapping[int, App],
     parent_of:  Callable[[int], int | None],
 ) -> str:
-    """Recall trigger a window owned by *pid* should use.
-
-    Walks the process-parent chain (``parent_of`` injected — the /proc read is
-    infrastructure) until it reaches a pid owned by one of our apps, and returns
-    that app's ``recall_menu_trigger`` — so e.g. a game launched by Steam
-    inherits Steam's hold-to-recall. Falls back to CLICK when nothing owns it.
-    """
+    """Walk the parent chain to the first pid owned by one of our apps and return
+    its ``recall_menu_trigger`` — so a game launched by Steam inherits Steam's
+    hold-to-recall. Falls back to CLICK when nothing owns it."""
     for current in walk_parent_chain(pid, parent_of):
         app = pid_to_app.get(current)
         if app is not None:

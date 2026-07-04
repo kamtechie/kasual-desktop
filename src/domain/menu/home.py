@@ -1,16 +1,4 @@
-"""Home Overlay menu composition — which sections/items appear given foreground.
-
-Pure use-case (no Qt): composes the render-ready, sectioned content shown when
-BTN_MODE opens the Home Overlay (§7.10) — localized labels, icons, and the
-abstract action each item carries, grouped into the zones the bumpers step
-between (Quick adjust ⇄ Actions ⇄ HUD). The overlay only renders these and reports
-activation back; the controller dispatches the action.
-
-  - on the bare Desktop (idle) → Quick adjust + the system-action grid;
-  - over a running app → app controls (return / close), the HUD toggle when a
-    HUD is configured, and "return to Home screen"; no system actions, and
-    dismissing (B) returns to that app.
-"""
+"""Composes the sectioned Home Overlay content for the current foreground."""
 
 from dataclasses import dataclass
 from enum import StrEnum
@@ -30,18 +18,13 @@ def _return_to_desktop_item() -> MenuItem:
     return MenuItem(translate("Kasual Desktop", "Return to Home screen"), RETURN_TO_DESKTOP, "fa5s.home")
 
 
-# ── Home Overlay — sectioned model (§7.10) ──────────────────────────────────────
-# The overlay groups its controls into zones the bumpers step between (Quick
-# adjust ⇄ Actions ⇄ HUD); this composer returns those sections.
-
-
 class SectionKind(StrEnum):
-    """The Home Overlay zones (LB/RB step between them)."""
+    """The Home Overlay zones the bumpers step between."""
 
-    HEADER  = "header"    # the status header's focusable Network / Notifications (§8)
-    QUICK   = "quick"     # live sliders: volume, (brightness)
-    ACTIONS = "actions"   # cards: power split-button, network, …, or app controls
-    HUD     = "hud"       # the conditional in-game HUD toggle
+    HEADER  = "header"
+    QUICK   = "quick"
+    ACTIONS = "actions"
+    HUD     = "hud"
 
 
 @dataclass(frozen=True)
@@ -59,29 +42,20 @@ class HomeSections:
 
 
 def _action_item(key: str) -> MenuItem:
-    """A render-ready item for a system-action *key* (localized label + icon)."""
     action = ACTIONS[key]
     return MenuItem(translate("Kasual Desktop", action.label), key, action.icon)
 
 
 def _power_card(power_default: str) -> MenuItem:
-    """The Power split-button card, labelled by the current default action.
-
-    Carries the abstract ``POWER`` action (not the concrete sleep/restart/shutdown
-    key): the controller routes ``A`` to the default and ``Y`` to the dropdown
-    (§7.10 / :class:`domain.system.power_menu.PowerMenu`). Label and icon mirror
-    the default so the card reads e.g. "Sleep" with the moon glyph."""
+    """Carries the abstract POWER action, not the concrete key, so A runs the
+    default and Y opens the dropdown; label and icon mirror the default."""
     default = ACTIONS[power_default]
     return MenuItem(translate("Kasual Desktop", default.label), POWER, default.icon)
 
 
 def power_dropdown_items() -> list[MenuItem]:
-    """The Power split-button's expanded choices: Sleep / Restart / Shut Down.
-
-    Each item carries its **concrete** power-action key (unlike the collapsed card,
-    which carries the abstract ``POWER`` action), so the widget routes a pick
-    straight through :meth:`domain.system.power_menu.PowerMenu.select`. Whichever
-    key equals the current default is marked by the widget, not here."""
+    """Each item carries its concrete power-action key, so a pick routes straight
+    through, unlike the collapsed card's abstract POWER."""
     return [_action_item(key) for key in POWER_ACTIONS]
 
 
@@ -94,27 +68,16 @@ def compose_home_sections(
     foreground_is_game: bool = False,
     include_status_actions: bool = True,
 ) -> HomeSections:
-    """Compose the sectioned Home Overlay content for the current foreground.
-
-    Quick adjust always offers volume, and brightness **only when the platform
-    has a controllable backlight** (``brightness_controllable``, §7.3a). The
-    Actions section is the global system grid on the bare Desktop — a Power
-    split-button (labelled by *power_default*) plus network / notifications /
-    minimize — or, over a running app, that app's controls (return / close /
-    home) with the conditional HUD toggle in its own section (§7.10).
-
+    """Brightness is offered only when the backlight is controllable;
     ``include_status_actions`` drops Power / Network / Notifications from the grid
-    when a navigable status header already carries them (§8 / Faza 5), so they
-    aren't offered twice."""
+    when a status header already carries them, so they aren't offered twice."""
     quick = [_action_item(VOLUME)]
     if brightness_controllable:
         quick.append(_action_item(BRIGHTNESS))
 
     if foreground is None:
-        # "Return to Home screen" stays even on the Desktop context: when Kasual
-        # is *minimized* it is the only way back (Minimize hides it, this restores
-        # it — its dispatch is show_desktop with no foreground app). Harmless when
-        # KD is already on screen (just re-raises).
+        # "Return to Home screen" stays here: when Kasual is minimized it is the
+        # only way back. Harmless when already on screen (just re-raises).
         actions = []
         if include_status_actions:
             actions += [_power_card(power_default),

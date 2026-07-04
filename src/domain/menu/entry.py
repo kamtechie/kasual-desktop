@@ -1,18 +1,11 @@
-"""The shared action vocabulary of Kasual Desktop's menus.
-
-One place naming every menu *action* the Home Overlay and the tile Popover can
-offer. The composition rules (which actions appear when, with what label/icon)
-live in `home` / `tile`, producing `domain.menu.item.MenuItem`s that carry these
-as their `action`; the presenter dispatches on them. This module is just the
-glossary.
-"""
+"""The shared action vocabulary of Kasual Desktop's menus."""
 
 # ── Home Overlay actions ─────────────────────────────────────────────────────
 RETURN_TO_APP     = "return_to_app"
 CLOSE_APP         = "close_app"
 RETURN_TO_DESKTOP = "return_to_desktop"
 TOGGLE_HUD        = "toggle_hud"
-POWER             = "power"   # the Power split-button card (A = default, Y = pick)
+POWER             = "power"
 
 # ── Tile Popover actions ─────────────────────────────────────────────────────
 LAUNCH  = "launch"
@@ -21,9 +14,9 @@ CLOSE   = "close"
 
 # ── Tile Management Popover actions ──────────────────────────────────────────
 MOVE     = "move"
-SETTINGS = "settings"   # open the Tile Settings modal (colour + recall trigger)
-PIN      = "pin"        # turn an open-window tile into a persistent app tile
-UNPIN    = "unpin"      # remove a persistent app tile from the menu
+SETTINGS = "settings"
+PIN      = "pin"
+UNPIN    = "unpin"
 
 # ── Structural (non-action) ──────────────────────────────────────────────────
-SEPARATOR    = "separator"  # a non-selectable divider between menu groups (§7.3)
+SEPARATOR    = "separator"

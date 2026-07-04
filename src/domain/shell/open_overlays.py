@@ -12,14 +12,8 @@ class Overlay(Protocol):
 
 
 class OpenOverlays:
-    """The overlays currently on screen.
-
-    Infrastructure registers an overlay as it opens and forgets it as it closes,
-    so no concrete overlay kind is ever named here: a new one joins the group
-    just by registering. The Desktop coordinator pauses and resumes the group as
-    the surface hides and returns; the controller cancels it when the Home
-    Overlay takes over the screen.
-    """
+    """The overlays currently on screen — registered as they open, forgotten as
+    they close, so no concrete overlay kind is ever named here."""
 
     def __init__(self) -> None:
         self._open: list[Overlay] = []

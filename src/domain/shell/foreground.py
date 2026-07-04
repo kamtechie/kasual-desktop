@@ -1,9 +1,4 @@
-"""Tracks which app/window is currently 'in front' — what BTN_MODE targets.
-
-Pure state, no Qt. Centralises the transitions that used to be scattered as bare
-``self._active_context = ...`` assignments in the Desktop, including the
-bug-prone 'clear when the app finished / failed to launch' rule.
-"""
+"""Tracks which app/window is currently 'in front' — what BTN_MODE targets."""
 
 from domain.catalog.target import AppTarget, Target
 

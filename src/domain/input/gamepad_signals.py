@@ -1,10 +1,5 @@
-"""The gamepad-events port the Application observes.
-
-Framework-agnostic pub/sub replacing the old raw ``pyqtSignal`` attributes:
-each "signal" is a typed subscribe method returning an ``Unsubscribe`` token.
-The implementation (GamepadWatcher) is responsible for delivering these on the
-GUI thread; this port says nothing about threading.
-"""
+"""The gamepad-events port the Application observes — framework-agnostic pub/sub,
+each event a typed subscribe method returning an ``Unsubscribe`` token."""
 
 from collections.abc import Callable
 from typing import Protocol

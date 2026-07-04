@@ -1,14 +1,6 @@
-"""Turn a pull-only `NetworkProbe` into a `NetworkMonitor` — in the domain.
-
-This is the reusable change-detection that lets *any* sampling backend (nmcli,
-/sys, systemd-networkd) become a live monitor without re-implementing the diff:
-it polls the probe on an interval through the injected `Scheduler` and emits
-`on_changed` only when the sampled status actually differs (frozen-dataclass
-equality). Pure application logic — no Qt, no timer of its own.
-
-Event-driven backends (NetworkManager) don't need this; they implement
-`NetworkMonitor` directly.
-"""
+"""Turn a pull-only `NetworkProbe` into a `NetworkMonitor`: poll on an interval and
+emit `on_changed` only when the status differs. Event-driven backends implement
+`NetworkMonitor` directly instead."""
 
 from __future__ import annotations
 
@@ -39,8 +31,6 @@ class PollingNetworkMonitor(NetworkMonitor):
         self._status      = probe.read()   # initial sample, so current() is valid
         self._running     = False
 
-    # ── NetworkMonitor port ──────────────────────────────────────────────────
-
     def current(self) -> NetworkStatus:
         return self._status
 
@@ -48,8 +38,6 @@ class PollingNetworkMonitor(NetworkMonitor):
         self, handler: Callable[[NetworkStatus], None]
     ) -> Unsubscribe:
         return self._emitter.subscribe(handler)
-
-    # ── Lifecycle (driven by the composition root) ───────────────────────────
 
     def start(self) -> None:
         if not self._running:

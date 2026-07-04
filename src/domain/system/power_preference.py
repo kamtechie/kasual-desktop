@@ -1,11 +1,5 @@
-"""The persisted 'favourite' power action — the Power split-button's memory.
-
-The single source of truth for which power action (Sleep / Restart / Shut Down)
-is the default: the one ``A`` triggers on the Home Overlay's Power card and the
-one the top-bar Power button performs (§7.10). A tiny scalar preference, so it is
-its own narrow port rather than a general settings bag; the concrete adapter
-persists it under the cross-platform config root.
-"""
+"""The persisted default power action (Sleep / Restart / Shut Down) — the Power
+split-button's memory."""
 
 from typing import Protocol
 

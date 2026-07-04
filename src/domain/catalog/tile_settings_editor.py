@@ -1,17 +1,5 @@
-"""Editing a tile's per-tile settings — the colour swatch and the recall-menu
-trigger — as one application use-case.
-
-Entered from the Tile Settings modal's *Save*. Like :class:`TileMover`, it owns
-the sequencing the UI must not: each change updates the shared live model *and*
-persists it, so the two never drift. The Qt modal only reports the user's intent
-(chosen colour / trigger); it neither touches the catalog nor knows how a setting
-reaches the ``.desktop`` file.
-
-Pure application logic: no Qt, no file format. It mutates the shared
-:class:`LiveCatalog` and persists through the :class:`TileSettingsStore` port; the
-``.desktop`` key rewrite (and the ``Trigger.CLICK`` sentinel-strip) lives in the
-adapter behind that port.
-"""
+"""Editing a tile's per-tile settings — colour and recall-menu trigger. Each change
+updates the shared live model *and* persists it, so the two never drift."""
 
 from __future__ import annotations
 

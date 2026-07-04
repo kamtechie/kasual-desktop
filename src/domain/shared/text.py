@@ -1,4 +1,4 @@
-"""Pure text helpers shared across the domain (no Qt, no I/O)."""
+"""Text helpers shared across the domain."""
 
 
 def truncate(text: str, max_len: int) -> str:

@@ -1,17 +1,4 @@
-"""App-lifecycle coordinator — the launch / restore / finish / close flows
-extracted from the Desktop view.
-
-This is the application-layer orchestration that used to live inline on the
-`Desktop` God Object: deciding when to launch vs restore an app, what to do when
-one exits or fails, and how to seize/cede gamepad control and the foreground
-state around all of that. It drives the Qt side exclusively through the
-`DesktopView` port (show/hide/activate, dialogs), so the branching logic is
-testable against a fake view rather than a live QWidget.
-
-The Desktop keeps ownership of the gamepad pad-handler identity: it passes its
-own `_handle_pad` bound method in as `pad_handler` so push/pop/compare on the
-gamepad handler stack stays consistent with the rest of the widget.
-"""
+"""Coordinates the launch / restore / close / exit flows for apps."""
 
 from __future__ import annotations
 
@@ -42,12 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class AppLifecycle(AppControl):
-    """Coordinates launching, restoring, closing and exit-handling of apps.
-
-    Owns no Qt widgets; reads/writes the shared `ForegroundState` and drives the
-    Desktop through the `DesktopView` port. Implements `AppControl`, the port the
-    `Application` controller drives for foreground-app operations.
-    """
+    """Coordinates launching, restoring, closing and exit-handling of apps."""
 
     def __init__(
         self,
@@ -78,11 +60,7 @@ class AppLifecycle(AppControl):
         self._scheduler     = scheduler
         self._feedback      = feedback
         self._prompts       = prompts
-        # Read-only foreground/game introspection lives in its own collaborator;
-        # the coordinator owns the acting (launch/restore/close), not the asking.
         self._inspector     = inspector
-
-    # ── AppControl queries (delegated to the foreground inspector) ───────────
 
     def current_app(self) -> Target | None:
         return self._inspector.current_app()
@@ -96,21 +74,15 @@ class AppLifecycle(AppControl):
     # ── Launch / restore ────────────────────────────────────────────────────
 
     def _is_running(self, idx: int) -> bool:
-        """Window-aware running check, matching the tile Popover's launch/restore
-        label (both go through :func:`is_app_running`). So a Steam game whose
-        forwarder process has exited — but whose window is still up — restores
-        rather than relaunching, and never depends on the shared Steam process."""
+        """Window-aware, so a Steam game whose forwarder exited but whose window is
+        still up restores rather than relaunching."""
         return is_app_running(
             idx, self._apps, self._wm.cached_windows(), self._app_manager.is_running
         )
 
     def on_tile_activated(self, target: Target) -> None:
-        """A tile (static app or open window) was chosen via gamepad, click or
-        the tile Popover."""
-        # Ignore activation while a static app is shutting down — proc.poll() still
-        # reports it as running, so a restore would hide the Desktop and try to
-        # activate a window that's about to disappear. Covers every activation
-        # path (click / select_current / popover) at the single domain entry.
+        # proc.poll() still reports a shutting-down app as running, so a restore
+        # would activate a window that's about to disappear.
         if isinstance(target, AppTarget) and self._tilebar.is_closing(target.index):
             return
         self._foreground.set(target)
@@ -125,28 +97,19 @@ class AppLifecycle(AppControl):
         else:
             logger.info("Launching application %d", idx)
             self._feedback.play(Cue.SELECT)
-            # Minimize other already-running apps to prevent virtual pad interference
+            # So other apps' virtual pads don't interfere.
             self.arrange_windows()
             trigger = self._apps[idx].recall_menu_trigger
             self._gamepad.set_app_btn_mode_trigger(trigger)
             self._gamepad.pop_handler(self._pad_handler)
-            # launch() reports an immediate failure (e.g. command not found)
-            # synchronously via app_launch_failed — on_app_launch_failed has
-            # already reactivated the Desktop and shown the error by the time
-            # this returns False. Only arm the deferred hide for a real launch;
-            # arming it for a failed one would strand a window-poll + 5 s guard
-            # that later hides the Desktop and churns the tile selection.
             app = self._apps[idx]
+            # launch() reports immediate failure synchronously (the Desktop is
+            # already reactivated); only arm the deferred hide on a real launch.
             if self._app_manager.launch(idx, app.command, app.args, app.env):
-                # The Desktop is a top-layer surface and must be hidden for the
-                # windowed app to show — but we defer that until the app's window
-                # is actually mapped, so the DE desktop never flashes through the
-                # start-up gap. Re-shown by on_app_finished.
+                # Defer the hide until the window maps, so no DE-desktop flash.
                 self._deferred_hide.arm(idx)
 
     def dispatch_tile_action(self, item: MenuItem) -> None:
-        """Perform the behaviour for an activated tile-Popover item — the twin of
-        the Home Overlay's dispatch, kept in the domain rather than the widget."""
         if item.action in (LAUNCH, RESTORE):
             self.on_tile_activated(item.target)
         elif item.action == CLOSE:
@@ -172,9 +135,7 @@ class AppLifecycle(AppControl):
     # ── Closing an application ──────────────────────────────────────────────
 
     def request_close_app(self, target: Target) -> None:
-        # Where the close was triggered from decides where Cancel returns to:
-        # the Desktop (tile menu, KD visible) or the running app (overlay opened
-        # over it, KD hidden). Captured now, before the dialog changes anything.
+        # Capture where Cancel should return to now, before the dialog changes it.
         from_desktop = self._view.is_visible()
         self._view.show_confirm(
             question=self._prompts.close_confirm(target.name),
@@ -189,16 +150,13 @@ class AppLifecycle(AppControl):
             app = self._apps[idx]
             self._tilebar.set_static_closing(idx)
             if app.steam_app_id is not None:
-                # The tracked process is the shared Steam client, not the
-                # game — terminating it would quit all of Steam. Close the
-                # game's own steam_app_<id> window instead.
+                # Terminating the tracked process would quit all of Steam, not
+                # the game; close the game's own window instead.
                 self._close_app_windows(idx)
             elif self._app_manager.is_running(idx):
                 self._app_manager.terminate(idx)
             else:
-                # App was launched via a forwarder (e.g. `steam steam://...`)
-                # whose launcher process has already exited — AppManager has
-                # no live process to kill. Close matching KWin windows instead.
+                # Forwarder-launched: no live process to kill, so close windows.
                 self._close_app_windows(idx)
         else:
             self._foreground.clear()
@@ -206,20 +164,14 @@ class AppLifecycle(AppControl):
             self._scheduler.call_later(1000, self._wm.refresh_now)
 
     def _close_cancelled(self, target: Target, from_desktop: bool) -> None:
-        # Cancelling closes the dialog without consequences: return to the
-        # context the user came from rather than yanking up the Desktop.
         if from_desktop:
             self.restore_desktop_view()
         else:
             self.restore_app(target)
 
     def _close_app_windows(self, idx: int) -> None:
-        """Close all windows belonging to a static app, matched by app identity.
-
-        Used when the process manager has no live process for the app — e.g. apps
-        started via a one-shot forwarder (steam://...) whose launcher exits
-        immediately while the real process continues under a different PID.
-        """
+        """Close a static app's windows by identity, for when no live process
+        exists (forwarder-launched, so the real PID differs)."""
         app = self._apps[idx]
         matched = [w.id for w in self._wm.cached_windows() if w.matches_app(app)]
         logger.info("Closing app %d via windows %s (keys=%s)", idx, matched, app.window_match_keys)
@@ -231,76 +183,53 @@ class AppLifecycle(AppControl):
 
     def on_app_launch_failed(self, idx: int, error: str) -> None:
         logger.warning("Application %d failed to launch: %s", idx, error)
-        # Launch failed before any window: drop the pending hide so the Desktop
-        # stays up for the error dialog instead of vanishing.
+        # Keep the Desktop up for the error dialog.
         self._deferred_hide.cancel()
-        # on_tile_activated set the foreground optimistically when the tile was
-        # chosen; the app never started, so clear it (if it is still ours).
-        # Otherwise BTN_MODE would target the never-launched app instead of
-        # opening the general Home Overlay.
+        # The optimistic foreground set in on_tile_activated never started, so
+        # clear it or BTN_MODE would target the never-launched app.
         self._foreground.clear_if_app(idx)
         self.reactivate_desktop()
         self._view.show_error(self._prompts.launch_failed(error))
 
     def on_app_finished(self, idx: int) -> None:
         logger.info("Application %d finished – returning to desktop", idx)
-        # App exited (possibly before its window ever mapped) — stop waiting to
-        # hide the Desktop, otherwise we would hide onto a closed app.
+        # Don't hide onto a closed app.
         self._deferred_hide.cancel()
         self._view.close_active_dialog()
         self._tilebar.refresh_status()
         self._wm.refresh_now()
-        # Drop back to the Desktop if the app that exited was in front.
         self._foreground.clear_if_app(idx)
         if not self._view.is_visible():
-            # App exited on its own (crash / self-close) — show desktop now
             self.reactivate_desktop()
-        # Some apps (notably Steam) re-enumerate the gamepad on exit,
-        # leaving our evdev fd pointing at a dead device with no error.
-        # Delay long enough for the kernel to surface the replacement.
+        # Steam re-enumerates the gamepad on exit, leaving our evdev fd dead;
+        # delay long enough for the kernel to surface the replacement.
         self._scheduler.call_later(1000, self._gamepad.refresh)
 
     def check_active_dyn_gone(self) -> None:
-        """If the active dynamic window disappeared (closed by the app) → show desktop."""
+        """Show the Desktop if the active dynamic window was closed by its app."""
         ctx = self._foreground.current
         if isinstance(ctx, WindowTarget):
             if not self._tilebar.has_dynamic_window(ctx.window_id):
                 self._foreground.clear()
-                # Re-establish gamepad control even when the Desktop window is
-                # already visible: restore_app() popped our handler, so a bare
-                # visible window would leave the pad unresponsive. Only seize
-                # input if nobody else owns it (an open Home surface sits on top
-                # of the handler stack and must keep receiving events).
+                # restore_app() popped our handler, so reclaim input — but only if
+                # nobody else owns it (an open Home surface must keep receiving).
                 top = self._gamepad.top_handler()
                 if top is None or top == self._pad_handler:
                     self.reactivate_desktop()
-                # Some apps (notably Steam) re-enumerate the gamepad when they
-                # exit, silently invalidating our evdev fd. Externally-launched
-                # (dyn) apps don't go through on_app_finished, so force the
-                # rebind here too — same delay as the AppManager path.
+                # Dyn apps skip on_app_finished, so force the same Steam rebind.
                 self._scheduler.call_later(1000, self._gamepad.refresh)
 
     # ── Focus / Reactivation ────────────────────────────────────────────────
 
     def on_focus_gained(self) -> None:
-        """Decide whether to reactivate the desktop after the window regains focus.
-
-        Called from the Qt event loop when the Desktop window regains activation
-        (e.g. after the app that ceded pad control has closed).  The decision
-        logic — *foreground idle AND no gamepad handler active* — lives here so
-        the infrastructure layer only signals the event.
-        """
+        """Reactivate the Desktop on regained focus, if the foreground is idle and
+        no gamepad handler is active."""
         if self._foreground.is_idle() and self._gamepad.top_handler() is None:
             self.reactivate_desktop()
 
     def reactivate_desktop(self) -> None:
-        """Restore Desktop input control and bring it to the front.
-
-        Idempotent: push_handler() moves our handler to the top if it is already
-        present, and the window is only re-shown when actually hidden. The
-        BTN_MODE trigger is reset to the Desktop default so no app-specific
-        HOLD_1S setting lingers after the app is gone.
-        """
+        """Restore Desktop input control and surface it. Idempotent. Resets the
+        BTN_MODE trigger so no app-specific HOLD_1S lingers."""
         self._gamepad.set_app_btn_mode_trigger(Trigger.CLICK)
         self._gamepad.push_handler(self._pad_handler)
         if not self._view.is_visible():
@@ -309,7 +238,5 @@ class AppLifecycle(AppControl):
 
     def restore_desktop_view(self) -> None:
         self.reactivate_desktop()
-        # Wayland focus-stealing prevention can ignore Qt's activateWindow
-        # when another app (still dying) holds focus. Force Desktop to the
-        # top of the stack via KWin scripting.
+        # Wayland can ignore activateWindow while a dying app holds focus.
         self._wm.raise_self()

@@ -1,28 +1,17 @@
-"""The notification center: the recent-notifications buffer.
-
-Pure use-case, no Qt/D-Bus. Keeps a bounded history of the most recently arrived
-notifications, newest first, so the overlay can render "the last few". The
-bound is the one domain rule here — old notifications fall off the end.
-
-It does not subscribe to the source itself: the composition root wires
-``source.on_notification(center.record)``, keeping this free of any port wiring
-(and trivially unit-testable by calling ``record`` directly).
-"""
+"""A bounded history of the most recent notifications, newest first; old ones fall
+off the end."""
 
 from collections import deque
 
 from domain.notifications.notification import Notification
 
-DEFAULT_LIMIT = 20   # how many recent notifications to retain
+DEFAULT_LIMIT = 20
 
 
 class NotificationCenter:
-    """Holds the most recent notifications, newest first.
-
-    Also tracks how many of those are *unread* — notifications that have arrived
-    since the user last viewed the list. Because every new notification is added
-    at the front and reading clears the tally, the unread ones are always the
-    first ``unread_count`` items of :meth:`recent`."""
+    """Holds the most recent notifications, newest first, and tracks the unread
+    tally. New ones prepend and reading clears the tally, so the unread ones are
+    always the first ``unread_count`` items of :meth:`recent`."""
 
     def __init__(self, limit: int = DEFAULT_LIMIT) -> None:
         self._items: deque[Notification] = deque(maxlen=limit)

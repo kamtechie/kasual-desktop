@@ -1,10 +1,4 @@
-"""The ports the provisioning use-case drives — implemented in infrastructure.
-
-Keeps the domain free of filesystem I/O, app detection and Qt: the use-case and
-the view talk to these Protocols, the composition root binds the concrete
-adapters (``DesktopAppProvisioning``, ``WhichAppDiscovery``,
-``OnboardingOverlay``).
-"""
+"""The ports the provisioning use-case drives — implemented in infrastructure."""
 
 from collections.abc import Callable
 from typing import Protocol
@@ -28,49 +22,23 @@ class AppProvisioning(Protocol):
 
 
 class AppDiscovery(Protocol):
-    """Detects whether a system command/app is available to launch.
-
-    Two shapes of discovery live behind this port: binary availability on
-    ``PATH`` (``is_available`` / ``system_icon`` — what the bundled
-    :func:`starter_candidates` catalogue filters on) and a platform-specific
-    **extras** layer (``extra_candidates`` — e.g. a Start Menu scan on Windows,
-    empty by default). The use-case prefers a non-empty ``extra_candidates``
-    list over the cross-platform baseline so a platform can ship its own
-    complete bundled+scanned candidate set when the baseline's paths do not
-    apply (e.g. Windows bundled apps launch via ``pythonw.exe`` rather than a
-    ``.sh`` script).
-    """
+    """Detects whether a system command/app is available to launch."""
 
     def is_available(self, command: str) -> bool: ...
 
     def system_icon(self, names: tuple[str, ...]) -> str | None:
-        """The first of *names* the system icon theme actually provides, else None.
-
-        Lets provisioning prefer a real installed app icon (e.g. the genuine
-        ``steam`` logo) over the bundled Font Awesome glyph when the system has
-        one — the glyph stays as the fallback for a system that does not."""
+        """The first of *names* the system icon theme provides, else None."""
         ...
 
     def extra_candidates(self) -> list[CandidateApp]:
-        """Platform-specific extra starter candidates beyond the baseline.
-
-        Empty by default (Linux relies on the cross-platform
-        :func:`starter_candidates`). A platform that bundles its own app launch
-        mechanism and/or scans the system menu (Start Menu on Windows) returns
-        the full appended list here; the use-case prefers this over the
-        baseline when non-empty."""
+        """Platform-specific starter candidates; the use-case prefers a non-empty
+        list over the cross-platform baseline. Empty by default."""
         ...
 
 
 class InstalledApps(Protocol):
-    """Enumerates the apps installed on the system as add-app candidates.
-
-    The source behind the ``[＋]`` tile (post-first-run provisioning, §7.4).
-    Unlike :class:`AppDiscovery`, which only answers availability of a handful of
-    known commands, this returns the *whole* installed set — freedesktop
-    ``.desktop`` files on Linux, Start Menu shortcuts on Windows — as
-    :class:`CandidateApp`\\ s (never pre-selected: the user picks). The add-app
-    use-case filters the already-pinned ones out before showing the picker."""
+    """Enumerates every installed app as an add-app candidate (never pre-selected);
+    the source behind the ``[＋]`` tile."""
 
     def scan(self) -> list[CandidateApp]:
         ...

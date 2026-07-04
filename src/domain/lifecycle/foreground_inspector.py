@@ -1,17 +1,4 @@
-"""Introspection of the foreground target — what is in front, and is it a game.
-
-The read-only half of the app-lifecycle concern, split out of
-:class:`domain.lifecycle.app_lifecycle.AppLifecycle` so the coordinator is left
-with the *acting* (launch / restore / close / exit) and this owns the *asking*:
-which Target the controller should treat as foreground (a launcher-spawned game
-window may stand in for its launcher tile), the foreground app's pid, and whether
-the foreground qualifies as a game (gating the in-game HUD toggle).
-
-Depends only on query collaborators — the foreground state, the window manager's
-cached windows, the catalog, the process manager and the injected /proc readers —
-never on the view, gamepad, feedback or scheduler. That narrow surface is what
-makes the game-detection rules cheap to test in isolation.
-"""
+"""Introspection of the foreground target — what is in front, and is it a game."""
 
 from __future__ import annotations
 
@@ -45,14 +32,9 @@ class ForegroundInspector:
         self._is_game_pid = is_game_pid
 
     def current_app(self) -> Target | None:
-        """The foreground Target, or None on the bare Desktop.
-
-        When the foreground app has spawned a distinct active window — e.g. a
-        game launched by Steam, which runs in its own top-level window while the
-        foreground stays the Steam tile — that window is reported instead, so the
-        Home Overlay names it and Cancel returns to it rather than to the
-        launcher underneath.
-        """
+        """The foreground Target, or None on the bare Desktop. A game spawned by a
+        launcher (its own window while the foreground stays the launcher tile) is
+        reported instead, so the Home Overlay names and returns to it."""
         target = self._foreground.current
         if isinstance(target, AppTarget):
             spawned = self._active_spawned_window(target)
@@ -64,8 +46,8 @@ class ForegroundInspector:
         window = active_unmanaged_window(self._wm.cached_windows(), self._apps)
         if window is None:
             return None
-        # The game inherits its launcher's recall trigger (e.g. Steam's HOLD_1S),
-        # so BTN_MODE behaves the same whether the launcher or its game is front.
+        # The game inherits its launcher's recall trigger, so BTN_MODE behaves the
+        # same whether the launcher or its game is front.
         app = self._apps[target.index]
         logger.debug(
             "Recall over %s: active window unmanaged → targeting %r (id=%s)",
@@ -84,13 +66,9 @@ class ForegroundInspector:
         return None
 
     def foreground_is_game(self) -> bool:
-        """Whether the foreground is a game — gating the in-game HUD toggle.
-
-        A game is either a process classified as such by the injected
-        ``is_game_pid`` predicate (the active unmanaged window, or a
-        directly-activated external-window tile), or a configured tile carrying
-        ``Categories=Game``. The launcher's own UI (e.g. Steam) is an
-        ``AppTarget`` without that category, so it correctly does not qualify."""
+        """Whether the foreground is a game — a pid ``is_game_pid`` classifies as
+        one, or a tile carrying ``Categories=Game``. A launcher's own UI is an
+        ``AppTarget`` without that category, so it does not qualify."""
         target = self._foreground.current
         if isinstance(target, WindowTarget):
             result = bool(target.pid) and self._is_game_pid(target.pid)

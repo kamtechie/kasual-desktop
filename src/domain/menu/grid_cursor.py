@@ -1,16 +1,6 @@
-"""Grid navigation — a moving selection over items laid out in rows of a fixed
-width (the tile-colour picker's swatch grid).
-
-The 2-D twin of :class:`MenuCursor`: items are a flat list rendered left-to-right,
-top-to-bottom into rows at most ``columns`` wide (the last row may be short).
-LEFT/RIGHT cycle the column within the current row; UP/DOWN move the row within
-the current column. Both axes wrap, and a vertical move into a short last row
-that lacks the current column clamps to that row's last item.
-
-State and layout-independent behaviour (reset/hover/select/dismiss) come from the
-shared :class:`domain.menu.cursor_base.Cursor`; this adds only the 2-D movement,
-so the same widget plumbing and hover/keyboard wiring apply as for MenuCursor.
-"""
+"""Grid navigation over a flat list laid out in rows at most ``columns`` wide.
+LEFT/RIGHT cycle the column, UP/DOWN move the row; both axes wrap, and a vertical
+move into a short last row clamps to its last item."""
 
 from __future__ import annotations
 

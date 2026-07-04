@@ -1,14 +1,6 @@
-"""Move mode — sliding a focused app tile left/right past its neighbours.
-
-Entered from the Tile Management Popover's *Move* action. While active it owns the
-gamepad handler stack: LEFT/RIGHT swap the focused app tile with its neighbour (both
-on screen and persisted), and SELECT/CANCEL leave the mode. Clamps at both ends.
-
-Pure interaction logic (application layer): no Qt, no sound backend. It drives the
-tile bar through :class:`TileReorderView`, persists through :class:`TileOrderStore`,
-seizes/cedes input through :class:`PadControl`, and reports cursor feedback through
-:class:`Feedback`. The Qt-key/gamepad→event translation lives at the edge.
-"""
+"""Move mode — sliding a focused app tile left/right past its neighbours. While
+active it owns the gamepad handler stack; LEFT/RIGHT swap (on screen and
+persisted), SELECT/CANCEL leave. Clamps at both ends."""
 
 from __future__ import annotations
 
@@ -59,8 +51,8 @@ class TileMover:
             self._finish()
 
     def cancel(self) -> None:
-        """Abort move mode without the close cue — e.g. when the Home Overlay takes
-        over the screen (it summons itself outside the gamepad handler stack)."""
+        """Abort move mode without the close cue — e.g. when the Home Overlay, which
+        summons itself outside the handler stack, takes over the screen."""
         self._teardown()
 
     def _swap_to(self, target: int) -> None:

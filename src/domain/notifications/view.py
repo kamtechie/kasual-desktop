@@ -1,12 +1,5 @@
-"""Presentation vocabulary for notifications — how a timestamp reads.
-
-Pure, Qt-free. Turns a notification's arrival time into a short, localized
-"how long ago" label, in coarse buckets (just now / N min / N h / a date).
-Lives in the domain because it is the wording of the feature, not an adapter —
-its only outward need is translation, taken through the `domain.shared.i18n` port
-(the `translate(context, text)` calls double as extraction markers, exactly as
-`domain.system.action_view` does).
-"""
+"""Presentation vocabulary for notifications — a notification's arrival time as a
+short localized "how long ago" label."""
 
 from datetime import datetime
 
@@ -26,5 +19,4 @@ def relative_age(timestamp: datetime, now: datetime) -> str:
         return translate("Kasual Desktop", "{0} min ago").format(seconds // _MINUTE)
     if seconds < _DAY:
         return translate("Kasual Desktop", "{0} h ago").format(seconds // _HOUR)
-    # Older than a day: fall back to the calendar date (locale-neutral ISO).
     return timestamp.strftime("%Y-%m-%d")

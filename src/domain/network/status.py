@@ -1,13 +1,6 @@
-"""The network connection state — the platform-agnostic value object.
-
-Pure Python — no Qt, no D-Bus, no NetworkManager. Whatever backend observes the
-system (NetworkManager, nmcli, systemd-networkd, /sys, …) maps its own data into
-this; the rest of the app only ever sees a `NetworkStatus`.
-
-Detail fields are optional on purpose: a backend fills only what it can resolve
-(e.g. a `/sys` reader may know the interface and kind but not the SSID or signal),
-and the presentation (`domain.network.view`) simply omits what is missing.
-"""
+"""The network connection state — the platform-agnostic value object. Detail
+fields are optional: a backend fills only what it can resolve, and the
+presentation omits what is missing."""
 
 from __future__ import annotations
 
@@ -21,16 +14,13 @@ class NetworkKind(StrEnum):
     WIFI     = "wifi"
     ETHERNET = "ethernet"
     OFFLINE  = "offline"
-    # Connected, but the backend could not classify it as Wi-Fi/Ethernet (VPN,
-    # mobile broadband, a bridge, …). Lets any implementation report "online,
-    # type N/A" without being forced into a wrong category.
-    UNKNOWN  = "unknown"
+    UNKNOWN  = "unknown"   # online but unclassified (VPN, mobile broadband, …)
 
 
 @dataclass(frozen=True)
 class NetworkStatus:
     """A snapshot of the active connection. Immutable; equality drives change
-    detection (see `domain.network.polling.PollingNetworkMonitor`)."""
+    detection."""
 
     kind:       NetworkKind
     name:       str        = ""     # SSID (Wi-Fi) or connection id

@@ -1,16 +1,9 @@
 """The input-focus stack: who currently receives navigation events.
 
-A LIFO stack of navigation-event handlers — only the topmost reacts, so an
-overlay opened on top of the desktop transparently steals input and hands it
-back when dismissed. Pushing a handler that is already present moves it to the
-top rather than duplicating it.
-
-The stack also owns one rule: *our* UI is in control exactly when the stack is
-non-empty (`suppressed`). The gamepad reader uses this to decide whether raw
-events should still be forwarded to the foreground app's virtual pad.
-
-Pure application logic — no Qt, no evdev. It is thread-safe because the reader
-thread queries `suppressed`/`top` while the GUI thread mutates the stack.
+A LIFO stack of handlers — only the topmost reacts, so an overlay steals input
+and hands it back when dismissed; re-pushing an existing handler moves it to the
+top. ``suppressed`` (stack non-empty) means our UI is in control. Thread-safe: the
+reader thread queries while the GUI thread mutates.
 """
 
 from __future__ import annotations
@@ -52,8 +45,6 @@ class InputFocusStack:
         handler = self.top()
         if handler:
             handler(event)
-
-    # ── Collection protocol (membership / length / iteration) ────────────────
 
     def __contains__(self, handler: object) -> bool:
         with self._lock:

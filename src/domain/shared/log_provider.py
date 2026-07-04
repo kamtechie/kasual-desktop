@@ -1,11 +1,5 @@
-"""Serving a log's text to a viewer — the policy, kept apart from presentation.
-
-`LogProvider` owns *what* a log viewer is served: the latest text, but only when
-it actually changed since the last look, so a polling viewer repaints on change
-rather than every tick. The bytes themselves come from an injected `LogSource`
-(a file on disk in production) — the policy stays I/O-free and unit-testable,
-the I/O stays in infrastructure.
-"""
+"""Serving a log's text to a viewer, but only when it changed since the last look,
+so a polling viewer repaints on change rather than every tick."""
 
 from typing import Protocol
 
@@ -20,12 +14,8 @@ class LogSource(Protocol):
 
 
 class LogProvider:
-    """Serves log text, re-reading the source only when it changed.
-
-    `poll()` returns fresh text on a change and `None` otherwise (including when
-    the source is unavailable), so the viewer can skip repaints. `invalidate()`
-    forces the next poll to re-serve (e.g. when the window is shown again).
-    """
+    """Serves log text, re-reading the source only when it changed. `poll()`
+    returns `None` when nothing changed (or the source is unavailable)."""
 
     def __init__(self, source: LogSource) -> None:
         self._source = source

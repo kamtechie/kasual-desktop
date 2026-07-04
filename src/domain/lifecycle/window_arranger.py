@@ -1,10 +1,4 @@
-"""Bringing one app's windows to the front while minimizing the rest.
-
-Pulled out of :class:`domain.lifecycle.app_lifecycle.AppLifecycle`: the window /
-process arrangement is a self-contained concern over the WindowManager and
-ProcessManager, independent of the launch / restore / close orchestration that
-drives it.
-"""
+"""Bringing one app's windows to the front while minimizing the rest."""
 
 from __future__ import annotations
 
@@ -36,22 +30,16 @@ class WindowArranger:
     def raise_app(self, idx: int, app: App) -> None:
         """Bring app *idx* to the front, minimizing the other running apps.
 
-        Ordinary apps we launched are raised by their tracked process pid. Two
-        cases instead raise by *window identity*: a Steam game (its tracked
-        process is the shared Steam client, so activating it surfaces Steam, not
-        the game) and a pinned, externally-started app (running but never launched
-        by us, so there is no tracked pid). In both the window is found via
-        ``matches_app`` and the activate-by-pid path is left for tracked apps.
-        """
+        Raised by tracked pid, except by window identity for a Steam game (whose
+        tracked process is the shared Steam client) and a pinned externally-started
+        app (no tracked pid)."""
         pid = self._app_manager.running_pid(idx)
         if app.steam_app_id is None and pid is not None:
             self.arrange(pid)
             return
         own_windows = [w.id for w in self._wm.cached_windows() if w.matches_app(app)]
         if not own_windows:
-            # Window not mapped yet (game still loading) or unmatched — fall back
-            # to the process so something sensible comes forward (a no-op when
-            # there is no tracked pid either).
+            # Window not mapped yet or unmatched — fall back to the process.
             self.arrange(pid)
             return
         for win_id in own_windows:

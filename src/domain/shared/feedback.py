@@ -14,7 +14,6 @@ class Cue(StrEnum):
 
 
 class Feedback(Protocol):
-    """Audio cue feedback for application-driven events. Keeps the use-case
-    layer from importing the sound backend directly."""
+    """Audio cue feedback for application-driven events."""
 
     def play(self, cue: Cue) -> None: ...

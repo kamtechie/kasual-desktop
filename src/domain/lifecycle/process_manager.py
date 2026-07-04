@@ -9,15 +9,8 @@ from domain.lifecycle.app_events import AppStarted, AppFinished, AppLaunchFailed
 
 
 class ProcessManager(Protocol):
-    """Launch / track / terminate the configured apps by index, and observe
-    their lifecycle (AppManager).
-
-    The ``on_*`` methods are framework-agnostic pub/sub (returning an
-    ``Unsubscribe`` token), so the lifecycle observes process events without the
-    Desktop reaching for a concrete adapter's Qt signals. The implementation is
-    responsible for delivering them on the GUI thread; this port says nothing
-    about threading.
-    """
+    """Launch / track / terminate the configured apps by index, and observe their
+    lifecycle. The ``on_*`` methods are framework-agnostic pub/sub."""
 
     def is_running(self, idx: int | None = None) -> bool: ...
     def launch(

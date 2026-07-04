@@ -7,9 +7,8 @@ from domain.catalog.window import Window
 
 
 class TileBarView(Protocol):
-    """The tile bar as the lifecycle touches it (TileBar): running-status display
-    and dynamic-window presence queries. A narrower role-interface than
-    navigation's TileFocusView (ISP); TileBar satisfies both."""
+    """The tile bar as the lifecycle touches it: running-status display and
+    dynamic-window presence queries."""
 
     def set_static_closing(self, idx: int) -> None: ...
     def is_closing(self, idx: int) -> bool: ...

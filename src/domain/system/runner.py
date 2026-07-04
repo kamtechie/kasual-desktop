@@ -1,9 +1,4 @@
-"""Executing a system action — the confirm-gating around the action catalog.
-
-Gates the confirmable actions behind an injected confirmation flow and runs the
-rest immediately. The *which actions exist* table lives next door in
-:mod:`domain.system.actions`; this owns only the run/confirm decision.
-"""
+"""Executing a system action — confirm-gating around the action catalog."""
 
 from __future__ import annotations
 
@@ -14,13 +9,7 @@ from domain.system.actions import ACTIONS, ActionDeps
 
 class ActionRunner:
     """Executes a system action: gates the confirmable ones behind the injected
-    confirmation flow, runs the rest immediately.
-
-    `confirm(action_key, execute)` is supplied by the view — it resolves the
-    localized question for the key and shows the dialog, calling `execute` on
-    acceptance. Keeping the question text out of here is what lets this stay
-    Qt-free.
-    """
+    ``confirm(action_key, execute)`` flow, runs the rest immediately."""
 
     def __init__(
         self,

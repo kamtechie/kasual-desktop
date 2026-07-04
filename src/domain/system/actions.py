@@ -1,17 +1,4 @@
-"""System actions — the catalog of what Kasual can do from the top bar / home menu.
-
-The single source of truth for *which* actions exist, *in what order*, *which
-require a confirmation*, *what each one does* (a call onto an injected port), and
-*how each one looks/reads* (icon, colour, localized label, confirmation wording).
-
-Identity, effect and presentation are one :class:`SystemAction` per key, so adding
-an action edits a single place. Executing an action (the confirm-gating) lives next
-door in :mod:`domain.system.runner`; turning these into render-ready menu items / a
-confirm callback lives in :mod:`domain.system.action_view`.
-
-It is pure application logic — free of Qt and of any concrete adapter. Its only
-outward need is translation, which it gets through the `domain.shared.i18n` port.
-"""
+"""The catalog of system actions — identity, effect and presentation per key."""
 
 from __future__ import annotations
 
@@ -22,7 +9,6 @@ from domain.shared.i18n import translate
 from domain.system.desktop_shell import DesktopShell
 from domain.system.power_control import PowerControl
 
-# Action identities — stable keys shared with the renderers (top bar / home menu).
 NETWORK       = "network"
 NOTIFICATIONS = "notifications"
 VOLUME        = "volume"
@@ -32,17 +18,13 @@ RESTART       = "restart"
 SHUTDOWN      = "shutdown"
 HIDE_DESKTOP  = "hide_desktop"
 
-# The power actions, in dropdown order — the choices behind the Home Overlay's
-# Power split-button and the single value the power-default preference persists
-# (§7.10). The first is the out-of-the-box default (Sleep).
+# First is the out-of-the-box default.
 POWER_ACTIONS = (SLEEP, RESTART, SHUTDOWN)
 
 
 @dataclass
 class ActionDeps:
-    """Collaborators the actions drive, injected behind ports. The concrete
-    implementations (e.g. SystemdPowerControl) are chosen at the composition
-    root so this stays free of any adapter dependency."""
+    """Collaborators the actions drive, injected behind ports."""
 
     desktop: DesktopShell
     power:   PowerControl
@@ -52,38 +34,28 @@ class ActionDeps:
 class SystemAction:
     """One action: what it does, whether it needs confirming, and how it looks.
 
-    Invariant: ``needs_confirmation`` ⟺ ``confirm_question is not None`` — a
-    confirmable action carries the wording of its question, an immediate one
-    does not.
+    Invariant: ``needs_confirmation`` ⟺ ``confirm_question is not None``.
     """
 
     effect:             Callable[[ActionDeps], None]
-    label:              str          # source string; re-translated at render time
-    icon:               str          # qtawesome glyph name
+    label:              str          # source string, re-translated at render
+    icon:               str
     color:              str
     needs_confirmation: bool        = False
-    confirm_question:   str | None  = None   # source string; None for immediate actions
+    confirm_question:   str | None  = None   # source string, None for immediate actions
 
 
-# The `translate(...)` calls below run at import time — before the composition
-# root installs a backend — so they return the source string unchanged and act
-# purely as extraction markers (pylupdate6 harvests them). The actual
-# localization happens when consumers re-translate the label/question at render
-# time (see action_view.system_action_items / make_action_confirm); keep the
-# literal `translate("Kasual Desktop", "...")` call shape — pylupdate6 scans
-# statically and only harvests that exact form.
-#
-# Insertion order defines the top-bar button order and the home-menu order.
+# The translate() calls run at import (before a backend is installed), so they
+# pass through as pylupdate6 extraction markers — keep the literal call shape.
+# Insertion order defines the top-bar / home-menu order.
 ACTIONS: dict[str, SystemAction] = {
     VOLUME: SystemAction(
-        # Presentation-only: adjusted live inline in the Home Overlay's Quick
-        # adjust (and the LT/RT triggers), never dispatched through the runner.
+        # Presentation-only: adjusted live, never dispatched through the runner.
         lambda d: None,
         translate("Kasual Desktop", "Volume"), "fa5s.volume-up", "#3b4252",
     ),
     BRIGHTNESS: SystemAction(
-        # Presentation-only (Quick adjust); shown only where the backlight is
-        # controllable.
+        # Presentation-only; shown only where the backlight is controllable.
         lambda d: None,
         translate("Kasual Desktop", "Brightness"), "fa5s.sun", "#434c5e",
     ),
@@ -111,7 +83,7 @@ ACTIONS: dict[str, SystemAction] = {
     ),
     NETWORK: SystemAction(
         lambda d: d.desktop.open_network_overlay(),
-        translate("Kasual Desktop", "Network"), "fa5s.wifi", "#81a1c1",  # icon overridden live in the top bar
+        translate("Kasual Desktop", "Network"), "fa5s.wifi", "#81a1c1",  # icon overridden live
     ),
     HIDE_DESKTOP: SystemAction(
         lambda d: d.desktop.pause(),

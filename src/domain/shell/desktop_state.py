@@ -1,14 +1,6 @@
-"""The Desktop's own state: on screen? paused? what's in front?
-
-Pure state + transitions, no Qt. Composes the shared :class:`ForegroundState`
-(so the foreground a coordinator and the app-lifecycle see stays one truth) and
-adds the desktop's visibility and the *paused* notion — minimized-but-ready, as
-opposed to fully gone.
-
-The one rule worth naming lives in :meth:`go_to_desktop` / :meth:`resume`: the
-overlays hidden by a pause are restored *only* when we are actually coming back
-from a pause — both transitions report that so the view can act on it.
-"""
+"""The Desktop's own state: on screen? paused (minimized-but-ready)? what's in
+front? Overlays hidden by a pause are restored only when coming back from one —
+:meth:`go_to_desktop` / :meth:`resume` report that."""
 
 from domain.shell.foreground import ForegroundState
 from domain.catalog.target import Target
