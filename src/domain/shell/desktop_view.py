@@ -1,12 +1,11 @@
-"""The Qt-side Desktop operations the shell coordinators drive."""
+"""The Desktop operations the shell coordinators drive."""
 
 from collections.abc import Callable
 from typing import Protocol
 
 
 class DesktopView(Protocol):
-    """The Qt-side operations the app-lifecycle coordinator drives on the Desktop
-    window."""
+    """Operations the app-lifecycle coordinator drives on the Desktop window."""
 
     def is_visible(self) -> bool: ...
     def show_fullscreen(self) -> None: ...
