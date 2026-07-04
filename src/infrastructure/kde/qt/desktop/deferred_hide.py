@@ -21,12 +21,9 @@ _GUARD_TIMEOUT_MS = 5000
 class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
     """Hide the Desktop only once a launched app actually has a mapped window.
 
-    The Desktop is a top-layer surface sitting above windowed apps, so it must
-    hide for a launched app to be visible. Hiding the instant we launch would
-    expose the DE desktop underneath until the app draws its first frame; instead
-    we keep the Desktop up and hide it when KWin first reports a window belonging
-    to the app, polling the window list quickly meanwhile. A safety guard hides
-    anyway so a slow or undetected window never strands us in front of the app.
+    Hiding at launch would flash the DE desktop before the app draws, so the
+    Desktop stays up until KWin reports the app's window, polling meanwhile; a
+    safety guard hides anyway if that never happens.
 
     Lifecycle: ``arm(idx)`` after a successful launch, ``cancel()`` if the launch
     fails or the app exits before its window ever maps.
@@ -50,16 +47,14 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
         self._grace_ms: int                = 0
         self._unsub:    Unsubscribe | None = None   # active windows_updated subscription
 
-        # Poll the window list quickly while waiting for the app's window.
-        self._poll = QTimer(self)
+        self._poll = QTimer(self)   # polls the window list while waiting
         self._poll.setInterval(_POLL_INTERVAL_MS)
         self._poll.timeout.connect(self._wm.refresh_now)
-        # Safety timeout: hide anyway if no window is ever detected.
-        self._guard = QTimer(self)
+        self._guard = QTimer(self)   # safety: hide anyway if never detected
         self._guard.setSingleShot(True)
         self._guard.timeout.connect(self._force)
-        # Optional settle delay after the first window maps (e.g. Steam bootstrap
-        # window vs. Big Picture) so we don't uncover a half-drawn frame.
+        # Optional settle delay after the first window maps (e.g. Steam's
+        # bootstrap window vs. Big Picture), so we don't uncover a half-drawn frame.
         self._grace = QTimer(self)
         self._grace.setSingleShot(True)
         self._grace.timeout.connect(self._hide_now)

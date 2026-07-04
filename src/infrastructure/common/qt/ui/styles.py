@@ -11,10 +11,7 @@ COLOR_SEPARATOR = "#3b4252"
 CARD_RADIUS_PX = 40
 _TOPBAR_RADIUS = 30
 _DIALOG_RADIUS = 25
-# Kept at most half the menu-row min-height (58px, see home_menu_content): a Qt
-# QSS quirk renders *square* corners when 2×border-radius exceeds the widget
-# height, which the Home menu's rows hit once the HUD section compresses them to
-# their minimum height.
+# Kept ≤ half the menu row's min-height (58px) — Qt QSS squares corners past that.
 _MENU_RADIUS   = 24
 
 
@@ -150,9 +147,8 @@ def topbar_selected() -> str:
     """
 
 
-# Dialog buttons carry two independent axes: role (the fill) and focus (the white
-# ring). Keeping them separate lets a primary button stay the accent-filled anchor
-# without impersonating the cursor, which only the ring marks.
+# Role (fill) and focus (white ring) are independent axes, so primary can stay
+# accent-filled without looking like the cursor.
 
 def _dialog_button(bg: str, fg: str, hover_bg: str, *,
                    focused: bool, border: str = "transparent") -> str:

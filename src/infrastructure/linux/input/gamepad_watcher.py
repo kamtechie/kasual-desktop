@@ -140,11 +140,8 @@ class GamepadWatcher(BaseGamepadWatcher):
                             self._device = d
                             self._refresh_requested = False
                         found = True
-                        # uinput.device can be None (udev readback race / evdev
-                        # version differences). Read its path defensively: this
-                        # log line must NEVER throw, or it aborts the grab before
-                        # the connected signal below fires and the Desktop then
-                        # never auto-surfaces on startup.
+                        # uinput.device can be None (udev readback race); this must
+                        # never throw, or it aborts the grab before hop_connected fires.
                         virtual_path = getattr(uinput.device, "path", "?")
                         logger.info(
                             "Grabbed: %s  →  virtual: %s",
@@ -159,8 +156,7 @@ class GamepadWatcher(BaseGamepadWatcher):
                         logger.debug("Ommitted device: %s", exc)
 
                 if not found and refresh_started_at is not None and was_connected:
-                    # Refresh in progress but no device showed up — give up
-                    # the optimistic "still connected" state after a grace period.
+                    # Give up the optimistic "still connected" state after a grace period.
                     if time.monotonic() - refresh_started_at > REFRESH_GRACE_SECONDS:
                         logger.info("Gamepad refresh — no device after %.1fs, signalling disconnect",
                                     REFRESH_GRACE_SECONDS)
@@ -194,9 +190,8 @@ class GamepadWatcher(BaseGamepadWatcher):
                                 self._device = None
                             break
 
-                        # Block on the fd but wake periodically so the refresh
-                        # flag is observable, and sooner when a held direction's
-                        # next auto-repeat is due. read_loop() would block forever.
+                        # Wake periodically so the refresh flag stays observable,
+                        # sooner still if a held direction's auto-repeat is due.
                         timeout = self._repeat_timeout(SELECT_TIMEOUT)
                         r, _, _ = select.select([device.fd], [], [], timeout)
                         if not r:
@@ -216,10 +211,10 @@ class GamepadWatcher(BaseGamepadWatcher):
                                     uinput.syn()
 
                             elif ev.type == ecodes.EV_KEY and ev.code == ecodes.BTN_MODE:
-                                # BTN_MODE is never forwarded to virtual gamepad in real-time.
-                                # The recall policy decides press → menu now / hold / nothing;
-                                # a short press that didn't recall is forwarded on release
-                                # (synthetic press+release, so Steam reacts).
+                                # Never forwarded in real-time; the recall policy decides
+                                # press → menu now / hold / nothing. A short press that
+                                # didn't recall is forwarded on release as a synthetic
+                                # press+release, so Steam still reacts to it.
                                 if ev.value == 1:
                                     with self._lock:
                                         trigger = self._app_btn_mode_trigger
@@ -292,9 +287,8 @@ class GamepadWatcher(BaseGamepadWatcher):
             held.discard(ev.code)
 
     def _translate_axis(self, ev: InputEvent, stick: dict, pending: list) -> None:
-        # D-pad (HAT0X/Y) has only three values: -1, 0, 1 — no hysteresis needed.
-        # Analog stick (ABS_X/Y) has range -32768..32767 — handled by
-        # _handle_stick_axis with threshold and hysteresis. The asymmetry is intentional.
+        # D-pad (HAT0X/Y) is just -1/0/1, no hysteresis needed; the analog stick
+        # (ABS_X/Y) goes through _handle_stick_axis for threshold + hysteresis.
         if ev.code == ecodes.ABS_HAT0X:
             if ev.value == -1:
                 self._press_direction(stick, "x", Event.LEFT, pending)

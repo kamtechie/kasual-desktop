@@ -171,16 +171,10 @@ class WindowsNetworkProbe:
 
 
 class WindowsNetworkControl(NetworkControl):
-    """Connect/disconnect the primary network interface via elevated ``netsh``.
-
-    Mirrors the Linux ``NMNetworkControl`` contract: ``disconnect()`` brings the
-    primary interface down and remembers it; ``reconnect()`` brings that
-    interface back up; ``can_reconnect()`` reports whether there is one to
-    restore. ``netsh interface set ... admin=`` requires elevation — the call
-    is launched through ``ShellExecuteEx`` with the ``runas`` verb, so Windows
-    shows a UAC prompt and the main Kasual process stays unelevated. If the user
-    declines UAC the call fails gracefully (the overlay closes, the indicator
-    stays, ``can_reconnect`` stays False so the overlay reflects reality).
+    """Connect/disconnect the primary network interface via elevated ``netsh``
+    (mirrors the Linux ``NMNetworkControl`` contract). If the user declines the
+    UAC prompt, the call fails gracefully: ``can_reconnect`` stays False so the
+    overlay reflects reality.
     """
 
     def __init__(self) -> None:

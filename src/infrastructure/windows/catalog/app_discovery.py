@@ -217,15 +217,13 @@ def _slug(text: str) -> str:
 class WindowsAppDiscovery(AppDiscovery):
     """The Windows port of `AppDiscovery` — Start Menu + PATH detection.
 
-    Backs the catalog's availability filtering (PATH-resolvable system apps +
-    absolute paths to existing files / ``.lnk`` shortcuts) and the Windows-specific
-    "extras": the bundled Python apps (launched via the running interpreter's
-    ``pythonw``) followed by the curated Start Menu scan. The default fallback
-    (Settings + Edge) covers a fresh Windows image whose Start Menu scans empty.
-    No icon theme is consulted — Windows doesn't ship the freedesktop icon-theme
-    conventions the bundled glyphs already encode. The use-case prefers this full
-    extras list over the cross-platform `starter_candidates` baseline because the
-    baseline's bundled entries use ``.sh`` scripts that don't resolve on Windows.
+    Backs availability filtering (PATH-resolvable apps, absolute paths,
+    ``.lnk`` shortcuts) and the Windows "extras": bundled Python apps then the
+    curated Start Menu scan, falling back to Settings + Edge on a fresh image
+    with nothing to scan. No icon theme is consulted — Windows has no
+    freedesktop convention, so tiles use the bundled glyphs. This extras list
+    replaces the cross-platform `starter_candidates` baseline, whose bundled
+    entries use ``.sh`` scripts that don't resolve here.
     """
 
     def is_available(self, command: str) -> bool:

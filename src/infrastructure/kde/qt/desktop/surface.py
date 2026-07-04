@@ -51,6 +51,4 @@ class LayerShellSurface:
         return self._widget.isVisible()
 
     def on_reactivate(self, callback: Callable[[], None]) -> None:
-        # Linux drives reactivation from the widget's changeEvent (ActivationChange
-        # → on_focus_gained), so there is nothing to wire here.
-        pass
+        pass   # Linux drives reactivation from the widget's changeEvent instead

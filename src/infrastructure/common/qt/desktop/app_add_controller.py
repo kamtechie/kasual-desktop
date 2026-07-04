@@ -1,11 +1,10 @@
-"""The [＋] add-app flow — extracted from the Desktop widget (§8 / SRP).
+"""The [＋] add-app flow — extracted from the Desktop widget.
 
 Opens the starter-list picker for the add tile, persists the chosen candidates
-through the :class:`AppAdder`, and adds their tiles live before the [＋]. Owns
-the picker handle and its overlay-registry entry; the Desktop delegates the tile
-bar's ``add_requested`` signal here and drops the handle via :meth:`cancel` when
-dismissing the overlay group (the registry tears the widget down without firing
-the picker's own cancel callback, so the handle is cleared explicitly).
+through the :class:`AppAdder`, and adds their tiles live before the [＋].
+:meth:`cancel` clears the picker handle explicitly when the overlay group is
+dismissed, since the registry tears the widget down without firing its cancel
+callback.
 """
 
 from __future__ import annotations
@@ -52,11 +51,9 @@ class AppAddController:
         self._picker: OnboardingOverlay | None = None
 
     def show(self) -> None:
-        """Open the add-app picker for the [＋] tile (§7.4).
-
-        Reuses the onboarding overlay with the starter list filtered to the
-        not-yet-pinned apps. With nothing left to add (or no adder wired) it just
-        plays a back cue rather than opening an empty picker."""
+        """Open the add-app picker for the [＋] tile: the onboarding overlay,
+        reused with the starter list filtered to not-yet-pinned apps. With
+        nothing left to add (or no adder wired) it just plays a back cue."""
         if self._app_adder is None or self._picker is not None:
             return
         candidates = self._app_adder.available(self._apps)

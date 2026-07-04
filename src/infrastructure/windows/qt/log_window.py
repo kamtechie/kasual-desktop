@@ -1,19 +1,10 @@
 """In-process log viewer — Windows counterpart of the Linux ``LogViewerLauncher``.
 
-On Wayland the main Kasual app runs under ``QT_WAYLAND_SHELL_INTEGRATION=layer-shell``,
-which captures *every* top-level in its process as a layer-shell surface: no xdg
-decorations, no move/resize/close. So Linux spawns the viewer in its OWN process
-(stripping that env var) — see ``infrastructure/system/log_viewer_launcher.py``.
-
-On Windows there is no layer-shell integration, so no such constraint: any
-top-level QWidget is an ordinary window the user can move, resize and close. We
-can therefore reuse the shared ``LogViewer`` widget *in the same process*, paying
-only the tiny cost of keeping one QWidget around.
-
-The lifecycle mirrors the Linux launcher's API (``open`` / ``close``) so the
-composition root stays parallel: ``open`` is idempotent (a click on the tray
-"Logs" entry while the viewer is already visible just raises it — never spawn
-duplicates), and ``close`` runs at quit so we don't leak on shutdown.
+Linux spawns the viewer in its own process because its layer-shell integration
+captures every top-level window (no xdg decorations, no move/resize/close).
+Windows has no such constraint, so this reuses the shared ``LogViewer`` widget
+in-process instead, mirroring the Linux launcher's ``open``/``close`` API so
+the composition root stays parallel.
 """
 
 import logging
@@ -28,9 +19,8 @@ logger = logging.getLogger(__name__)
 class LogWindow:
     """Single-instance in-process log viewer presented from the tray.
 
-    Lazily builds the viewer on first ``open()``; subsequent calls re-show and
-    front the same instance instead of piling windows, exactly like
-    ``LogViewerLauncher.open`` does across the process boundary on Linux.
+    Lazily builds the viewer on first ``open()``; later calls re-show and
+    front the same instance instead of piling up windows.
     """
 
     def __init__(self, log_file: str) -> None:

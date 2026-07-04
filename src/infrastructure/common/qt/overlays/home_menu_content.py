@@ -1,18 +1,9 @@
-"""The sectioned Home menu content (§7.10) — zones, navigation, and rendering.
+"""The sectioned Home menu content — zones, navigation, and rendering.
 
-A plain ``QWidget`` holding the two-zone (Quick adjust ⇄ Actions ⇄ HUD) menu the
-gamepad drives. It owns *no* surface and pushes *no* handler: the host decides
-how it appears and feeds it pad events. The host is
-:class:`infrastructure.common.qt.desktop.home_surface.HomeSurface` — the
-persistent collapse/expand surface in the Home view (context 1) which doubles as
-the map-on-demand overlay shown on BTN_MODE over a running app or a minimized
-Kasual (contexts 2/3, §8 / Faza 5).
-
-The widget composes its own sections (via :func:`domain.menu.home.compose_home_sections`)
-from the volume/brightness controls and the power menu handed in; everything the
-host must react to is funneled through the callbacks passed to :meth:`configure`
-(``on_action`` / ``on_cancel`` / ``set_hints`` / ``request_hide``). Quick-adjust
-sliders and the Power split-button are handled internally.
+A plain ``QWidget`` holding the Quick-adjust / Actions / HUD zones the gamepad
+drives. It owns no surface and pushes no handler — the host
+(:class:`infrastructure.common.qt.desktop.home_surface.HomeSurface`) decides how
+it appears and feeds it pad events via :meth:`configure` / :meth:`handle_pad`.
 """
 
 import logging
@@ -169,7 +160,7 @@ class _QuickRow:
 
 
 class HomeMenuContent(QWidget):
-    """The sectioned Home menu (§7.10) as an embeddable, surface-less widget.
+    """The sectioned Home menu as an embeddable, surface-less widget.
 
     The Power card is a split-button: ``A`` runs the current default, ``X`` expands
     the Sleep / Restart / Shut Down chooser (the same button that opens a tile's
@@ -199,15 +190,13 @@ class HomeMenuContent(QWidget):
         self._on_action: Callable[[MenuItem], None] | None = None
         self._on_cancel: Callable[[], None] | None = None
         self._set_hints: Callable | None = None
-        # Optional status header rendered above the content (§8). When present it
-        # is navigated as zone 0 — "up" from the top section flows into it — and a
-        # selection (Network / Notifications) dispatches through ``on_action``. Its
-        # selection highlight is painted on the header itself, not on a zone widget.
+        # Optional status header, navigated as zone 0 when present ("up" flows
+        # into it); its selection highlight paints on the header itself.
         self._header = None
         # Funnel back to the host so it can tear down/collapse its own surface when
         # an item is activated or B is pressed; defaults to a no-op until configure.
         self._request_hide: Callable[[], None] = lambda: None
-        # Opens the Power chooser when the header carries Power (§8); the inline
+        # Opens the Power chooser when the header carries Power; the inline
         # split-button dropdown is used instead when there is no header.
         self._on_power_chooser: Callable[[], None] | None = None
 
@@ -235,7 +224,7 @@ class HomeMenuContent(QWidget):
         """Compose the sections for the current context, build them, and pre-focus
         the card most likely wanted. The host then shows itself and starts feeding
         pad events to :meth:`handle_pad`. ``header`` (a ``HomeHeader``) is added as
-        navigable zone 0 when given (§8); ``on_power_chooser`` opens the default-
+        navigable zone 0 when given; ``on_power_chooser`` opens the default-
         power chooser for the header's Power button."""
         self._on_action = on_action
         self._on_cancel = on_cancel
@@ -258,9 +247,7 @@ class HomeMenuContent(QWidget):
         self.sync_hints()
 
     # ── Host / test seam ──────────────────────────────────────────────────────
-    # The host (HomeSurface) drives the menu through handle_pad and these few
-    # public members; the properties below expose the live state without leaking
-    # the private backing fields for direct mutation.
+    # The properties below expose live state without leaking the backing fields.
 
     @property
     def zones(self) -> "list[_Zone]":
@@ -293,9 +280,8 @@ class HomeMenuContent(QWidget):
         self.close_dropdown()
         self._power_card = None
 
-        # The header (when present) is zone 0 — a navigable row whose buttons live
-        # on the external header widget, so it contributes no widgets to the layout
-        # and is painted via header.set_selected (see _render).
+        # The header is zone 0 but contributes no widgets — its buttons live on
+        # the external widget, painted via header.set_selected (see _render).
         if self._header is not None:
             items = self._header.nav_items()
             self._zones.append(_Zone(SectionKind.HEADER, items, widgets=[],
@@ -348,9 +334,8 @@ class HomeMenuContent(QWidget):
             rows.append(row)
             self._quick_state.append(
                 _QuickRow(control, value, slider, vlabel))
-        # Fix the width (not just a max) so the sliders actually span two-thirds —
-        # under AlignHCenter a mere maximum collapses to the slider's tiny size
-        # hint. The wider card is for the Actions grid, not for edge-to-edge sliders.
+        # Fixed, not max: under AlignHCenter a mere maximum collapses to the
+        # slider's tiny size hint.
         container.setFixedWidth(_QUICK_WIDTH)
         self._zones_layout.addWidget(container, alignment=Qt.AlignmentFlag.AlignHCenter)
         return _Zone(SectionKind.QUICK, section.items, rows)
@@ -558,8 +543,8 @@ class HomeMenuContent(QWidget):
     def _activate(self, item: MenuItem) -> None:
         if item.action == POWER:
             # A always runs the current default (header Power or in-grid split-
-            # button); X opens the chooser to change it (§8). Hide first — the
-            # power action (and its confirm) supersedes the menu.
+            # button); X opens the chooser to change it. Hide first — the power
+            # action (and its confirm) supersedes the menu.
             self._feedback.play(Cue.SELECT)
             self._request_hide()
             self._power.activate_default()
@@ -609,7 +594,7 @@ class HomeMenuContent(QWidget):
         self._render()
         self.sync_hints()
 
-    # ── Header zone (§8) mouse — routed from the Desktop while the menu is open ──
+    # ── Header zone mouse — routed from the Desktop while the menu is open ──────
 
     def _header_zone(self) -> int | None:
         return next((zi for zi, z in enumerate(self._zones)
@@ -654,7 +639,7 @@ class HomeMenuContent(QWidget):
         items = power_dropdown_items()
         default = self._power.default_key()
         # Open with the cursor on the current default (highlighted + focused) —
-        # no separate marker needed to show which one is active (§8).
+        # no separate marker needed to show which one is active.
         index = next((i for i, it in enumerate(items) if it.action == default), 0)
         self._dropdown = PowerDropdown(
             items, index, anchor=self._power_card, parent=self,

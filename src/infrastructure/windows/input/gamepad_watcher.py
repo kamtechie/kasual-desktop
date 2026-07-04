@@ -1,16 +1,12 @@
-"""
-Windows gamepad implementation using pygame.
+"""Windows gamepad implementation using pygame.
 
-Cooperative model: ALL apps see gamepad events simultaneously.
-There is no exclusive grab on Windows without a kernel driver.
+Cooperative model — there is no exclusive grab on Windows without a kernel
+driver, so every app sees gamepad events simultaneously. BTN_MODE therefore
+always triggers the Home overlay rather than being intercepted, which is fine
+since Kasual is the only active shell anyway.
 
-BTN_MODE handling: On Windows, BTN_MODE always triggers the Home overlay
-(because we can't intercept it without grab). This is a design
-decision - the Windows shell takeover model means we're the only
-active shell anyway.
-
-Uses JOY* events (joystick API) which work with most controllers
-including 8BitDo, Xbox, PlayStation (via XInput).
+Uses JOY* events (joystick API), which work with most controllers including
+8BitDo, Xbox, and PlayStation (via XInput).
 
 The shared `PadControl` / `GamepadSignals` plumbing — the handler stack, the
 observer emitters and the background-thread → GUI-thread hops — lives in
@@ -42,8 +38,7 @@ TRIGGER_RESET = 0.1
 AXIS_LT = 4
 AXIS_RT = 5
 
-# Standard XInput/SDL button indices (verified on an 8BitDo Ultimate in X-input
-# mode). The previous values had Start/Select on the bumpers and X/Y swapped.
+# Standard XInput/SDL button indices (verified on an 8BitDo Ultimate in X-input mode).
 BTN_SOUTH = 0    # A
 BTN_EAST = 1     # B
 BTN_WEST = 2     # X
@@ -102,7 +97,6 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
         logger.info("WindowsGamepadWatcher started")
 
     def _loop(self):
-        """Main event reading loop."""
         clock = pygame.time.Clock()
         # Loop-thread connection guard (dedupe duplicate device events). The
         # base's `self._connected` is GUI-thread-owned for late-subscriber
@@ -172,7 +166,6 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
     }
 
     def _handle_button_down(self, button: int):
-        """Handle button press."""
         self._held.add(button)
         logger.debug("Button down: %d", button)
 
@@ -186,7 +179,6 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
             self._dispatch_button(pad_button, select_held=BTN_SELECT in self._held)
 
     def _handle_button_up(self, button: int):
-        """Handle button release."""
         self._held.discard(button)
         if button == BTN_MODE:
             # Cancels a pending hold. The short-press "forward to the app" the
@@ -195,7 +187,6 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
             self._recall.release(suppressed=bool(self._stack))
 
     def _handle_axis(self, axis: int, value: float):
-        """Handle analog stick movement."""
         if axis == 0:
             self._handle_stick_axis("x", value, Event.LEFT, Event.RIGHT)
         elif axis == 1:
@@ -206,7 +197,6 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
             self._handle_trigger_axis("rt", value, Event.VOLUME_UP)
 
     def _handle_stick_axis(self, axis: str, value: float, neg_event: str, pos_event: str):
-        """Handle stick axis with threshold and hysteresis."""
         edge, direction = self._stick_transition(
             value, threshold=STICK_THRESHOLD, reset=STICK_RESET,
             current=self._stick[axis], neg_event=neg_event, pos_event=pos_event,
@@ -236,7 +226,6 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
             self._trigger[key] = None
 
     def _handle_hat(self, hat: int, value: tuple[int, int]):
-        """Handle D-pad (hat) movement."""
         if hat != 0:
             return
 
@@ -280,14 +269,12 @@ class WindowsGamepadWatcher(BaseGamepadWatcher):
         self._app_trigger = trigger
 
     def refresh(self) -> None:
-        """Reinitialize joystick subsystem."""
         self._repeat.clear()
         self._recall.cancel()
         pygame.joystick.quit()
         pygame.joystick.init()
 
     def shutdown(self):
-        """Stop the watcher thread."""
         self._running = False
         if self._thread.is_alive():
             self._thread.join(timeout=1.0)

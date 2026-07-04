@@ -50,12 +50,9 @@ def provisioned_marker() -> Path:
 def load_apps() -> AppCatalog:
     """Return the :class:`AppCatalog` built from the ``.desktop`` files in :func:`apps_dir`.
 
-    This adapter does the I/O — find and parse the files into ``(order, source,
-    App)`` entries — and hands them to :meth:`AppCatalog.from_entries`, which owns
-    the placement rule. Malformed or hidden entries are skipped; one bad file
-    never aborts the whole load. A missing directory yields an empty catalog —
-    creating it is provisioning's job (see :class:`DesktopAppProvisioning`), so
-    directory-existence is no longer a side effect of loading.
+    A malformed or hidden entry is skipped rather than aborting the whole load.
+    A missing directory yields an empty catalog — creating it is provisioning's
+    job (see :class:`DesktopAppProvisioning`).
     """
     directory = apps_dir()
     if not directory.is_dir():
@@ -133,12 +130,8 @@ class DesktopAppProvisioning(AppProvisioning):
 class DesktopTileOrderStore(TileOrderStore):
     """Persist a tile reorder by rewriting ``X-Kasual-Order`` in the ``.desktop`` files.
 
-    The write side of the catalog's placement rule: it re-derives the same
-    ``(order, filename)`` ordering :class:`AppCatalog` renders, swaps the two
-    positions, then renumbers every file's ``X-Kasual-Order`` to its new sequential
-    position. Renumbering (rather than just exchanging two values) keeps the persisted
-    order unambiguous even when files previously shared an order value. The rewrite is
-    line-based so every other key and comment in the file is left untouched.
+    Renumbers every file's order sequentially (rather than just exchanging two
+    values) so it stays unambiguous even if files previously shared a value.
     """
 
     def swap(self, i: int, j: int) -> None:

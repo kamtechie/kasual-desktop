@@ -1,22 +1,14 @@
 """First-run app picker — the Qt side of provisioning (a ``ProvisioningView``).
 
-A full-screen layer-shell surface, same shape as the other overlays: a centred
-card listing the starter candidates, each a toggle row, plus a final Confirm
-action. Pure presentation — it renders the domain candidates, drives an
-:class:`AppSelection` for the toggle state and a :class:`MenuCursor` for
-navigation, and reports the chosen candidates through ``on_confirm``. i18n lives
-here (``tr`` on the canonical English names the domain supplies).
+A centred card listing the starter candidates as toggle rows plus a Confirm
+action. Pure presentation: renders the domain candidates, drives an
+:class:`AppSelection` for toggle state and a :class:`MenuCursor` for navigation,
+and reports the choice through ``on_confirm``.
 
-On first run this is **modal and confirm-only**: B / Escape / clicking the
-backdrop do nothing — the only way out is the Confirm action (which is allowed
-with zero apps selected). A reuse that supplies an ``on_cancel`` (the [＋]
-add-app picker) is dismissable instead: B / Escape and a click outside the card
-close it. Because nothing is fullscreen on first run, it opts into keyboard
-interactivity so it is fully navigable by keyboard (arrows + Space to toggle) as
-well as gamepad and mouse.
-
-The view takes a candidate list + callbacks, so it is reusable beyond first-run
-(e.g. a future "Add apps" panel), not just for onboarding.
+On first run it is modal and confirm-only (B/Escape/backdrop do nothing — the
+only way out is Confirm, even with zero apps selected). A reuse that supplies
+``on_cancel`` (the [＋] add-app picker) is dismissable instead. Takes a
+candidate list + callbacks, so it's reusable beyond first-run onboarding.
 """
 
 import logging
@@ -85,9 +77,8 @@ class OnboardingOverlay(BaseOverlay, ProvisioningView, metaclass=ProtocolQtMeta)
         self._confirm: QPushButton | None = None
         self._return_row: int = 0   # row to return to when Left leaves Confirm
 
-        # Navigation spans the toggle rows plus the trailing Confirm action;
-        # clamped (wrap=False) like the tile popover. on_dismiss is a no-op:
-        # dismissal goes through B/Escape only when a cancel path is given.
+        # on_dismiss is a no-op: dismissal goes through B/Escape only when a
+        # cancel path is given (see _handle_pad).
         self._cursor = MenuCursor(
             count=lambda: len(self._rows) + 1,
             render=self._render,
@@ -133,10 +124,8 @@ class OnboardingOverlay(BaseOverlay, ProvisioningView, metaclass=ProtocolQtMeta)
         self._scroll.setStyleSheet(styles.flat_scrollbar())
         layout.addWidget(self._scroll)
 
-        # Confirm lives OUTSIDE the scroll area, so it is always visible at the
-        # bottom no matter how far the list is scrolled. Navigation-wise it is the
-        # cursor's last index (reached by Down from the last row, or Right from any
-        # row); see _handle_pad.
+        # Outside the scroll area so it's always visible; navigation-wise it's
+        # the cursor's last index (see _handle_pad).
         self._confirm = QPushButton(self.tr("Confirm"))
         self._confirm.setMinimumHeight(62)
         self._confirm.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -154,10 +143,8 @@ class OnboardingOverlay(BaseOverlay, ProvisioningView, metaclass=ProtocolQtMeta)
         on_cancel: Callable[[], None] | None = None,
         title: str | None = None,
     ) -> None:
-        # First-run onboarding passes no on_cancel — it is confirm-only (no way
-        # out but Confirm). Reuses such as the [＋] add-app picker pass one, which
-        # turns B / Escape into a dismissal. The title is overridable so the same
-        # component reads "Add app" there rather than the first-run welcome.
+        # No on_cancel = confirm-only (first run). Reuses like the [＋] picker
+        # pass one to enable B/Escape dismissal, and can override the title.
         self._candidates = list(candidates)
         self._selection = AppSelection(self._candidates)
         self._on_confirm = on_confirm

@@ -1,15 +1,9 @@
 """Template-method base for platform `ProcessManager` adapters.
 
-Both the Windows and KDE app managers track concurrent child processes in an
-``idx -> proc`` dict, fire the same started/finished/launch-failed emitters,
-and key all post-launch cleanup on process identity (so a tile reorder or a
-close+relaunch re-keying the dict does not put a stale timer on the wrong pid).
-That bookkeeping is identical across platforms; only the actual spawn/kill/wait
-mechanics differ. This base owns the shared lifecycle; subclasses override the
-small hooks ``_spawn`` / ``_terminate_proc`` / ``_force_kill_proc`` /
-``_wait_for_exit`` / ``_prepare_env`` and the top-level ``launch`` (which
-expresses the platform-specific launch strategy and delegates the common
-post-spawn tail to ``_after_spawn``).
+Both platform app managers track processes in an ``idx -> proc`` dict and key
+all cleanup on process identity, not idx — a reorder or close+relaunch can
+re-key the dict before a process actually ends. Subclasses implement only the
+spawn/kill/wait mechanics.
 """
 
 from __future__ import annotations
@@ -31,8 +25,7 @@ from infrastructure.common.qt._meta import ProtocolQtMeta
 logger = logging.getLogger(__name__)
 
 
-# A tracked process handle. Both Popen and the Windows _WinHandle wrapper share
-# the .pid / .poll() / .wait() / .terminate() surface used by the base class.
+# Popen, or the Windows _WinHandle wrapper exposing the same pid/poll/wait/terminate surface.
 Proc = Any
 
 
@@ -45,11 +38,7 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
     index-keyed queries (is_running / running_pid / swap_indices / ...).
     """
 
-    # Cross-thread bridge: monitor thread -> GUI thread. Carries the Proc itself,
-    # not its idx — a tile reorder re-keys _processes mid-flight, so finish and
-    # force-kill must resolve the index from process identity at the time the
-    # process actually ends.
-    _proc_ended = pyqtSignal(object, int)
+    _proc_ended = pyqtSignal(object, int)   # monitor thread -> GUI thread
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -113,9 +102,6 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
         logger.info("Ending app %d", idx)
         try:
             self._terminate_proc(proc)
-            # Bound to *this* proc, not its idx: a reorder or close+relaunch
-            # re-keys the dict, so a stale idx-keyed timer would kill the wrong
-            # process.
             QTimer.singleShot(3000, lambda: self._force_kill(proc))
         except Exception as e:
             logger.warning("Failed to terminate app %d: %s", idx, e)
@@ -129,7 +115,6 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
         return proc_env
 
     def _after_spawn(self, idx: int, proc: Proc) -> bool:
-        """Store the spawned process, start its exit monitor, announce start."""
         self._processes[idx] = proc
         threading.Thread(
             target=self._monitor, args=(proc,), daemon=True
@@ -145,9 +130,6 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
     # ── shared monitoring / cleanup ───────────────────────────────────────────
 
     def _force_kill(self, proc: Proc) -> None:
-        # Only kill if this exact process is still tracked and still alive —
-        # guards against killing one that already exited or a different one that
-        # took its place after a relaunch (and survives a reorder re-keying).
         idx = self._idx_of(proc)
         if idx is not None and proc.poll() is None:
             logger.warning("Force killing app %d", idx)
@@ -161,8 +143,6 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
         self._proc_ended.emit(proc, proc.returncode)
 
     def _on_finished(self, proc: Proc, exit_code: int) -> None:
-        # Resolve the index now, not at launch time: a reorder may have moved
-        # this process to a different key in the meantime.
         idx = self._idx_of(proc)
         if idx is None:
             return

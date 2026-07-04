@@ -61,23 +61,16 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         self._tile_index = 0
         self._focused    = True   # tiles own focus at startup
         self._scroll_anim: QPropertyAnimation | None = None
-        # Hover suppression armed when the Desktop (re)appears, so a tile sitting
-        # under a stationary cursor doesn't grab selection via the synthetic
-        # enterEvent Qt delivers when the window maps under the pointer.
-        #
-        # The anchor is latched on the FIRST hover (not at arm time): on Wayland
-        # QCursor.pos() is stale while the window is hidden, but it is reliable
-        # during an enterEvent. Subsequent hovers at the same point (e.g. the
-        # tile bar scrolling under a parked cursor) stay ignored; a genuine move
-        # to a different point lifts the block.
+        # Blocks the synthetic enterEvent Qt fires when the Desktop reappears
+        # under a stationary cursor. Anchor latches on the FIRST hover, not at
+        # arm time, since QCursor.pos() is stale on Wayland until then.
         self._hover_blocked = False
         self._hover_anchor: QPoint | None = None
 
         # Dynamic tiles: list of (window_id, title, AppTile)
         self._dynamic_tiles: list[tuple[str, str, AppTile]] = []
-        # Windows promoted to a static tile via *Pin to menu*: suppressed from the
-        # dynamic section so a pinned, still-open window is not shown twice (once
-        # as its new static tile, once as a leftover open-window tile).
+        # Pinned windows, suppressed from the dynamic section so they don't also
+        # show as a leftover open-window tile.
         self._pinned_window_ids: set[str]                   = set()
         self._dyn_separator: QWidget | None                 = None
         # window_id → pid for dynamic tiles (used for trigger inheritance)
@@ -85,17 +78,11 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         # Last window list from KWin (as domain Windows) — used for the
         # window-presence running check in is_tile_running.
         self._last_windows:  list[Window]                   = []
-        # Signature of the currently displayed dynamic tiles — lets a periodic
-        # KWin refresh skip the teardown/rebuild when nothing visible changed,
-        # so an in-progress tile marquee animation is not restarted.
+        # Lets a periodic refresh skip rebuild (and restarting a tile's marquee)
+        # when the visible dynamic tiles haven't actually changed.
         self._dyn_signature: tuple | None                   = None
-        # First-seen order of dynamic window ids — stabilises the tile order
-        # across refreshes. On Windows ``EnumWindows`` returns windows in Z-order
-        # (top-most first), so activating a window would reshuffle the dynamic
-        # tiles without this. KWin's ``windowList()`` is already stable
-        # (creation order), so this is a no-op there. New windows append to the
-        # end; disappeared windows drop out (their id won't recur — ids are
-        # unique per window instance).
+        # Stabilises tile order across refreshes — needed on Windows, where
+        # EnumWindows returns Z-order; a no-op on KWin's already-stable order.
         self._dyn_order: list[str]                          = []
 
         self.setFixedHeight(TILE_SEL_H + 100)
@@ -224,10 +211,8 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         the in-memory catalog, and keep the focus on the moved tile."""
         if not (0 <= i < len(self._tiles) and 0 <= j < len(self._tiles)):
             return
-        # The catalog is shared (LiveCatalog), so this reorder is also seen by the
-        # lifecycle/deferred-hide; the AppManager keys running processes by tile
-        # position, so its tracking must move with the tiles too — otherwise a
-        # later restore/close after a reorder would act on the wrong app.
+        # AppManager keys running processes by tile position, so its tracking
+        # must move with the tiles or a later restore/close hits the wrong app.
         self._apps.swap(i, j)
         self._app_manager.swap_indices(i, j)
         self._tiles[i], self._tiles[j] = self._tiles[j], self._tiles[i]
@@ -407,10 +392,8 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         """
         self._last_windows = windows
 
-        # Which windows earn a dynamic tile — the "external window" rule lives in
-        # the domain. The process-group check it needs (whether a window belongs
-        # to a running app's group) is the infrastructure half: an os.getpgid read
-        # against the launcher pids, supplied here as a callable.
+        # The "external window" rule lives in the domain; the process-group
+        # check it needs is supplied here as an os.getpgid-backed callable.
         running_pids = set(self._app_manager.all_running_pids())
 
         def _owned_by_running_group(window: Window) -> bool:
@@ -429,9 +412,6 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         if self._pinned_window_ids:
             extern_windows = [w for w in extern_windows if w.id not in self._pinned_window_ids]
 
-        # Stabilise the dynamic-tile order across refreshes (see _dyn_order).
-        # Rebuild the first-seen order: keep known ids in their existing order,
-        # then append newly-seen ids in the order they arrived in this refresh.
         seen = {w.id: w for w in extern_windows}
         ordered: list[Window] = [seen[wid] for wid in self._dyn_order if wid in seen]
         known = set(self._dyn_order)
@@ -439,9 +419,6 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         self._dyn_order = [wid for wid in self._dyn_order if wid in seen] + [w.id for w in new_windows]
         extern_windows = ordered + new_windows
 
-        # The window list is refreshed periodically (every few seconds). When the
-        # visible dynamic tiles are unchanged, skip the teardown/rebuild entirely —
-        # recreating the AppTiles would restart any in-progress marquee animation.
         signature = tuple(
             (w.id, w.title, w.desktop_file, w.resource_class) for w in extern_windows
         )

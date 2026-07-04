@@ -132,8 +132,8 @@ def main() -> None:
         power = SystemdPowerControl()
 
         # One persisted power-default preference is the single source of truth
-        # shared by the Home Overlay's Power split-button and the top bar's single
-        # Power button (§7.10).
+        # shared by the Home Overlay's Power split-button and the top bar's
+        # single Power button.
         power_preference = DesktopPowerPreference()
 
         # Recent-notifications feature: the KDE monitor (source port) feeds the
@@ -173,12 +173,8 @@ def main() -> None:
             lambda _n: desktop.refresh_notification_badge()
         )
 
-        # Network status indicator: the concrete adapter (NetworkManager) is the
-        # only NM-aware piece; everything downstream depends on the domain
-        # NetworkMonitor port, so it can be swapped for another backend here.
-        # Parented to `app`: the only reference to this QObject is its lifetime,
-        # so without a parent it would be GC'd once this method returns, silently
-        # tearing down its D-Bus subscriptions (the icon would then never update).
+        # Parented to `app`, or this QObject would be GC'd once this method
+        # returns, silently tearing down its D-Bus subscriptions.
         network_monitor = NMNetworkMonitor(parent=app)
         network_monitor.on_changed(desktop.update_network_status)
         desktop.update_network_status(network_monitor.current())

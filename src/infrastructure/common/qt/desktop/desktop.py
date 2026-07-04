@@ -65,11 +65,9 @@ from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
 
 logger = logging.getLogger(__name__)
 
-# Keyboard keys → navigation events, so a keyboard drives the same handler stack
-# (injected via the gamepad). Translating Qt key codes is an input-edge concern;
-# FocusNavigator itself deals only in abstract domain events. The directional +
-# confirm/dispatch core is shared (see nav_key_map); here we add the desktop-only
-# shortcuts (Q → close, the Section bumpers, and the Volume triggers).
+# Keyboard keys → navigation events, so a keyboard drives the same handler
+# stack (injected via the gamepad). The directional + confirm/dispatch core is
+# shared (see nav_key_map); here we add the desktop-only shortcuts.
 _KEY_MAP = {
     **nav_key_map(),
     Qt.Key.Key_Q:               Event.CLOSE,
@@ -125,24 +123,21 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._overlays       = overlays
         self._settings_store    = settings_store
         self._tile_settings_editor = TileSettingsEditor(self._apps, settings_store)
-        # The add-app use-case behind the [＋] tile (offers the not-yet-pinned
-        # starter candidates and persists the chosen ones). Optional so offscreen
-        # test builds can omit it — the [＋] tile then simply does nothing.
+        # The add-app use-case behind the [＋] tile. Optional so offscreen test
+        # builds can omit it — the [＋] tile then simply does nothing.
         self._app_adder      = app_adder
         # The single top-bar Power button mirrors this persisted default (and runs
         # it on click). Optional so bare/offscreen test builds can omit it.
         self._power_preference = power_preference
-        # Injected after construction (it needs this Desktop's confirm dialog):
-        # backs the top-bar Power dropdown (X), so a pick runs + persists the new
-        # default like the Home Overlay's Power card.
+        # Injected after construction (needs this Desktop's confirm dialog):
+        # backs the top-bar Power dropdown, so a pick runs + persists the default.
         self._power_menu: PowerMenu | None = None
         # The Power-chooser collaborator (built in set_power_menu, once the Home
         # surface and Power menu exist); the thin delegates below forward to it.
         self._power_popover: PowerPopoverController | None = None
         # How this widget becomes a fullscreen, stay-on-top surface — the one
-        # OS-specific seam, injected by the composition root: Linux passes the
-        # KDE LayerShellSurface, Windows the WS_EX_TOPMOST WindowsDesktopSurface.
-        # Falls back to a plain frameless fullscreen window (offscreen tests).
+        # OS-specific seam, injected by the composition root. Falls back to a
+        # plain frameless fullscreen window (offscreen tests).
         self._surface        = surface or PlainSurface()
         self._confirm_dialog = None
         self._tile_popover   = None
@@ -157,18 +152,15 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         # Establish the fullscreen, stay-on-top surface via the injected strategy.
         # On Wayland this promotes the widget to a layer-shell TOP surface (above
-        # DE panels; the Home Overlay still renders above it). The show/hide state
-        # machine rework lands in Phase 2.
+        # DE panels; the Home Overlay still renders above it).
         self._surface.install(self)
 
         main = QVBoxLayout(self)
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(0)
-        # §8: the top bar is the Home surface's collapsed header. That header is
-        # also the navigable top bar — created here (it needs no Power menu, so it
-        # can exist before set_power_menu builds the surface around it) and handed
-        # to the FocusNavigator as the TopBarView, so "up" from the tiles enters it.
-        # Its Network / Notifications buttons open their overlays.
+        # The top bar is the Home surface's collapsed header, created here (it
+        # needs no Power menu, so it can exist before set_power_menu builds the
+        # surface around it) and handed to the FocusNavigator as the TopBarView.
         self._home_surface: 'HomeSurface | None' = None
         self._home_header = HomeHeader(self._open_system_action, CARD_WIDTH)
         if power_preference is not None:
@@ -190,13 +182,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._tilebar.tile_hovered.connect(self._on_tile_hovered)
         self._tilebar.tile_context_menu.connect(self._on_tile_context_menu)
 
-        # The gamepad-hint bar is its own bottom-edge surface (not a child of this
-        # window), so the animated Home Overlay never fades it in/out — it stays
-        # put and only swaps content. The Desktop owns the single instance and
-        # drives its visibility: shown while the Desktop is up or the Home Overlay
-        # is showing (see _sync_hint_visibility / begin_overlay_hints). Populated
-        # by the FocusNavigator (build_desktop) once attached. Created before the
-        # add-app controller, which needs it.
+        # Its own bottom-edge surface (not a child of this window), so it stays
+        # put and only swaps content as the Home Overlay animates in/out.
+        # Created before the add-app controller, which needs it.
         self._hintbar = HintBar()
         self._hintbar.install_surface()
         # True while the Home Overlay owns the hints (BTN_MODE menu), so the bar
@@ -215,9 +203,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         main.addStretch(1)
 
         # Domain coordinators are assembled by the package builder (build_desktop)
-        # and injected via attach(); the widget itself stays a pure view. The pad
-        # handler identity stays owned here so push/pop on the gamepad stack
-        # matches the eventFilter's comparisons.
+        # and injected via attach(); the widget itself stays a pure view.
         self._nav:           'FocusNavigator | None'     = None
         self._lifecycle:     'AppLifecycle | None'       = None
         self._desktop:       'DesktopCoordinator | None' = None
@@ -347,22 +333,18 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._sync_home_surface_visibility()
 
     def _sync_home_surface_visibility(self) -> None:
-        """The persistent Home surface (§8) is shown (collapsed) whenever the
-        Desktop is on screen. When the Desktop is down it normally hides — unless
-        it is itself open on demand over an app / minimized Kasual (contexts 2/3),
+        """The persistent Home surface is shown (collapsed) whenever the Desktop
+        is on screen. When the Desktop is down it normally hides — unless it is
+        itself open on demand over an app / minimized Kasual (contexts 2/3),
         where the controller has mapped it and owns its lifetime. Snapping to
         collapsed on the way out means it never reappears mid-expand. Kept free of
         hint-bar calls so it never re-enters the sync above."""
         if self._home_surface is None:
             return
         if self._surface.is_visible():
-            # Context 1 owns the surface here (collapsed chrome, or its own morph).
-            # A map-on-demand overlay (contexts 2/3) belongs only while the Desktop
-            # is down; if one is still mapped as the Desktop comes forward — e.g.
-            # "Return to Home screen" surfaced the Desktop, or the app it floated
-            # over exited — reclaim it as collapsed chrome so we never resurface a
-            # stale app-context menu. (is_showing() is on-demand only, so the
-            # context-1 collapse animation is left to play out.)
+            # A map-on-demand overlay belongs only while the Desktop is down;
+            # reclaim a still-mapped one as collapsed chrome rather than
+            # resurface a stale app-context menu.
             if self._home_surface.is_showing():
                 self._home_surface.collapse_immediately()
             self._home_surface.position_at_top()
@@ -385,11 +367,8 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     def activate(self) -> None:
         self._surface.activate()
-        # Bringing the Desktop forward from an app (return / close / crash-exit, all
-        # routed here and through show_fullscreen) always lands on the bare Home
-        # chrome — never a leftover Home Overlay menu from the app we just left
-        # (contexts 2/3). Unconditional so it holds however that overlay was torn
-        # down; not part of the context-1 morph, which never calls activate().
+        # Bringing the Desktop forward from an app always lands on the bare Home
+        # chrome — never a leftover Home Overlay menu from the app we just left.
         if self._home_surface is not None:
             self._home_surface.collapse_immediately()
         self._sync_hint_visibility()
@@ -470,17 +449,10 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         super().changeEvent(event)
         if (event.type() == QEvent.Type.ActivationChange and self.isActiveWindow()
                 and not self._state.paused):
-            # When KWin gives us focus back (e.g. the app we ceded the pad to
-            # has closed) delegate the reactivate decision to the domain layer.
-            # Edge-triggered on focus gain, so it never fires while an app is
-            # foreground (we are not active then). This covers apps launched via
-            # a forwarder — e.g. `steam steam://...`, whose launcher process
-            # exits immediately, so the normal app_finished path runs too early.
-            #
-            # Skipped while paused (minimized to tray): a stray focus event — e.g.
-            # on Windows when the Home Overlay above us closes as we minimize —
-            # must not bounce the Desktop back; it stays down until explicitly
-            # resumed (tray / gamepad reconnect).
+            # KWin giving us focus back delegates the reactivate decision to the
+            # domain layer; also covers launcher-forwarder apps (e.g. `steam
+            # steam://...`) whose process exits before app_finished fires.
+            # Skipped while paused so a stray focus event can't bounce us back.
             self._lifecycle.on_focus_gained()
 
     # ── Gamepad handler ────────────────────────────────────────────────────
@@ -489,14 +461,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         if event.type() != QEvent.Type.KeyPress or not self.isActiveWindow():
             return False
         key = event.key()
-        # Escape in tiles mode with no overlay open → open Home Overlay via
-        # domain event (ESCAPE_HOME). The top_handler guard restricts this to
-        # when the Desktop itself owns the pad: layer-shell overlays keep the
-        # Desktop the active Qt window (keyboard=NONE, no activateWindow), so
-        # this filter still fires while one is open — but then their handler is
-        # on top and Escape must fall through to _KEY_MAP → CANCEL, which they
-        # handle. In topbar mode Escape likewise falls through to "cancel" to
-        # return to tiles.
+        # Escape in tiles mode with no overlay open → open Home Overlay
+        # (ESCAPE_HOME); the top_handler guard restricts this to when the
+        # Desktop itself owns the pad, else Escape falls through to CANCEL.
         if (key == Qt.Key.Key_Escape
                 and self._nav.in_tiles
                 and self._gamepad.top_handler() == self._handle_pad):
@@ -559,7 +526,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     # ── Closing an application ─────────────────────────────────────────────
 
     def _show_tile_popover(self) -> None:
-        """Show the single, state-dependent tile popover above the focused tile (§7.3).
+        """Show the single, state-dependent tile popover above the focused tile.
 
         The menu (which items appear, by running state and tile kind) is the
         domain's — `tile_menu_for` composes the merged lifecycle + management
@@ -586,7 +553,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._overlays.register(popover)
         popover.closed.connect(self._on_tile_popover_closed)
         # Swap the hint bar to the popover's own controls (incl. Y to close the
-        # menu it opened — §7.3 toggle); restored to the tiles screen on close.
+        # menu it opened); restored to the tiles screen on close.
         self._hintbar.show_hints(home_hints.TILE_POPOVER)
         popover.show_above(self._tilebar.current_tile())
 
@@ -729,8 +696,8 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     # ── Top bar actions ────────────────────────────────────────────────────
 
     def _refresh_power_default(self) -> None:
-        """Re-read the persisted default and update the header's Power button glyph
-        (§8). Cheap, event-driven (on show/resume): the default only changes by
+        """Re-read the persisted default and update the header's Power button glyph.
+        Cheap, event-driven (on show/resume): the default only changes by
         executing a power action, and Sleep is the one that returns to this
         session."""
         if self._power_preference is None:
@@ -740,7 +707,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     def _open_system_action(self, action_type: str) -> None:
         """Act on a header button via A (the FocusNavigator's trigger path in the
-        collapsed Home view, §8): Power runs the current default immediately (X
+        collapsed Home view): Power runs the current default immediately (X
         opens the chooser to change it — see _show_topbar_power_menu); Network /
         Notifications open their overlay."""
         if action_type == POWER:
@@ -784,7 +751,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def home_overlay_factory(self) -> 'PersistentOverlayFactory':
         """The SectionedOverlayFactory the controller uses in persistent-surface
         mode: every BTN_MODE over an app / minimized Kasual (contexts 2/3) reuses
-        this one surface instead of mapping a fresh overlay (§8).
+        this one surface instead of mapping a fresh overlay.
 
         Fail fast if :meth:`set_power_menu` hasn't built the surface yet — the
         factory dereferences it, so a wrong wiring order would otherwise surface
@@ -836,15 +803,14 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._nav.focus_topbar()
 
     def refresh_notification_badge(self) -> None:
-        """Sync the notifications badge to the unread count in memory — on the Home
-        header (§8)."""
+        """Sync the notifications badge to the unread count in memory — on the
+        Home header."""
         count = self._notifications.unread_count
         self._home_header.set_notification_badge(count)
 
     def update_network_status(self, status: NetworkStatus) -> None:
         """Store the latest network status and reflect its kind in the Home header
-        icon (§8; driven by the NetworkMonitor; the popup reads the stored
-        status)."""
+        icon (driven by the NetworkMonitor; the popup reads the stored status)."""
         self._network_status = status
         glyph = network_view.icon_for(status.kind)
         self._home_header.set_network_icon(glyph)

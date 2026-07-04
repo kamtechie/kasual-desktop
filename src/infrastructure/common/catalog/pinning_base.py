@@ -45,11 +45,9 @@ class AppPinningBase(AppPinning):
         """Write *app* as a pinned tile in the catalog directory; return *app*
         on success, None on I/O failure.
 
-        The shared tail of a platform pin: ensure the catalog dir, allocate the
-        next sort order and a unique filename, write the ``.desktop`` entry and
-        log. Subclasses build the resolved :class:`App` from the window and call
-        this to do the on-disk work, so the placement mechanics stay in one
-        place (mirroring :meth:`App.to_desktop_entry`'s shape).
+        The shared tail of a platform pin, called by subclasses once they've
+        resolved *app* from the window, so the placement mechanics stay in one
+        place.
         """
         directory = apps_dir()
         try:

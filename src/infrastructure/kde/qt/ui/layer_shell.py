@@ -3,24 +3,13 @@ wlr-layer-shell surface (a panel/overlay anchored in a compositor layer that
 can sit above normal windows, including fullscreen).
 
 PyQt6 ships no LayerShellQt bindings, so we call the C++ API directly through
-the exported (mangled) symbols of libLayerShellQtInterface.so.6. Requirements:
-  - running on the SYSTEM Qt (not pip-bundled): the layer-shell shell
-    integration plugin is version-locked to the system Qt build;
-  - QT_WAYLAND_SHELL_INTEGRATION=layer-shell set before QApplication;
-  - the Qt platform being `wayland`.
+the exported (mangled) symbols of libLayerShellQtInterface.so.6. Requires the
+SYSTEM Qt (the shell-integration plugin is version-locked to it),
+QT_WAYLAND_SHELL_INTEGRATION=layer-shell set before QApplication, and a Wayland
+platform. Validated on KWin 6.5.2 / Qt 6.9.2 (see tools/spike_layershell.py).
 
-Validated on KWin 6.5.2 / Qt 6.9.2 (see tools/spike_layershell.py).
-
-Usage:
-    w = QWidget()
-    # ... build UI ...
-    make_layer_surface(w, layer=Layer.OVERLAY, anchors=Anchor.ALL,
-                       exclusive_zone=-1, keyboard=Keyboard.NONE)
-    w.show()
-
-make_layer_surface() forces native window creation itself; just make sure to
-call it BEFORE w.show() — the layer surface is created with our settings when
-the window is first shown.
+make_layer_surface() forces native window creation itself, so call it BEFORE
+widget.show() — the layer surface is set up with our settings at first show.
 """
 
 import ctypes
@@ -30,8 +19,8 @@ from PyQt6 import sip
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QWidget
 
-# The layer/anchor/keyboard enums are shared vocabulary, defined platform-neutrally
-# in common; this adapter is the Wayland binding that consumes them.
+# Enums are platform-neutral vocabulary defined in common; this is the Wayland
+# binding that consumes them.
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
 
 logger = logging.getLogger(__name__)

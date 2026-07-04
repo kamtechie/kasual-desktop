@@ -78,10 +78,8 @@ class WindowsAppManager(BaseAppManager):
         startupinfo.wShowWindow = 1
 
         try:
-            # Protocol handlers (ms-settings: …) and shortcuts (.lnk) go through the
-            # shell: ShellExecuteEx resolves them — no pywin32/.lnk parsing — and for
-            # a normal target hands back a trackable process handle. UWP/protocol
-            # activations may return no handle; those rely on window-matching.
+            # Protocol handlers (ms-settings: …) and shortcuts (.lnk) go through
+            # the shell, which resolves them without pywin32/.lnk parsing.
             if command.startswith("ms-") or command.lower().endswith(".lnk"):
                 return self._shell_execute(idx, command)
 
@@ -143,7 +141,6 @@ class WindowsAppManager(BaseAppManager):
         return True
 
     def _find_in_path(self, cmd: str) -> str | None:
-        """Find command in PATH."""
         if os.path.isabs(cmd) and os.path.exists(cmd):
             return cmd
         path_dirs = os.environ.get('PATH', '').split(os.pathsep)

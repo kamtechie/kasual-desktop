@@ -19,11 +19,7 @@ _CFG_PATH = Path.home() / '.config' / 'plasma-org.kde.plasma.desktop-appletsrc'
 
 
 class KdeSystemWallpaper(SystemWallpaper):
-    """Reads the KDE Plasma wallpaper setting and returns it as a `Wallpaper`.
-
-    Handles both direct file paths and wallpaper packages
-    (directory with contents/images/WxH.ext).
-    """
+    """Reads the KDE Plasma wallpaper setting and returns it as a `Wallpaper`."""
 
     def current(self) -> Wallpaper | None:
         if not _CFG_PATH.exists():

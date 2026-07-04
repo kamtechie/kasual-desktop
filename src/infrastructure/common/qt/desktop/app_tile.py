@@ -25,12 +25,6 @@ MARQUEE_PAUSE_MS  = 900   # hold at each end before reversing
 
 SCALE_ANIM_MS = 160       # grow/shrink when (de)selected
 
-# Centering offset of the normal button within the always-fixed TILE_SEL_* slot.
-# When selected the button fills the slot (offset 0,0); when not selected it sits
-# centred with these margins, so activating a tile doesn't shift its neighbours.
-BTN_OFFSET_X = (TILE_SEL_W - TILE_W) // 2   # 18
-BTN_OFFSET_Y = (TILE_SEL_H - TILE_H) // 2   # 20
-
 
 class AppTile(QWidget):
     """Single application tile."""
@@ -58,11 +52,7 @@ class AppTile(QWidget):
 
         self._full_name   = full_name if full_name is not None else name
         self._is_selected = False
-        # Fraction (0=normal, 1=selected) of the grow/shrink animation. Driving a
-        # single scalar lets one animation interpolate button size and icon size
-        # together so the highlighted tile swells and the unhighlighted one
-        # settles back smoothly instead of snapping.
-        self._scale_t    = 0.0
+        self._scale_t    = 0.0   # 0=normal, 1=selected; drives button+icon size together
         self._scale_anim: QVariantAnimation | None          = None
         self._marquee_seq: QSequentialAnimationGroup | None = None
         self._marquee_clip = QWidget(self)
@@ -72,10 +62,8 @@ class AppTile(QWidget):
         self._marquee_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self._closing = False
-        # Global cursor position recorded when the pointer left this tile. Used to
-        # reject the synthetic enterEvent Qt delivers when a window above us (e.g.
-        # the Home Overlay) is hidden over a stationary cursor — without it the
-        # tile under the idle pointer would steal selection on overlay close.
+        # Rejects the synthetic enterEvent Qt fires when an overlay above us
+        # closes over a stationary cursor (see enterEvent).
         self._pos_at_leave: QPoint | None = None
         self._status_bar = QLabel(self)
         self._status_bar.hide()
@@ -92,10 +80,6 @@ class AppTile(QWidget):
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
         pos = event.globalPosition().toPoint()
-        # Same position as the last leave → the pointer never moved; this enter
-        # was synthesised by a window above us hiding, not a real hover. Ignore it
-        # so gamepad-driven selection isn't yanked to whatever sits under the
-        # idle cursor (e.g. after dismissing the Home Overlay).
         synthetic = pos == self._pos_at_leave
         self._pos_at_leave = None
         if not synthetic:
@@ -118,9 +102,7 @@ class AppTile(QWidget):
         if selected:
             self._btn.setStyleSheet(styles.tile_selected(self._color))
             self._apply_shadow(selected=True)
-            # Marquee waits for the grow to finish so the scrolling title is laid
-            # out against the tile's final (selected) size, not a mid-animation one.
-            self._animate_scale(to_selected=True)
+            self._animate_scale(to_selected=True)   # marquee starts once grow finishes
         else:
             if self._marquee_seq is not None:
                 self._marquee_seq.stop()
@@ -142,9 +124,7 @@ class AppTile(QWidget):
         self._color = color
         style = styles.tile_selected if self._is_selected else styles.tile_normal
         self._btn.setStyleSheet(style(color))
-        # A running marquee paints its clip with the tile colour to blend the
-        # scrolling title into the tile; recolour it too, otherwise a recolour
-        # while the marquee is showing leaves the old colour behind the text.
+        # The marquee clip is also painted in the tile colour; keep it in sync.
         if not self._marquee_clip.isHidden():
             self._marquee_clip.setStyleSheet(f"background-color: {color};")
 
@@ -214,8 +194,7 @@ class AppTile(QWidget):
         self._status_bar.show()
 
     def _start_marquee(self) -> None:
-        # Reached from the grow animation's `finished`; a deselect mid-grow stops
-        # that animation, so bail unless the tile is still the selected one.
+        # A deselect mid-grow stops the animation that calls this, but bail anyway.
         if not self._is_selected:
             return
         font = QFont()
@@ -224,10 +203,8 @@ class AppTile(QWidget):
         fm = QFontMetrics(font)
         text_h = fm.height()
 
-        # Match where QToolButton actually draws the title: it vertically centres the
-        # icon+gap+text block within the padded content area, so the text sits lower
-        # than a naive "right below a top-aligned icon" guess — which is what made the
-        # marquee jump up on long-named tiles relative to short-named ones.
+        # Match where QToolButton draws the title: it centres the icon+gap+text
+        # block within the padded area, not top-aligned under the icon.
         gap = 4
         content_top, content_bottom = 12, 16   # tile_* stylesheet vertical padding
         content_h = TILE_SEL_H - content_top - content_bottom
@@ -240,8 +217,6 @@ class AppTile(QWidget):
         clip_h = text_h
         clip_y = text_top
         self._marquee_clip.setGeometry(clip_x, clip_y, clip_w, clip_h)
-        # Blend with the tile's own background (selected tiles keep their colour now,
-        # they no longer turn accent), with the same white title text as the tile.
         self._marquee_clip.setStyleSheet(f"background-color: {self._color};")
 
         self._marquee_lbl.setFont(font)
@@ -280,11 +255,10 @@ class AppTile(QWidget):
 class AddTile(QWidget):
     """The synthetic ``[＋]`` "Add app" tile that ends the pinned section.
 
-    A deliberately app-unlike tile: a transparent, dashed outline with a single
-    circle-plus glyph and no title, status bar or marquee. It mirrors
-    :class:`AppTile`'s fixed slot and grow-on-select animation so it sits flush
-    in the row and highlights with the same couch-UI feel, but carries none of an
-    app's state (it never runs, recolours or opens a management menu)."""
+    A deliberately app-unlike tile: transparent, dashed outline, a single
+    circle-plus glyph, no title/status bar/marquee. Mirrors :class:`AppTile`'s
+    fixed slot and grow-on-select animation but carries none of an app's state.
+    """
 
     clicked = pyqtSignal()
     hovered = pyqtSignal()

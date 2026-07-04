@@ -1,18 +1,13 @@
 """Assembles the Desktop widget together with its domain coordinators.
 
-The Desktop QWidget is a pure view (see ``desktop.py``): it renders, handles
-input edges, and implements the ``DesktopView``/``DesktopShell``/``DesktopControl``
-ports — but it does not build the coordinators that drive it. This builder is the
-composition seam: it constructs the widget, then the coordinators (which take the
-widget as their view/control port and its child bars as their view ports), and
-finally injects them back via ``Desktop.attach``.
-
-The widget↔coordinator reference is inherently bidirectional; the builder makes it
-explicit and one-directional in time — widget first, coordinators next, attach last
-(before the Desktop is ever shown), so no delegating handler fires with a coordinator
-unset. Living in the same package, the builder may reach the widget's internal
-collaborators (``_tilebar``/``_topbar``/``_foreground``/``_state``/``_handle_pad``/
-``_show_tile_popover``/``_show_confirm``) without widening the widget's public API.
+The Desktop QWidget (see ``desktop.py``) is a pure view — it renders, handles
+input edges, and implements the view/shell/control ports, but does not build
+the coordinators that drive it. This builder constructs the widget, then the
+coordinators (given the widget as their view/control port), then wires them
+back via ``Desktop.attach`` — widget first, coordinators next, attach last, so
+no delegating handler ever fires with a coordinator unset. Living in the same
+package, it may reach the widget's internal collaborators without widening
+its public API.
 """
 
 from domain.catalog.catalog import AppCatalog
@@ -50,10 +45,9 @@ from .surface import DesktopSurface
 
 
 class _ImmediateHide:
-    """Fallback ``LaunchHide``: hide the Desktop the moment an app launches, with
-    no window-map wait. Used when the composition root injects no
-    ``deferred_hide_factory`` — keeps the shared builder usable (e.g. in tests)
-    without importing any platform's real deferred-hide."""
+    """Fallback ``LaunchHide``: hides the Desktop immediately, no window-map wait.
+    Used when no ``deferred_hide_factory`` is injected (e.g. tests), keeping
+    this shared builder free of any platform import."""
 
     def __init__(self, on_hide: Callable[[], None]) -> None:
         self._on_hide = on_hide
@@ -103,12 +97,11 @@ def build_desktop(
     (graphics-API maps check + launcher ancestry); Windows wires the RTSS signal.
     """
     parent_of = parent_of or (lambda _pid: None)
-    # The open-overlay group is shared: the widget feeds it (register/forget) and
-    # the coordinator pauses/resumes it as the surface hides and returns.
+    # Shared: the widget registers/forgets overlays; the coordinator pauses/
+    # resumes the group as the surface hides and returns.
     overlays = OpenOverlays()
-    # One shared, mutable order: the tile bar reorders/recolours it in place, so
-    # the lifecycle and deferred hide (which key on tile position) never drift to
-    # a stale catalog and launch/close the app that used to sit at that index.
+    # Mutable in place, so a tile reorder/recolour is seen by the lifecycle and
+    # deferred hide too — both key on tile position.
     live_apps = LiveCatalog(apps)
     widget = Desktop(
         apps=live_apps,
@@ -139,32 +132,23 @@ def build_desktop(
         hint_bar=widget._hintbar,
         on_topbar_menu=widget._show_topbar_power_menu,
     )
-    # Paint the initial hints (tiles screen) before the Desktop is ever shown,
-    # so the bar is never blank on first appearance.
+    # Paint the initial hints before the Desktop is ever shown, so the bar is
+    # never blank on first appearance.
     nav.render()
 
-    # Move mode: slides a focused app tile past its neighbours, persisting the order.
     tile_mover = TileMover(
         view=widget._tilebar, store=order_store, gamepad=gamepad, feedback=feedback,
     )
 
-    # The Desktop stays on screen after launching an app until that app's window
-    # is actually mapped, then hides to reveal it. Hiding goes through hide_view so
-    # it routes through the surface. The strategy is built by an injected factory
-    # — it needs build-internal collaborators (the live catalog, the widget's
-    # hide_view) the composition root can't supply directly, so the root passes a
-    # factory rather than an instance. Linux builds the KWin/DBus DeferredHide;
-    # Windows builds a time-based one (protocol apps like ms-settings have no
-    # detectable window to wait on). With no factory we fall back to an immediate
-    # hide — keeping this shared builder free of any platform import.
+    # Hides only once the launched app's window maps. Built by a factory since it
+    # needs collaborators the root can't supply directly; with none, an immediate
+    # hide keeps this shared builder free of any platform import.
     if deferred_hide_factory is not None:
         deferred_hide = deferred_hide_factory(
             window_manager, process_manager, live_apps, widget.hide_view,
         )
     else:
         deferred_hide = _ImmediateHide(widget.hide_view)
-    # App launch/restore/close/exit orchestration lives off the widget in a
-    # testable coordinator; the Desktop is just its DesktopView.
     # Read-only foreground/game introspection, split off the coordinator.
     inspector = ForegroundInspector(
         foreground=widget._foreground,
@@ -173,6 +157,8 @@ def build_desktop(
         app_manager=process_manager,
         is_game_pid=is_game_pid,
     )
+    # Launch/restore/close/exit orchestration lives off the widget in a
+    # testable coordinator; the Desktop is just its DesktopView.
     lifecycle = AppLifecycle(
         view=widget,
         gamepad=gamepad,

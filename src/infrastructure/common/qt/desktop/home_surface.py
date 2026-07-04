@@ -1,24 +1,22 @@
-"""Persistent Home surface — the unified collapse/expand chrome and menu (§8 / Faza 5).
+"""Persistent Home surface — the unified collapse/expand chrome and menu.
 
-One surface serves the Home Overlay menu in every context (`UX.md` §8), so the
-status header + menu + hint bar always read as one composition:
+One surface serves the Home Overlay menu in every context, so the status
+header + menu + hint bar always read as one composition:
 
   * **Context 1 — Home view.** The surface is permanently mapped: a collapsed
-    :class:`HomeHeader` (clock + date + Network/Notifications) that morphs open on
-    BTN_MODE into header + §7.10 menu and back, on one never-unmapped surface (the
-    property the Faza 5 PoC verified — no map/unmap, so KWin adds no animation).
+    :class:`HomeHeader` that morphs open on BTN_MODE into header + menu and
+    back, on one never-unmapped surface (so KWin adds no map/unmap animation).
     The Desktop drives it via :meth:`expand` / :meth:`collapse`, and hands the
-    header to the FocusNavigator as the top bar so "up" from the tiles enters it.
+    header to the FocusNavigator as the top bar.
 
-  * **Contexts 2/3 — over an app / Kasual minimized.** The controller drives it as
-    a :class:`~domain.shell.overlay.SectionedHomeOverlay`: :meth:`show_for_context`
+  * **Contexts 2/3 — over an app / Kasual minimized.** The controller drives it
+    as a :class:`~domain.shell.overlay.SectionedHomeOverlay`: :meth:`show_for_context`
     maps it straight to the expanded layout, :meth:`hide_overlay` unmaps it. No
     persistent surface lingers over a fullscreen game.
 
 Either way the expanded menu embeds the shared :class:`HomeMenuContent` with the
-header as its navigable zone 0, so "up" from the top section flows into the
-header. The surface is gamepad-driven: showing/expanding pushes the content's pad
-handler, hiding/collapsing pops it.
+header as its navigable zone 0. The surface is gamepad-driven: showing/expanding
+pushes the content's pad handler, hiding/collapsing pops it.
 """
 
 import logging
@@ -48,15 +46,13 @@ from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH, Home
 logger = logging.getLogger(__name__)
 
 TOP_MARGIN  = 10    # gap from the screen top to the header (mirrors the hint bar)
-# Caps the expanded panel's content area (the §7.10 menu sits within). Sized for
-# the busiest context — a running game with a controllable-brightness slider *and*
-# the HUD toggle needs ~526px; a tighter cap makes the QVBoxLayout compress every
-# row below its size hint, clipping the labels' descenders and squaring corners.
+# Caps the expanded panel; sized for the busiest context (a game with both a
+# brightness slider and the HUD toggle, ~526px) — tighter clips row content.
 CONTENT_H   = 550
 MORPH_MS    = 180   # collapse↔expand animation duration
 # The surface is ALWAYS this tall (sized for the expanded state) and anchored to
 # the top: collapse/expand only morphs the inner content, never the surface — so
-# KWin never sees a resize/remap to animate (the PoC's verified property).
+# KWin never sees a resize/remap to animate.
 SURFACE_H   = TOP_MARGIN + HEADER_H + CONTENT_H + TOP_MARGIN
 
 
@@ -109,15 +105,8 @@ class HomeSurface(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setStyleSheet("background: transparent;")
         self.setFixedHeight(SURFACE_H)
-        # The surface is always SURFACE_H tall (sized for the expanded menu) but
-        # mostly empty when collapsed. A blanket WA_TransparentForMouseEvents used
-        # to keep the pointer off that empty strip so the tiles below stayed
-        # clickable — but on Wayland that sets an empty input region, so the header
-        # and menu never saw the mouse either. Instead we scope the input region to
-        # just the interactive area via a mask: the header alone when collapsed,
-        # the whole surface when the menu is open (see _refresh_input_region).
-        # Held open while a child popover (the Power chooser) floats over the
-        # collapsed header, so the header-only mask doesn't clip it.
+        # Mouse input is scoped by mask, not WA_TransparentForMouseEvents (which
+        # would empty the Wayland input region entirely) — see _refresh_input_region.
         self._input_open_hold = False
 
         outer = QVBoxLayout(self)
@@ -130,7 +119,7 @@ class HomeSurface(QWidget):
         self._header = header
         outer.addWidget(self._header, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        # The expanded §7.10 menu, embedded under the header inside a fixed-width
+        # The expanded Home menu, embedded under the header inside a fixed-width
         # card. Its max-height + opacity are animated for the morph; collapsed it
         # is fully shrunk and transparent (but still mapped — no unmap).
         self._panel = styles.make_card(CARD_WIDTH)
@@ -179,11 +168,8 @@ class HomeSurface(QWidget):
     # ── Pointer input region ─────────────────────────────────────────────────
 
     def paintEvent(self, event) -> None:
-        # The header background is semi-transparent, so a repaint that doesn't
-        # first wipe the layer-shell buffer composites the new background over
-        # the old one and darkens it (mirrors HintBar's paintEvent — see
-        # hint_bar.py). Without this, the clock area renders opaque on the
-        # first frame and only settles to the correct alpha on the next tick.
+        # The semi-transparent header darkens on repaint unless the buffer is
+        # wiped first (mirrors HintBar.paintEvent).
         painter = QPainter(self)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
         painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
@@ -198,14 +184,10 @@ class HomeSurface(QWidget):
         self._refresh_input_region()
 
     def _refresh_input_region(self) -> None:
-        """Scope the pointer input region to the interactive area.
-
-        Collapsed and idle → only the header strip takes the pointer, so the tiles
-        below the (tall) surface stay clickable. Open (expanded / on-demand) or
-        while a child popover is held over the header → the whole surface, so the
-        menu and any dropdown receive the mouse. The mask also clips painting, so
-        it is only narrowed to the header once nothing else is visible (the morph
-        has finished); callers time it accordingly."""
+        """Scope the pointer input region to the interactive area: header-only
+        when collapsed and idle, full surface when open or held open for a child
+        popover. The mask also clips painting, so callers narrow it back to the
+        header only once the morph has finished."""
         if not self.isVisible():
             return
         if self.is_open() or self._input_open_hold:
@@ -230,10 +212,7 @@ class HomeSurface(QWidget):
         return (self._header.geometry().contains(pos)
                 or self._panel.geometry().contains(pos))
 
-    # ── Header mouse while expanded (the header is the menu's zone 0) ─────────
-    # Routed here by the Desktop when the menu is open, so a hover/click/right-click
-    # on the status header drives the menu's own zone navigation rather than the
-    # collapsed Home view's FocusNavigator.
+    # ── Header mouse while expanded (the header is the menu's zone 0) ────────
 
     def hover_header(self, index: int) -> None:
         self._content.hover_header(index)
@@ -272,7 +251,7 @@ class HomeSurface(QWidget):
     # ── Context 1: persistent morph (driven by the Desktop) ──────────────────
 
     def expand(self) -> None:
-        """Morph open in the Home view: build the §7.10 content (bare-Home context),
+        """Morph open in the Home view: build the menu content (bare-Home context),
         take the pad, animate the panel in. The header stays put throughout."""
         if self._expanded:
             return
@@ -324,10 +303,9 @@ class HomeSurface(QWidget):
         self._anim.stop()
         self._panel.setMaximumHeight(0)
         self._opacity.setOpacity(0.0)
-        # Hide the panel widget outright and force a fresh frame: a re-mapped
-        # layer-shell surface keeps showing its last (expanded) buffer until Qt
-        # commits a new one, and setting maxHeight/opacity while unmapped triggers
-        # no repaint — so the old menu lingers as a dead (non-interactive) ghost.
+        # Hide outright and force a fresh frame: a re-mapped layer-shell surface
+        # keeps its last buffer until Qt commits a new one, and setting
+        # maxHeight/opacity while unmapped triggers no repaint — leaving a ghost.
         self._panel.hide()
         self._refresh_input_region()   # snapped collapsed → header-only mask
         if self.isVisible():
@@ -340,10 +318,8 @@ class HomeSurface(QWidget):
     def dismiss(self) -> None:
         """Close whichever menu is live — the on-demand overlay (contexts 2/3) or
         the context-1 morph. Wired as the embedded content's ``request_hide`` in
-        *both* contexts, so activating an item (e.g. "Return to Home screen") tears
-        down the mode that is actually open rather than the one whose teardown
-        happened to be wired last on the shared content — the two ``if not <flag>:
-        return`` guards otherwise let a stale wiring no-op, leaving the menu up."""
+        both contexts, so it tears down whichever mode is actually open rather
+        than the one wired last."""
         if self._on_demand:
             self.hide_overlay()
         elif self._expanded:
@@ -395,11 +371,9 @@ class HomeSurface(QWidget):
         self._panel.setMaximumHeight(0)
         self._opacity.setOpacity(0.0)
         self._panel.hide()
-        # Commit the collapsed (empty) frame *while still mapped*, then unmap. The
-        # compositor keeps the surface's last buffer after unmap; if we hide()
-        # straight from the expanded layout that retained buffer is the menu, which
-        # then lingers as a dead, non-interactive ghost when the surface re-maps
-        # over the Desktop. repaint() forces the empty frame out before we unmap.
+        # Commit the collapsed frame while still mapped, then unmap: the
+        # compositor retains the last buffer after unmap, so hiding straight from
+        # the expanded layout would leave that menu as a dead ghost on re-map.
         self.repaint()
         self.hide()
         self.closed.emit()
@@ -419,7 +393,7 @@ class HomeSurface(QWidget):
 
     def refresh_hints(self) -> None:
         """Re-push the menu's own hint set — used after a chooser popover that
-        floated over the open menu closes (§8)."""
+        floated over the open menu closes."""
         self._content.sync_hints()
 
     def _teardown_menu(self) -> None:

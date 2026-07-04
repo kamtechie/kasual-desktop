@@ -28,7 +28,4 @@ class WhichAppDiscovery(AppDiscovery):
         return None
 
     def extra_candidates(self) -> list[CandidateApp]:
-        # Linux's starter list is fully described by `starter_candidates` (the
-        # domain baseline); there is no menu scan or platform-specific bundle to
-        # add on top of it.
-        return []
+        return []   # nothing beyond the domain's starter_candidates baseline

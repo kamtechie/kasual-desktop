@@ -33,11 +33,9 @@ class DesktopAppPinning(AppPinningBase):
             )
             return None
 
-        # Carry the window's own class so the pinned tile can be matched back to
-        # the running window. KWin's class often differs from the command name
-        # (org.kde.konsole vs `konsole`), and many .desktop files omit
-        # StartupWMClass — without this the tile would never read as "running" and
-        # clicking it would launch a duplicate instead of restoring the window.
+        # Carry the window's own class, or the pinned tile would never match the
+        # running window back (KWin's class often differs from the command name,
+        # and many .desktop files omit StartupWMClass).
         wm_class = window.resource_class or entry.get("StartupWMClass") \
             or _strip_desktop_suffix(window.desktop_file)
         if wm_class:

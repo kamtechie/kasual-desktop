@@ -123,13 +123,11 @@ def _is_complete_notify(arg_lines: list[str]) -> bool:
 def parse_notify_blocks(text: str) -> tuple[list[_NotifyArgs], str]:
     """Parse complete `Notify` blocks from streamed dbus-monitor output.
 
-    Returns the notifications found in the complete blocks plus the unparsed tail
-    to prepend to the next chunk. A block followed by another header is proven
-    complete by that header; the *final* block has no follower yet, so it is
-    emitted only once it has structurally streamed in full (see
-    :func:`_is_complete_notify`) — otherwise it is held back as leftover. This
-    matters because a lone notification (nothing arriving after it) would
-    otherwise sit in the buffer indefinitely, never reaching the UI.
+    Returns the notifications found plus the unparsed tail to prepend to the
+    next chunk. A block followed by another header is proven complete by that
+    header; the trailing block has no follower yet, so it's only emitted once
+    it has structurally streamed in full (see :func:`_is_complete_notify`) —
+    otherwise a lone final notification would sit in the buffer forever.
     """
     lines = text.split("\n")
     header_idxs = [
@@ -151,8 +149,6 @@ def parse_notify_blocks(text: str) -> tuple[list[_NotifyArgs], str]:
         if parsed is not None:
             results.append(parsed)
 
-    # The trailing block: emit it now if it has fully streamed, so a final lone
-    # notification is not stranded waiting for a follower; else keep it as tail.
     last = header_idxs[-1]
     tail = lines[last + 1:]
     header = lines[last]

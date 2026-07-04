@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Windows entry point for Kasual Desktop.
+"""Windows entry point for Kasual Desktop.
 
 Run with: python src/windows_main.py (the sibling of the Linux src/main.py).
 

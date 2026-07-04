@@ -62,14 +62,9 @@ class BaseOverlay(QWidget):
         self.setStyleSheet(
             "background-color: rgba(0, 0, 0, 150);" if dim else "background: transparent;"
         )
-        # Standalone surface above everything (incl. fullscreen games): layer-shell
-        # on Wayland, WS_EX_TOPMOST on Windows, ordinary window elsewhere — see
-        # promote_overlay_surface. keyboard defaults to NONE — taking keyboard
-        # interactivity deactivates a fullscreen app underneath, which makes KWin
-        # reveal the panels it hides under fullscreen windows. Most overlays are
-        # gamepad-driven and don't need Wayland focus. An overlay shown when
-        # nothing is fullscreen (e.g. first-run onboarding) can opt into keyboard
-        # input to be navigable by keyboard as well.
+        # keyboard defaults to NONE: taking keyboard interactivity deactivates a
+        # fullscreen app underneath, revealing the DE panels it hides. An overlay
+        # shown when nothing is fullscreen (e.g. onboarding) can opt into it.
         promote_overlay_surface(
             self,
             layer=Layer.OVERLAY,

@@ -1,15 +1,9 @@
-"""
-KWin D-Bus window management — Wayland-native, KDE Plasma 6.
+"""KWin D-Bus window management — Wayland-native, KDE Plasma 6.
 
-Plasma 6 does not have activeWindow() / activateWindow() in /KWin.
-Instead:
-  - active window:  'active' field collected by _LIST_SCRIPT
-  - activation:     one-shot KWin script (workspace.activeWindow = ...)
-  - window list:    KWin script (workspace.windowList()) + ExportAllSlots
-
-_WindowListHost registers the receive() slot directly via ExportAllSlots
-(without a separate adaptor). The script calls callDBus with an empty interface —
-Qt routes to the first matching slot by method name.
+Plasma 6 has no activeWindow()/activateWindow() in /KWin, so activation, the
+window list, and the active window's id are all done via one-shot KWin scripts
+(workspace.windowList() / workspace.activeWindow), with results returned over
+D-Bus to _WindowListHost's receive() slot.
 """
 
 import json
@@ -109,9 +103,8 @@ _CLOSE_SCRIPT = """\
 }})();
 """
 
-# Batch minimize / activate by PID list.
-# {pids} is replaced with a JSON array of integer PIDs (including all process descendants).
-# No skipTaskbar filter — works for fullscreen / kiosk apps invisible to our normal window list.
+# {pids}: JSON array of PIDs (incl. descendants). No skipTaskbar filter, so
+# this also reaches fullscreen/kiosk apps invisible to the normal window list.
 _MINIMIZE_BY_PIDS_SCRIPT = """\
 (function () {{
     var pids = {pids};
@@ -137,10 +130,8 @@ _ACTIVATE_BY_PIDS_SCRIPT = """\
 }})();
 """
 
-# Same matching as _ACTIVATE_BY_PIDS_SCRIPT, but uses raiseWindow() instead
-# of setting activeWindow — raises in stacking order without triggering the
-# KWin "window activation" animation. Use when focus is not required (e.g.
-# gamepad input goes through our own handler stack, not system focus).
+# Like _ACTIVATE_BY_PIDS_SCRIPT but raiseWindow() instead of activeWindow, so
+# it skips KWin's activation animation — use when focus isn't required.
 _RAISE_BY_PIDS_SCRIPT = """\
 (function () {{
     var pids = {pids};
@@ -182,12 +173,11 @@ def expand_pid_tree(root_pids: set[int]) -> set[int]:
 
 
 class _WindowListHost(QObject):
-    """
-    Receives KWin script results via D-Bus.
+    """Receives KWin script results via D-Bus.
 
-    The receive() slot is registered via ExportAllSlots — does not require
-    QDBusAbstractAdaptor. The KWin script calls callDBus with an empty interface,
-    Qt routes by method name.
+    receive() is registered via ExportAllSlots (no QDBusAbstractAdaptor needed);
+    the KWin script calls callDBus with an empty interface and Qt routes by
+    method name.
     """
 
     def __init__(self) -> None:
@@ -230,18 +220,10 @@ class _WindowListHost(QObject):
 
 
 class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
-    """
-    Manages windows via KWin D-Bus + one-shot KWin scripts.
-    Wayland-native, no xdotool. Compatible with KDE Plasma 6.
-
-    Implements the `WindowManager` port the app-lifecycle coordinator drives.
-    """
+    """Implements the `WindowManager` port via KWin D-Bus + one-shot scripts."""
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        # Framework-agnostic observer hub: fans out the refreshed list as domain
-        # Windows. Driven on the GUI thread (the D-Bus window-list callback runs
-        # there), so EventEmitter's synchronous emit needs no thread-hop.
         self._windows_emitter: EventEmitter[list[Window]] = EventEmitter()
         bus = QDBusConnection.sessionBus()
         self._kwin      = QDBusInterface(_KWIN_SVC, _KWIN_PATH, _KWIN_IFACE, bus)
@@ -279,11 +261,9 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         self._timer.stop()
 
     def refresh_now(self) -> None:
-        """Forces an immediate refresh of the window list."""
         self._request_list_refresh()
 
     def get_active_window_id(self) -> str | None:
-        """Returns the ID of the active window from the last list refresh."""
         return self._active_window_id
 
     def get_cached_title(self, window_id: str) -> str | None:
@@ -291,43 +271,31 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         return entry['title'] if entry else None
 
     def activate_window(self, window_id: str) -> None:
-        """
-        Activates a window via a one-shot KWin script.
-        (Plasma 6 does not have activateWindow() in D-Bus /KWin.)
-        """
         script = _ACTIVATE_SCRIPT.format(uuid=window_id.replace("'", "\\'"))
         self._run_fire_and_forget(script, tag='activate')
 
     def close_window(self, window_id: str) -> None:
-        """Closes a window via a one-shot KWin script (closeWindow())."""
         script = _CLOSE_SCRIPT.format(uuid=window_id.replace("'", "\\'"))
         self._run_fire_and_forget(script, tag='close')
 
     def minimize_windows_for_pids(self, pids: set[int]) -> None:
-        """Minimize all windows belonging to *pids* or their descendants.
-
-        Does not rely on the internal window cache — works for fullscreen /
-        kiosk-mode apps that are not visible in the normal window list.
-        """
+        """Minimize windows for *pids*/descendants, bypassing the window cache —
+        works even for fullscreen/kiosk apps invisible to the normal list."""
         all_pids = expand_pid_tree(pids)
         if all_pids:
             script = _MINIMIZE_BY_PIDS_SCRIPT.format(pids=json.dumps(sorted(all_pids)))
             self._run_fire_and_forget(script, tag='minimize')
 
     def activate_windows_for_pids(self, pids: set[int]) -> None:
-        """Unminimize and bring to front windows belonging to *pids* or their descendants."""
         all_pids = expand_pid_tree(pids)
         if all_pids:
             script = _ACTIVATE_BY_PIDS_SCRIPT.format(pids=json.dumps(sorted(all_pids)))
             self._run_fire_and_forget(script, tag='activate_pids')
 
     def activate_windows_for_pid_exact(self, pid: int) -> None:
-        """Activate windows owned by *pid* exactly (no descendant expansion).
-
-        Use this to force the Kasual Desktop window above a running fullscreen
-        app — Wayland focus-stealing prevention otherwise ignores Qt's
-        raise_/activateWindow when another app holds focus.
-        """
+        """Activate windows owned by *pid* exactly (no descendant expansion) —
+        Wayland's focus-stealing prevention otherwise ignores Qt's
+        raise_/activateWindow when another app holds focus."""
         script = _ACTIVATE_BY_PIDS_SCRIPT.format(pids=json.dumps([pid]))
         self._run_fire_and_forget(script, tag='activate_pid_exact')
 
@@ -336,12 +304,9 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         self.raise_windows_for_pid_exact(os.getpid())
 
     def raise_windows_for_pid_exact(self, pid: int) -> None:
-        """Raise windows owned by *pid* exactly above other windows.
-
-        Like activate_windows_for_pid_exact but does not change focus, so KWin
-        does not play its window-activation animation. Suitable when input
-        does not depend on system focus (e.g. our gamepad handler stack).
-        """
+        """Like activate_windows_for_pid_exact but doesn't change focus, so KWin
+        skips its window-activation animation — fine since input goes through
+        our own gamepad handler stack, not system focus."""
         script = _RAISE_BY_PIDS_SCRIPT.format(pids=json.dumps([pid]))
         self._run_fire_and_forget(script, tag='raise_pid_exact')
 
@@ -402,11 +367,9 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         self._timeout_guard.stop()
         self._cleanup_script(script_path, plugin)
 
-        # Redundant while layer-shell is active: our own surfaces aren't
-        # normalWindow, so _LIST_SCRIPT already drops them. Kept for the fallback
-        # path — if make_layer_surface() fails (pip-bundled / non-system Qt), our
-        # windows render as normal xdg toplevels and would otherwise show up in
-        # our own list.
+        # Belt-and-braces: normally redundant with _LIST_SCRIPT's normalWindow
+        # filter, but catches our own windows if make_layer_surface() ever falls
+        # back to plain xdg toplevels (pip-bundled / non-system Qt).
         our_pid = os.getpid()
         windows = [w for w in windows if w.get('pid') != our_pid]
 

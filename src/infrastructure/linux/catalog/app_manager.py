@@ -29,14 +29,9 @@ class AppManager(BaseAppManager):
         args: Sequence[object] = (),
         env: Mapping[str, str] | None = None,
     ) -> bool:
-        """Start app *idx*. Returns True if a new process was actually spawned.
-
-        Takes primitive launch parameters (not a domain object) so this process
-        adapter stays decoupled from the app model. Returns False when the app is
-        already running or the command could not be started (the failure is also
-        reported via app_launch_failed). Callers use the return value to decide
-        whether to arm post-launch behaviour such as the deferred hide — which
-        must not run for a launch that never began.
+        """Start app *idx*. Returns True if a new process was actually spawned,
+        False if already running or the command could not be started — callers
+        use this to decide whether to arm post-launch behaviour like deferred hide.
         """
         if self.is_running(idx):
             logger.warning("App %d is already running — ignoring", idx)
@@ -63,11 +58,8 @@ class AppManager(BaseAppManager):
     # ── platform hooks ────────────────────────────────────────────────────────
 
     def _prepare_env(self, proc_env: dict[str, str]) -> None:
-        # Don't leak our layer-shell integration into child apps: it is meant
-        # only for KD's own panels/overlays. A Qt child inheriting it would turn
-        # its top-level window into a layer-shell surface that respects panel
-        # struts (exclusive zone 0) instead of going truly full-screen, leaving
-        # cut-off bars top and bottom. Launch apps as ordinary Wayland clients.
+        # A Qt child inheriting our layer-shell integration would respect panel
+        # struts instead of going truly full-screen, leaving cut-off bars.
         proc_env.pop("QT_WAYLAND_SHELL_INTEGRATION", None)
 
     def _terminate_proc(self, proc: subprocess.Popen) -> None:
@@ -79,9 +71,8 @@ class AppManager(BaseAppManager):
         self._killpg(proc, signal.SIGKILL)
 
     def _wait_for_exit(self, proc: subprocess.Popen) -> None:
-        # Wait for the leader, then for the whole process group: launchers
-        # (Steam, Lutris, …) fork+exec and exit before the real app does.
-        # start_new_session=True → pgid == pid of the child process.
+        # Wait for the leader, then the whole process group: launchers (Steam,
+        # Lutris, …) fork+exec and exit before the real app does.
         pgid = proc.pid
         proc.wait()
         while True:

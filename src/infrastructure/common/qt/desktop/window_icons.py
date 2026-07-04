@@ -18,11 +18,8 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Embedded _NET_WM_ICON pixmaps are often tiny (Steam games ship a 32px icon).
-# QIcon will not upscale a single small pixmap, so QToolButton renders it
-# centred and looking lost on a large tile. Smoothly pre-scale small embedded
-# icons up to this size so the tile fills — same trade-off KWin's task manager
-# makes (a soft but correctly-sized icon beats a sharp tiny one).
+# Embedded icons (e.g. Steam's 32px) don't upscale in QIcon and render lost on
+# a large tile, so pre-scale them up to this size instead.
 _EMBEDDED_ICON_TARGET = 256
 
 

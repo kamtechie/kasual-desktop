@@ -1,14 +1,8 @@
 """The `Feedback` port's sound adapter — short UI cues via QAudioSink + wave.
 
-`SoundFeedback` is the *only* place the audio backend lives: WAV files are
-decoded into memory at startup (`init()`, once after QApplication, using the
-standard-library `wave` module — no FFmpeg) and played as raw PCM through Qt
-Audio. The application layer triggers cues ('select', …) through the `Feedback`
-port and never touches this backend directly.
-
-State (decoded sounds, live sinks) lives on the instance, so a single shared
-SoundFeedback is created at the composition root and injected wherever cues are
-emitted.
+WAV files decode into memory once at init() (stdlib `wave`, no FFmpeg) and
+play as raw PCM. State lives on the instance, so one shared instance is
+created at the composition root and injected wherever cues are emitted.
 """
 
 import array
@@ -24,14 +18,11 @@ from infrastructure.common.bundled import bundled_dir
 
 logger = logging.getLogger(__name__)
 
-# sounds/ lives at the repo root, anchored via the pyproject.toml marker (see
-# infrastructure.common.bundled) so a package reorg doesn't break the resolve.
 _SOUNDS_DIR = bundled_dir("sounds")
 _SOUND_NAMES = tuple(c.value for c in Cue)
 
 
 def _convert_24_to_16(data: bytes) -> bytes:
-    """Converts raw 24-bit PCM (little-endian) to 16-bit."""
     out = array.array('h', [0] * (len(data) // 3))
     for i in range(len(out)):
         val24 = int.from_bytes(data[i * 3: i * 3 + 3], 'little', signed=True)
@@ -44,10 +35,10 @@ def _read_wav(path: Path) -> 'tuple[QAudioFormat, bytes] | None':
         with wave.open(str(path)) as wf:
             n_channels   = wf.getnchannels()
             sample_rate  = wf.getframerate()
-            sample_width = wf.getsampwidth()  # bytes per sample
+            sample_width = wf.getsampwidth()
             data         = wf.readframes(wf.getnframes())
 
-            # 24-bit PCM → convert to 16-bit (QAudioSink does not support 24-bit)
+            # QAudioSink does not support 24-bit.
             if sample_width == 3:
                 data         = _convert_24_to_16(data)
                 sample_width = 2
@@ -72,12 +63,11 @@ def _read_wav(path: Path) -> 'tuple[QAudioFormat, bytes] | None':
 
 
 class SoundFeedback(Feedback):
-    """Implements the `Feedback` port over Qt Audio. One shared, init()-ed
-    instance is injected wherever cues are played."""
+    """Implements the `Feedback` port over Qt Audio."""
 
     def __init__(self) -> None:
-        # name → (QAudioFormat, bytes); live sinks held until playback finishes.
         self._loaded: dict[str, tuple[QAudioFormat, bytes]] = {}
+        # Held until playback finishes, or QAudioSink would be GC'd mid-sound.
         self._active: list[tuple[QAudioSink, QBuffer]] = []
 
     def init(self) -> None:
@@ -99,7 +89,6 @@ class SoundFeedback(Feedback):
             logger.warning("Unknown sound or no init(): %s", cue)
             return
 
-        # Drop finished sinks before starting a new one.
         self._active[:] = [
             (s, b) for s, b in self._active
             if s.state() == QAudio.State.ActiveState

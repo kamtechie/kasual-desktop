@@ -11,11 +11,10 @@ logger = logging.getLogger(__name__)
 class SingleInstanceGuard:
     """Ensures only one application instance runs at a time.
 
-    Uses a ``QLockFile`` placed in the given directory. Works on both
-    Linux and Windows.  Stale locks (from a crash) are detected by
-    checking whether the recorded PID is still alive (``staleLockTime=0``).
-    The OS kernel releases the underlying ``flock``/``LockFileEx`` when the
-    owning process terminates, so orphaned files won't block a restart.
+    Uses a ``QLockFile``; ``staleLockTime=0`` detects a stale lock by checking
+    whether the recorded PID is still alive. The OS releases the underlying
+    ``flock``/``LockFileEx`` when the owning process terminates, so orphaned
+    files won't block a restart.
     """
 
     def __init__(self, lock_dir: str | Path) -> None:

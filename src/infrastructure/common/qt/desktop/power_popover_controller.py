@@ -1,11 +1,8 @@
-"""The Sleep/Restart/Shut Down chooser popover — extracted from the Desktop (§8 / SRP).
+"""The Sleep/Restart/Shut Down chooser popover — extracted from the Desktop.
 
-A single collaborator shared by every Power-button entry point: the header's
-Power (X / right-click, §8) and the FocusNavigator's topbar-menu key. A pick
-runs the action and (once confirmed) becomes the new default, via the
-:class:`PowerMenu`'s persist-only-on-confirm rule. Owns the popover handle, its
-overlay-registry entry, and the input-region hold it takes over the collapsed
-Home surface while it floats there.
+Shared by every Power-button entry point (header X/right-click, FocusNavigator's
+topbar-menu key). A pick runs the action and, once confirmed, becomes the new
+default via :class:`PowerMenu`'s persist-only-on-confirm rule.
 """
 
 from __future__ import annotations
@@ -59,23 +56,15 @@ class PowerPopoverController:
         self.open_header_chooser()
 
     def open_header_chooser(self) -> None:
-        """Open the chooser below the header's Power button (§8).
-
-        A touch more clearance so the dropdown sits below the header card, not
-        over the Power glyph it springs from."""
+        """Open the chooser below the header's Power button."""
         self._open(self._header.power_button(), parent=self._home_surface, gap=22)
 
     def _open(self, button, *, parent, gap: int = 12) -> None:
-        """Open the chooser anchored below *button*: a pick runs and (once
-        confirmed) becomes the new default, via the Power menu. *parent* is the
-        surface the button lives in, so the popover renders in (and positions
-        within) that surface. *gap* is the clearance below the button."""
         if button is None:
             return
         default = self._power_menu.default_key()
         items = power_dropdown_items()
-        # Open with the cursor on the current default (highlighted + focused);
-        # no marker needed to show which one is active (§8).
+        # Open with the cursor on the current default; no separate marker needed.
         default_index = next(
             (i for i, item in enumerate(items) if item.action == default), 0)
         popover = TilePopoverMenu(
@@ -90,10 +79,8 @@ class PowerPopoverController:
         self._overlays.register(popover)
         popover.closed.connect(self._on_closed)
         self._hintbar.show_hints(home_hints.TILE_POPOVER)
-        # The chooser is a child of the Home surface; while the surface is
-        # collapsed its input region is masked to the header alone, which would
-        # clip this dropdown below it — hold the region open for the chooser's
-        # lifetime.
+        # Hold the surface's input region open, or its header-only mask (while
+        # collapsed) would clip this dropdown.
         if parent is self._home_surface:
             self._home_surface.hold_input_open(True)
         popover.show_below(button, gap=gap)
@@ -104,8 +91,6 @@ class PowerPopoverController:
         # Release the input-region hold taken while the chooser floated over the
         # collapsed header, so it narrows back to the header-only mask.
         self._home_surface.hold_input_open(False)
-        # Restore the controls of whatever the chooser floated over: the expanded
-        # Home menu's own hints (§8) if it is up, else the navigator's screen hints.
         if self._home_surface.is_open():
             self._home_surface.refresh_hints()
         else:

@@ -1,5 +1,5 @@
 """The inline Power chooser — Sleep / Restart / Shut Down anchored below the
-in-grid Power card (§7.10).
+in-grid Power card.
 
 A self-contained collaborator created on demand by
 :class:`~infrastructure.common.qt.overlays.home_menu_content.HomeMenuContent`
@@ -8,9 +8,9 @@ its floating frame, the choice buttons, the up/down navigation and the render,
 and reports a pick or a dismiss back through ``on_pick`` / ``on_dismiss`` so the
 host can tear the menu down and drop its handle.
 
-This is the no-header fallback. With a status header present (the §8 layout),
-Power lives on the header and X routes to the header's chooser popover instead
-(see ``on_power_chooser``), so this collaborator is not constructed.
+This is the no-header fallback. With a status header present, Power lives on
+the header and X routes to the header's chooser popover instead (see
+``on_power_chooser``), so this collaborator is not constructed.
 """
 
 from collections.abc import Callable
@@ -73,7 +73,7 @@ class PowerDropdown:
 
         self._frame.adjustSize()
         # Open with the cursor on the current default (highlighted + focused) —
-        # no separate marker needed to show which one is active (§8).
+        # no separate marker needed to show which one is active.
         pos = anchor.mapTo(parent, QPoint(0, anchor.height() + 6))
         self._frame.move(pos)
         self._frame.show()

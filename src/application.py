@@ -25,8 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Application:
-    """
-    Connects all application components and handles global events:
+    """Connects all application components and handles global events:
       - BTN_MODE → builds context menu and shows the Home overlay (HomeSurface)
       - connect / disconnect → synchronizes state of desktop, overlay, and tray
     """
@@ -48,7 +47,7 @@ class Application:
         self._wm              = wm
         self._overlay_factory = overlay_factory
         self._hud             = hud
-        # BTN_MODE opens the sectioned Home Overlay (§7.10): the factory yields a
+        # BTN_MODE opens the sectioned Home Overlay: the factory yields a
         # SectionedHomeOverlay that composes its own zones; the controller hands it
         # only the foreground context plus the dispatch/cancel/hint callbacks.
         self._overlay: SectionedHomeOverlay | None = None
@@ -81,11 +80,10 @@ class Application:
         floats above the live app/game without minimizing it or touching the
         Desktop. Leaving to the Desktop is handled by _return_to_desktop.
         """
-        # Context 1 (Home view, §7.10/§8): when the persistent Home surface is
-        # enabled and the Desktop is on screen, BTN_MODE morphs it open/closed in
-        # place rather than mapping a fresh overlay. It owns that interaction, so
-        # we hand off and return; contexts 2/3 (minimized / over an app) fall
-        # through to the map-on-demand overlay below.
+        # Context 1 (Home view): when the persistent Home surface is enabled and
+        # the Desktop is on screen, BTN_MODE morphs it open/closed in place rather
+        # than mapping a fresh overlay; contexts 2/3 (minimized / over an app)
+        # fall through to the map-on-demand overlay below.
         if self._desktop.try_toggle_home_surface():
             return
 
@@ -113,7 +111,7 @@ class Application:
         # The overlay composes its own sections (it holds the controls and the
         # power menu); hand it the context plus the dispatch/cancel/hint callbacks.
         # The zoned hint bar is driven via set_overlay_hints; desktop_minimized
-        # lets it pre-focus "Minimize" vs "Return to Home screen" (§7.10).
+        # lets it pre-focus "Minimize" vs "Return to Home screen".
         self._overlay.show_for_context(
             current,
             self._app_control.foreground_is_game(),
@@ -152,10 +150,9 @@ class Application:
     def _return_to_desktop(self) -> None:
         """Leave the running app and surface the Desktop.
 
-        Phase 1 safety net: the Desktop is a `top`-layer surface, which is not
+        Safety net: the Desktop is a `top`-layer surface, which is not
         guaranteed to stack above an exclusive-fullscreen game, so we still
-        minimize the foreground app and raise ourselves via KWin. To be
-        revisited in Phase 2 once the Desktop's show/hide model lands.
+        minimize the foreground app and raise ourselves via KWin.
         """
         pid = self._app_control.foreground_pid()
         if pid is not None:
@@ -164,12 +161,10 @@ class Application:
         self._desktop.show_desktop()
 
     def _on_connected(self, _evt=None) -> None:
-        """Gamepad connected: delegate to the session policy."""
         logger.info("Gamepad connected — surfacing the Desktop")
         self._session.gamepad_connected_changed(True, self._overlay)
 
     def _on_disconnected(self, _evt=None) -> None:
-        """Gamepad disconnected: delegate to the session policy."""
         logger.info("Gamepad disconnected — hiding the Desktop")
         self._session.gamepad_connected_changed(False, self._overlay)
 

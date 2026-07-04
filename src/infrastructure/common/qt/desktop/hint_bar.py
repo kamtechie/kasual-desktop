@@ -1,17 +1,12 @@
 """Bottom hint bar: what the gamepad buttons do on the current screen.
 
-A standalone surface — its own layer-shell window anchored to the bottom edge,
-the sibling of the Desktop and the Home Overlay rather than a child of either.
-That independence is the point: when the (animated) Home Overlay appears the
-hint bar stays put and merely swaps its content, instead of fading out with one
-host and back in with the next.
+A standalone surface — its own layer-shell window, sibling of the Desktop and
+the Home Overlay rather than a child of either — so it stays put and merely
+swaps content when the Home Overlay appears, instead of fading out and back in.
 
-The left side shows the available directional navigation and the BTN_MODE / home
-button; the right side shows the action buttons with what they do. Which hints to
-show is the navigation domain's decision (:mod:`domain.navigation.hints`); this
-widget only renders the :class:`Hints` pushed via :meth:`show_hints` (the
-``HintBarView`` port). The Desktop owns the single instance and drives its
-show/hide (see ``Desktop._sync_hint_visibility``).
+Which hints to show is the navigation domain's decision
+(:mod:`domain.navigation.hints`); this widget only renders the :class:`Hints`
+pushed via :meth:`show_hints` (the ``HintBarView`` port).
 """
 
 import qtawesome as qta
@@ -78,11 +73,8 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
         self.setFixedHeight(SURFACE_H)
 
         outer = QVBoxLayout(self)
-        # Pin the bar to the BOTTOM of the surface with a fixed BOTTOM_MARGIN gap.
-        # The stretch sits *above* the bar, so if the compositor hands the surface
-        # more height than SURFACE_H (seen on some layer-shell setups), the extra
-        # space opens above the bar and the gap below it stays exactly
-        # BOTTOM_MARGIN — symmetric with the TopBar's top margin.
+        # The stretch below sits above the bar, so any surplus height the
+        # compositor hands the surface opens there and BOTTOM_MARGIN stays exact.
         outer.setContentsMargins(16, 0, 16, BOTTOM_MARGIN)
         outer.setSpacing(0)
 
@@ -116,20 +108,15 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
             self,
             layer=Layer.OVERLAY,
             anchors=Anchor.BOTTOM | Anchor.LEFT | Anchor.RIGHT,
-            # -1 (not 0): anchor to the *true* bottom edge and don't let the
-            # compositor shove us up to clear another panel's exclusive zone
-            # (e.g. a KDE bottom panel in a dev session lifted the bar by its
-            # whole height). Matches the Desktop surface, which anchors flush.
+            # -1 (not 0): anchor to the true bottom edge rather than let the
+            # compositor shove us up to clear another panel's exclusive zone.
             exclusive_zone=-1,
             keyboard=Keyboard.NONE,
         )
 
     def paintEvent(self, event) -> None:
-        # The bar background is semi-transparent, so a repaint that doesn't first
-        # wipe the layer-shell buffer composites the new background over the old
-        # one and darkens the bar (seen once, on the first content swap). Clear
-        # the whole surface to transparent — Source mode replaces rather than
-        # blends — before the child widgets paint over it.
+        # The semi-transparent background darkens on repaint unless the buffer is
+        # wiped first; Source mode replaces rather than blends.
         painter = QPainter(self)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
         painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
@@ -184,11 +171,8 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
                 self._row.addSpacing(22)
             self._row.addWidget(self._hint(self._button_glyph(action.button),
                                            action.label))
-        # Lay out the new glyphs and redraw the whole surface *now*, in one go.
-        # A deferred update() repaints only on the next event-loop tick — long
-        # enough, on the first transition, for the stale frame (old content) to
-        # stay on screen. Activating the layout first means the immediate repaint
-        # already draws the new glyphs at their final positions.
+        # Activate + repaint now, in one go: a deferred update() would leave the
+        # stale frame on screen until the next event-loop tick.
         self.layout().activate()
         self.repaint()
 

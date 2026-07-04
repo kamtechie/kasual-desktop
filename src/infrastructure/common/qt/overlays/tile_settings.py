@@ -3,17 +3,16 @@
 Shown from the Tile Popover's *Settings* action. Both sections are visible at
 once in a single card:
 
-  * *Wywołaj menu Kasual Desktop* — how BTN_MODE recalls the Home menu over this
-    tile's app: an immediate click (the default) or a ~1 s hold. Persisted as
+  * Recall trigger — how BTN_MODE recalls the Home menu over this tile's app:
+    an immediate click (the default) or a ~1 s hold. Persisted as
     ``X-Kasual-RecallMenuTrigger`` (the default is the sentinel the adapter
     strips from the file).
-  * *Kolor kafelka* — the swatch grid. Persisted as ``X-Kasual-Color``.
+  * Tile colour — the swatch grid. Persisted as ``X-Kasual-Color``.
 
-Three focus groups (Recall options, colour grid, action buttons) are cycled with
-LB/RB (clamped at the edges, like the Home Overlay) or by spilling past an edge
-with the D-pad. A stages a pick — the colour is previewed live on the tile via
-*on_color_preview*; *Save* commits both values and closes; *Cancel* (or B /
-Escape / backdrop / BTN_MODE) reverts the preview and closes.
+Three focus groups (Recall, colour grid, action buttons) cycle with LB/RB or
+by spilling past an edge with the D-pad. A stages a pick — the colour previews
+live on the tile via *on_color_preview*; Save commits both values; Cancel (or
+B / Escape / backdrop / BTN_MODE) reverts the preview.
 """
 
 from collections.abc import Callable, Sequence

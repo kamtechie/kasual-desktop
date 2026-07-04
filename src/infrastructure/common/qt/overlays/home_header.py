@@ -1,4 +1,4 @@
-"""HomeHeader — the navigable status header that replaces the top bar (§8 / Faza 5).
+"""HomeHeader — the navigable status header that replaces the top bar.
 
 The collapsed chrome of the Home view and the top row of the expanded Home menu,
 in one widget: a clock + date readout (status) plus two focusable buttons,
@@ -34,8 +34,8 @@ from domain.shared.i18n import translate
 
 HEADER_H = 80    # matches the old top bar / hint bar height
 _BTN     = 56
-# Far right is Power: a chooser for the default sleep/restart/shutdown action
-# (§8). It carries the abstract POWER key; the host opens the dropdown.
+# Far right is Power: a chooser for the default sleep/restart/shutdown action.
+# It carries the abstract POWER key; the host opens the dropdown.
 _NAV_KEYS  = (NETWORK, NOTIFICATIONS, POWER)
 _POWER_GLYPH = "fa5s.power-off"
 
@@ -45,7 +45,7 @@ _POWER_GLYPH = "fa5s.power-off"
 _FOCUS_FILL   = "rgba(136, 192, 208, 60)"
 _FOCUS_BORDER = "#88c0d0"
 
-# The grab handle: a wide-but-thin pull at the bottom of the pill (§8, mouse path
+# The grab handle: a wide-but-thin pull at the bottom of the pill (mouse path
 # into the menu). Its hit target is generous; only the centred bar is drawn.
 _HANDLE_W, _HANDLE_H         = 120, 16
 _HANDLE_BAR_W, _HANDLE_BAR_H = 88, 5

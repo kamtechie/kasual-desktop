@@ -1,15 +1,9 @@
 """Shared `GamepadSignals` / `PadControl` plumbing for platform gamepad watchers.
 
 Both platform watchers read a physical pad on a background thread yet must touch
-their observers only on the GUI thread. That bridge — the hop signals, the
-`EventEmitter` trio, the LIFO handler stack and the late-subscriber replay — is
-identical across platforms and lives here. A subclass implements only its device
-read loop, calling the protected `_hop_*` emitters to surface navigation,
-BTN_MODE and connect/disconnect onto the GUI thread.
-
-Threading: the read loop runs on a background thread; the `_*_hop` pyqtSignals
-marshal each observation onto the GUI thread (Qt delivers them queued because
-this QObject lives there), and only then do the domain `EventEmitter`s fan out.
+their observers only on the GUI thread. That bridge (the `_hop_*` pyqtSignals,
+the `EventEmitter` trio, the LIFO handler stack) lives here; a subclass need
+only drive its device read loop and call the protected `_hop_*` methods.
 """
 
 from __future__ import annotations
@@ -36,10 +30,8 @@ logger = logging.getLogger(__name__)
 class PadButton(Enum):
     """A physical gamepad button, independent of the platform key code.
 
-    Each adapter translates its raw code (evdev ``ecodes.BTN_*`` / pygame button
-    index) into one of these, so the button→Event mapping and the Start+Select
-    home-recall chord can live once in :class:`BaseGamepadWatcher` instead of
-    being duplicated per platform.
+    Each adapter translates its raw code (evdev ``BTN_*`` / pygame button index)
+    into one of these, so the button→Event mapping lives once, in this base.
     """
 
     SOUTH  = auto()   # A
@@ -65,15 +57,11 @@ class BaseGamepadWatcher(
 ):
     """Owns the GUI-thread bridge and the two domain ports; subclasses add the loop.
 
-    Subclasses drive their device read loop on a background thread and call
-    `_hop_nav` / `_hop_btn_mode` / `_hop_connected` / `_hop_disconnected` to
-    deliver observations; everything those touch (the handler stack, the
-    emitters, the `_connected` latch) is only ever read or written on the GUI
-    thread, so subclasses never synchronise against observers themselves.
+    Everything the `_hop_*` methods touch (handler stack, emitters, the
+    `_connected` latch) is only ever read or written on the GUI thread, so
+    subclasses never need to synchronise against observers themselves.
     """
 
-    # Background loop → GUI thread. Delivered via a queued connection because
-    # this QObject lives on the GUI thread.
     _nav_hop          = pyqtSignal(str)
     _btn_mode_hop     = pyqtSignal()
     _connected_hop    = pyqtSignal()
@@ -82,10 +70,7 @@ class BaseGamepadWatcher(
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._stack = InputFocusStack()   # who receives navigation events (LIFO)
-        # Last connection state seen on the GUI thread, so a subscriber that
-        # registers after the one-shot connected hop already fired still learns
-        # the current state — see on_connected.
-        self._connected = False
+        self._connected = False   # replayed to late subscribers, see on_connected
 
         self._btn_mode_emitter     = EventEmitter[BtnModePressed]()
         self._connected_emitter    = EventEmitter[GamepadConnected]()
@@ -131,9 +116,8 @@ class BaseGamepadWatcher(
 
     # ── Shared device translation (called from the background loop) ────────────
 
-    # Button → navigation Event. Identical across evdev and pygame; only the raw
-    # code → PadButton translation is platform-specific. BTN_MODE and the
-    # Start+Select chord are handled by _dispatch_button, not this table.
+    # BTN_MODE and the Start+Select chord are handled by _dispatch_button, not
+    # this table.
     _BUTTON_EVENTS: dict[PadButton, str] = {
         PadButton.SOUTH: Event.SELECT,
         PadButton.EAST:  Event.CANCEL,
@@ -146,9 +130,7 @@ class BaseGamepadWatcher(
     def _dispatch_button(self, button: PadButton, *, select_held: bool) -> None:
         """Emit the navigation event for a pressed pad button.
 
-        Start+Select is the home-recall chord; Start alone is a no-op. (Start
-        used to emit Event.MANAGE for the tile-management popover, but that was
-        superseded by the unified Y popover, §7.3.)
+        Start+Select is the home-recall chord; Start alone is a no-op.
         """
         event = self._BUTTON_EVENTS.get(button)
         if event is not None:
@@ -210,9 +192,7 @@ class BaseGamepadWatcher(
         self, handler: Callable[[GamepadConnected], None]
     ) -> Unsubscribe:
         unsubscribe = self._connected_emitter.subscribe(handler)
-        # Replay the current state to a late subscriber: if the pad was already
-        # grabbed before this subscription, the one-shot hop fired with no
-        # listener, so deliver it now (deferred to the event loop, off __init__).
+        # A late subscriber missed the one-shot connected hop; replay it now.
         if self._connected:
             QTimer.singleShot(0, lambda: handler(GamepadConnected()))
         return unsubscribe

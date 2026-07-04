@@ -33,11 +33,8 @@ def _entry_list(value: str | None) -> set[str]:
 
 
 def _hidden_in_this_desktop(entry: dict[str, str]) -> bool:
-    """Honor freedesktop ``OnlyShowIn``/``NotShowIn`` for the current desktop.
-
-    A huge share of a system's ``.desktop`` files are other desktops' control
-    panels (GNOME/Cinnamon/LXQt settings) that declare where they belong; without
-    this the add-app list fills with config modules that don't apply here."""
+    """Honor freedesktop ``OnlyShowIn``/``NotShowIn`` for the current desktop,
+    so the add-app list isn't flooded with other desktops' control panels."""
     here = _current_desktops()
     only = _entry_list(entry.get("OnlyShowIn"))
     if only and not (here & only):
@@ -65,11 +62,8 @@ class XdgInstalledApps(InstalledApps):
         return candidates
 
     def _candidate(self, path: Path, key: str) -> CandidateApp | None:
-        """Parse one ``.desktop`` into an add-app candidate, or None to skip it.
-
-        Skips non-tiles (``NoDisplay``/``Hidden``/non-Application — the domain
-        returns None) and malformed entries (no usable Name/Exec — it raises).
-        Never pre-selected: the user picks what to add."""
+        """Parse one ``.desktop`` into an add-app candidate, or None for a
+        non-tile (``NoDisplay``/``Hidden``/non-Application) or malformed entry."""
         entry = self._read_entry(path)
         if entry is None or _hidden_in_this_desktop(entry):
             return None

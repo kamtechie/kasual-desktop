@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 def _get_pid(hwnd: int) -> int:
-    """Get process ID for a window handle."""
     try:
         user32 = ctypes.windll.user32
         pid = ctypes.c_ulong()
@@ -27,7 +26,6 @@ def _get_pid(hwnd: int) -> int:
 
 
 def _get_window_text(hwnd: int) -> str:
-    """Get window title text."""
     try:
         user32 = ctypes.windll.user32
         length = user32.GetWindowTextLengthW(hwnd)
@@ -41,7 +39,6 @@ def _get_window_text(hwnd: int) -> str:
 
 
 def _is_visible(hwnd: int) -> bool:
-    """Check if window is visible."""
     try:
         user32 = ctypes.windll.user32
         return bool(user32.IsWindowVisible(hwnd))
@@ -51,7 +48,7 @@ def _is_visible(hwnd: int) -> bool:
 
 # Win32 extended-window-style flags and GetWindow relation constants used by
 # _is_taskbar_eligible — the analogue of KWin's `!skipTaskbar && normalWindow`
-# filter (see infrastructure/system/window_manager.py::_LIST_SCRIPT).
+# filter (see infrastructure/kde/wm/window_manager.py::_LIST_SCRIPT).
 WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_APPWINDOW  = 0x00040000
 WS_EX_NOACTIVATE = 0x08000000
@@ -160,8 +157,6 @@ _SKIP_EXES = frozenset({
 
 
 class WindowsWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
-    """Manages windows using Win32 EnumWindows API."""
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._windows_emitter = EventEmitter[list[Window]]()
@@ -199,7 +194,6 @@ class WindowsWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         logger.debug("Windows list: %d, active: %s", len(self._cache), self._active_window_id)
 
     def _enum_windows(self) -> list[Window]:
-        """Enumerate all visible windows using Win32 API."""
         windows = []
         our_pid = self._our_pid
 
