@@ -283,7 +283,6 @@ else:
         def __init__(self, pad: _EvdevPad, window=None) -> None:
             super().__init__(daemon=True)
             self._pad = pad
-            self._window = window
             self._mode = "browse"
             self._stick_x = 0.0
             self._stick_y = 0.0
@@ -324,8 +323,6 @@ else:
             for ev in dev.read_loop():
                 if not self._running:
                     break
-                if self._window is not None and not self._window.isActiveWindow():
-                    continue
                 code = self._translate_code(ev.type, ev.code)
                 if code is None:
                     continue
