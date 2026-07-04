@@ -22,8 +22,8 @@ Both roles ultimately open the same Network / Notifications overlay, so a single
 import qtawesome as qta
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt, QSize, QTimer, QLocale, QPoint, pyqtSignal
-from PyQt6.QtGui import QCursor
+from PyQt6.QtCore import Qt, QSize, QTimer, QLocale, QPoint, QRectF, QEvent, pyqtSignal
+from PyQt6.QtGui import QCursor, QColor, QPainter
 from datetime import datetime
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
@@ -44,6 +44,56 @@ _POWER_GLYPH = "fa5s.power-off"
 # as one family.
 _FOCUS_FILL   = "rgba(136, 192, 208, 60)"
 _FOCUS_BORDER = "#88c0d0"
+
+# The grab handle: a wide-but-thin pull at the bottom of the pill (§8, mouse path
+# into the menu). Its hit target is generous; only the centred bar is drawn.
+_HANDLE_W, _HANDLE_H         = 120, 16
+_HANDLE_BAR_W, _HANDLE_BAR_H = 88, 5
+_HANDLE_BOTTOM_INSET         = 5
+_HANDLE_IDLE  = QColor(255, 255, 255, 46)    # discreet at rest
+_HANDLE_HOVER = QColor(159, 214, 226, 230)   # accent while the header is hovered
+
+
+class _GrabHandle(QWidget):
+    """The pull at the bottom of the header pill: click toggles the Home menu. It
+    rests as a faint notch and lifts to the accent while the pointer is anywhere
+    over the header, so the whole bar reads as the handle."""
+
+    clicked = pyqtSignal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedSize(_HANDLE_W, _HANDLE_H)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._prominent = False
+
+    def set_prominent(self, prominent: bool) -> None:
+        if prominent == self._prominent:
+            return
+        self._prominent = prominent
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(_HANDLE_HOVER if self._prominent else _HANDLE_IDLE)
+        bar = QRectF((self.width() - _HANDLE_BAR_W) / 2,
+                     (self.height() - _HANDLE_BAR_H) / 2,
+                     _HANDLE_BAR_W, _HANDLE_BAR_H)
+        painter.drawRoundedRect(bar, _HANDLE_BAR_H / 2, _HANDLE_BAR_H / 2)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if (event.button() == Qt.MouseButton.LeftButton
+                and self.rect().contains(event.pos())):
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
 
 
 def _btn_style(selected: bool) -> str:
@@ -101,6 +151,7 @@ class HomeHeader(QWidget):
     button_hovered      = pyqtSignal(int)
     button_activated    = pyqtSignal(int)
     button_context_menu = pyqtSignal(int)   # right-click → the button's dropdown (Power)
+    toggle_requested    = pyqtSignal()      # grab-handle click → open/close the menu
 
     def __init__(self, on_activate: Callable[[str], None], width: int) -> None:
         super().__init__()
@@ -175,10 +226,34 @@ class HomeHeader(QWidget):
 
         self._buttons = [self._net_btn, self._notif_btn, self._power_btn]
 
+        self._handle = _GrabHandle(self)
+        self._handle.clicked.connect(self.toggle_requested)
+        self.installEventFilter(self)
+        for w in (*self._buttons, self._handle):
+            w.installEventFilter(self)
+
         self._tick_clock()
         timer = QTimer(self)
         timer.timeout.connect(self._tick_clock)
         timer.start(1000)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._handle.move((self.width() - self._handle.width()) // 2,
+                          self.height() - self._handle.height() - _HANDLE_BOTTOM_INSET)
+        self._handle.raise_()
+
+    def eventFilter(self, obj, event) -> bool:
+        # Re-evaluate on the next tick: the header gets no Leave when the pointer
+        # exits a child straight to the outside, so trust the cursor position, not
+        # which sub-widget the enter/leave came from.
+        if event.type() in (QEvent.Type.Enter, QEvent.Type.Leave):
+            QTimer.singleShot(0, self._sync_handle_prominence)
+        return super().eventFilter(obj, event)
+
+    def _sync_handle_prominence(self) -> None:
+        inside = self.rect().contains(self.mapFromGlobal(QCursor.pos()))
+        self._handle.set_prominent(inside)
 
     def _make_button(self, glyph: str) -> _HeaderButton:
         btn = _HeaderButton()

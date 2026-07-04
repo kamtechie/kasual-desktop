@@ -179,6 +179,10 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._home_header.button_hovered.connect(self._on_topbar_hovered)
         self._home_header.button_activated.connect(self._on_topbar_activated)
         self._home_header.button_context_menu.connect(self._on_topbar_context_menu)
+        # The grab handle is visible in every context the header shows, so route it
+        # through BTN_MODE (not just try_toggle_home_surface, which no-ops off the
+        # Desktop) — a click then closes the on-demand overlay over an app too.
+        self._home_header.toggle_requested.connect(self._gamepad.trigger_btn_mode)
         self._topbar = self._home_header
         main.addStretch(1)
         self._tilebar = TileBar(self._apps, self._app_manager, parent_of=parent_of)
@@ -806,7 +810,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         if self._home_surface is None or not self._surface.is_visible():
             return False
         if self._home_surface.is_expanded():
-            self._home_surface.collapse()
+            self._home_surface.request_close()
         else:
             # A fresh expansion supersedes any open top-bar overlay, mirroring the
             # map-on-demand path's dismiss_overlays.

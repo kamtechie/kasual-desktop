@@ -10,6 +10,7 @@ model); here we test the surface's lifecycle and side effects.
 from unittest.mock import MagicMock
 
 import pytest
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
 from domain.catalog.target import AppTarget
@@ -138,6 +139,16 @@ class TestMorphState:
         surface.expand()
         surface.expand()
         assert gp.push_handler.call_count == 1   # second expand is a no-op
+
+    def test_request_close_plays_the_close_cue_and_collapses(self, qapp):
+        # The one user close (handle / BTN_MODE / B / click-outside) is audible,
+        # unlike the silent mechanical collapse it drives.
+        from domain.shared.feedback import Cue
+        surface, _ = _surface(qapp)
+        surface.expand()
+        surface.request_close()
+        surface._feedback.play.assert_any_call(Cue.POPUP_CLOSE)
+        assert surface.is_expanded() is False
 
 
 class TestPadAndHints:
@@ -454,6 +465,67 @@ class TestOnDemand:
         gp.pop_handler.assert_called_once()
 
 
+class TestOutsideClick:
+    """A press on the bare surface outside the open menu dismisses it, in either
+    context; the header and panel keep their own clicks."""
+
+    @staticmethod
+    def _press(surface, pos):
+        from PyQt6.QtCore import QPointF
+        from PyQt6.QtGui import QMouseEvent
+        surface.mousePressEvent(QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress, QPointF(pos), QPointF(pos),
+            Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier))
+
+    def _laid_out(self, qapp):
+        surface, spy = _surface(qapp)
+        surface.setFixedWidth(1920)
+        surface.show()
+        qapp.processEvents()
+        return surface, spy
+
+    def test_click_outside_collapses_context_1(self, qapp):
+        from PyQt6.QtCore import QPoint
+        surface, _ = self._laid_out(qapp)
+        surface.expand()
+        self._press(surface, QPoint(5, surface.height() - 5))   # bottom-left corner
+        assert surface.is_expanded() is False
+
+    def test_click_outside_hides_on_demand_overlay_and_runs_on_cancel(self, qapp):
+        from PyQt6.QtCore import QPoint
+        cancelled = []
+        surface, _ = self._laid_out(qapp)
+        surface.show_for_context(
+            foreground=AppTarget(index=0, name="Steam"), foreground_is_game=False,
+            hud=FakeHud(), on_action=lambda i: None,
+            on_cancel=lambda: cancelled.append(1), set_hints=lambda h: None)
+        self._press(surface, QPoint(5, surface.height() - 5))
+        assert surface.is_showing() is False
+        assert cancelled == [1]   # same path as B: returns to the app
+
+    def test_click_on_header_keeps_menu_open(self, qapp):
+        surface, _ = self._laid_out(qapp)
+        surface.expand()
+        self._press(surface, surface.header.geometry().center())
+        assert surface.is_expanded() is True
+
+    def test_click_on_panel_keeps_menu_open(self, qapp):
+        from infrastructure.common.qt.desktop.home_surface import MORPH_MS
+        surface, _ = self._laid_out(qapp)
+        surface.expand()
+        surface._anim.setCurrentTime(MORPH_MS)   # finish the morph so the panel has height
+        qapp.processEvents()
+        self._press(surface, surface._panel.geometry().center())
+        assert surface.is_expanded() is True
+
+    def test_click_while_collapsed_does_nothing(self, qapp):
+        from PyQt6.QtCore import QPoint
+        surface, _ = self._laid_out(qapp)
+        self._press(surface, QPoint(5, surface.height() - 5))
+        assert surface.is_expanded() is False   # no crash, stays collapsed
+
+
 class FakeHud:
     def is_available(self): return False
     def is_enabled(self): return True
@@ -475,3 +547,32 @@ class TestStatusHeader:
         surface.collapse_immediately()
         assert surface.is_expanded() is False
         gp.pop_handler.assert_called_once()
+
+
+class TestGrabHandle:
+    """The mouse path into the menu (§8): a discreet pull at the bottom of the
+    header pill that clicks open/closed and lifts to the accent on header hover."""
+
+    def _header(self):
+        from infrastructure.common.qt.overlays.home_header import HomeHeader
+        from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
+        return HomeHeader(lambda a: None, CARD_WIDTH)
+
+    def test_handle_click_requests_toggle(self, qapp):
+        header = self._header()
+        fired = []
+        header.toggle_requested.connect(lambda: fired.append(True))
+        header._handle.clicked.emit()
+        assert fired == [True]
+
+    def test_handle_sits_within_the_header(self, qapp):
+        header = self._header()
+        header.resize(header.sizeHint())
+        assert header.rect().contains(header._handle.geometry())
+
+    def test_hover_lifts_the_handle_and_leave_dims_it(self, qapp):
+        header = self._header()
+        header._handle.set_prominent(True)
+        assert header._handle._prominent is True
+        header._handle.set_prominent(False)
+        assert header._handle._prominent is False

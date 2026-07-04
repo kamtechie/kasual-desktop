@@ -182,6 +182,14 @@ class TestCancellableReuse:
         overlay._handle_pad("cancel")
         assert confirmed == []
 
+    def test_outside_click_dismisses_and_reports(self, mock_gamepad):
+        cancelled = []
+        overlay = self._present_cancellable(
+            mock_gamepad, on_cancel=lambda: cancelled.append(1))
+        overlay._on_outside_click()
+        assert cancelled == [1]
+        assert overlay._closed is True
+
 
 class TestKeyboard:
     def test_arrows_navigate(self, mock_gamepad):

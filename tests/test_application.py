@@ -54,6 +54,7 @@ class FakeOverlay:
         self._showing = False
         self.closed_handler = None
         self.disposed = False
+        self.on_cancel = None
 
     def show_for_context(self, foreground, foreground_is_game, hud,
                          on_action, on_cancel, set_hints, desktop_minimized=False):
@@ -70,6 +71,15 @@ class FakeOverlay:
         self._showing = False
         if self.closed_handler is not None:
             self.closed_handler()
+
+    def request_close(self):
+        # The user dismiss: hide (emit closed) then return to the app, like B —
+        # mirrors HomeSurface.request_close routing through the menu's own cancel.
+        if not self._showing:
+            return
+        self.hide_overlay()
+        if self.on_cancel is not None:
+            self.on_cancel()
 
     def is_showing(self):
         return self._showing
@@ -238,6 +248,15 @@ class TestBtnModeOverlay:
         gamepad.fire_btn_mode()   # toggle off
         assert len(factory.created) == 1
         assert not factory.created[0].is_showing()
+
+    def test_toggle_off_over_an_app_returns_to_it(self):
+        # A user dismiss via BTN_MODE is the same close as B: it returns to the
+        # running app, so every dismiss gesture behaves identically.
+        app = App(name="Steam", command="steam")
+        _, desktop, gamepad, factory, _, _ = make_app(desktop=FakeDesktop(current=app))
+        gamepad.fire_btn_mode()   # show over Steam
+        gamepad.fire_btn_mode()   # toggle off → back to Steam
+        assert desktop.restored == [app]
 
     def test_press_after_hide_disposes_old_and_creates_fresh(self):
         _, _, gamepad, factory, _, _ = make_app()

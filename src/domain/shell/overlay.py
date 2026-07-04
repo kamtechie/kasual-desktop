@@ -50,6 +50,12 @@ class SectionedHomeOverlay(Dismissable, Protocol):
     def on_closed(self, handler: Callable[[], None]) -> Unsubscribe: ...
     def dispose(self) -> None: ...
 
+    def request_close(self) -> None:
+        """A user dismiss (BTN_MODE while shown): close through the overlay's own
+        cancel so it plays the close cue and returns to the app, like B does —
+        unlike ``hide_overlay``, the silent mechanical hide used on disconnect."""
+        ...
+
 
 class SectionedOverlayFactory(Protocol):
     """Creates Home Overlay surfaces on demand (one per BTN_MODE press)."""

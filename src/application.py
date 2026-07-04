@@ -91,7 +91,7 @@ class Application:
 
         if self._overlay is not None:
             if self._overlay.is_showing():
-                self._overlay.hide_overlay()
+                self._overlay.request_close()
                 return
             self._close_overlay()
 

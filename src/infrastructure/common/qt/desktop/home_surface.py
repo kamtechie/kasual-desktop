@@ -220,6 +220,16 @@ class HomeSurface(QWidget):
         self._input_open_hold = hold
         self._refresh_input_region()
 
+    def mousePressEvent(self, event) -> None:
+        if self.is_open() and not self._point_in_menu(event.pos()):
+            self._content.cancel()
+            return
+        super().mousePressEvent(event)
+
+    def _point_in_menu(self, pos) -> bool:
+        return (self._header.geometry().contains(pos)
+                or self._panel.geometry().contains(pos))
+
     # ── Header mouse while expanded (the header is the menu's zone 0) ─────────
     # Routed here by the Desktop when the menu is open, so a hover/click/right-click
     # on the status header drives the menu's own zone navigation rather than the
@@ -281,10 +291,17 @@ class HomeSurface(QWidget):
         # Widen to the full surface at once so the growing panel takes the mouse.
         self._refresh_input_region()
 
+    def request_close(self) -> None:
+        """The one user-initiated close, shared by every dismiss gesture — the grab
+        handle, BTN_MODE, B / Escape, a click outside. Routes through the menu's own
+        cancel so all of them play the close cue and tear down identically; the
+        mechanical collapse / hide_overlay are silent, reached only via it."""
+        self._content.cancel()
+
     def collapse(self) -> None:
-        """Morph closed: drop the pad, restore the screen hints, animate away.
-        Silent — the content's own A/B feedback already played; a plain BTN_MODE
-        close mirrors the overlay's silent hide."""
+        """Morph closed: drop the pad, restore the screen hints, animate away. The
+        silent mechanical teardown of the context-1 morph, reached via dismiss (so
+        the cue plays once, in request_close), never called on its own."""
         if not self._expanded:
             return
         self._expanded = False

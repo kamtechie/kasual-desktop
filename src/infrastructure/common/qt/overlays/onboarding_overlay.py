@@ -7,11 +7,13 @@ action. Pure presentation — it renders the domain candidates, drives an
 navigation, and reports the chosen candidates through ``on_confirm``. i18n lives
 here (``tr`` on the canonical English names the domain supplies).
 
-Unlike the other overlays this one is **modal and confirm-only**: B / Escape /
-clicking the backdrop do nothing — the only way out is the Confirm action (which
-is allowed with zero apps selected). Because nothing is fullscreen on first run,
-it opts into keyboard interactivity so it is fully navigable by keyboard
-(arrows + Space to toggle) as well as gamepad and mouse.
+On first run this is **modal and confirm-only**: B / Escape / clicking the
+backdrop do nothing — the only way out is the Confirm action (which is allowed
+with zero apps selected). A reuse that supplies an ``on_cancel`` (the [＋]
+add-app picker) is dismissable instead: B / Escape and a click outside the card
+close it. Because nothing is fullscreen on first run, it opts into keyboard
+interactivity so it is fully navigable by keyboard (arrows + Space to toggle) as
+well as gamepad and mouse.
 
 The view takes a candidate list + callbacks, so it is reusable beyond first-run
 (e.g. a future "Add apps" panel), not just for onboarding.
@@ -297,6 +299,11 @@ class OnboardingOverlay(BaseOverlay, ProvisioningView, metaclass=ProtocolQtMeta)
         """Dismiss without applying any selection (the add-app reuse's B / Escape)."""
         if self._dismiss(sound=Cue.EXIT) and self._on_cancel is not None:
             self._on_cancel()
+
+    def _on_outside_click(self) -> None:
+        # Confirm-only first-run picker (no on_cancel) ignores the backdrop.
+        if self._on_cancel is not None:
+            self._cancel()
 
     # ── Rendering ────────────────────────────────────────────────────────────
 
