@@ -61,9 +61,10 @@ class ConfirmDialog(BaseOverlay):
         btn_row.setSpacing(20)
         self._btn_yes = QPushButton("✔  " + self.tr("Yes"))
         self._btn_no  = QPushButton("✘  " + self.tr("No"))
-        for btn in (self._btn_yes, self._btn_no):
+        for i, btn in enumerate((self._btn_yes, self._btn_no)):
             btn.setMinimumSize(200, 80)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self._bind_hover(btn, i)
         self._btn_yes.clicked.connect(self._confirm)
         self._btn_no.clicked.connect(self._cancel)
         btn_row.addWidget(self._btn_yes)
@@ -75,6 +76,14 @@ class ConfirmDialog(BaseOverlay):
 
         self._feedback.play(Cue.POPUP_OPEN)
         self._show()
+
+    def _bind_hover(self, btn: QPushButton, index: int) -> None:
+        """Move the cursor onto the button the pointer enters, so mouse hover
+        highlights like the pad."""
+        def _enter(event) -> None:
+            QPushButton.enterEvent(btn, event)
+            self._cursor.hover(index)
+        btn.enterEvent = _enter
 
     # ── Focus state (backed by cursor index) ───────────────────────────────
 
@@ -129,9 +138,5 @@ class ConfirmDialog(BaseOverlay):
             self._on_cancelled()
 
     def _refresh_buttons(self, index: int) -> None:
-        self._btn_yes.setStyleSheet(
-            styles.dialog_focused() if index == 0 else styles.dialog_idle()
-        )
-        self._btn_no.setStyleSheet(
-            styles.dialog_idle() if index == 0 else styles.dialog_focused()
-        )
+        styles.style_dialog_button(self._btn_yes, role="primary", focused=index == 0)
+        styles.style_dialog_button(self._btn_no, role="secondary", focused=index == 1)

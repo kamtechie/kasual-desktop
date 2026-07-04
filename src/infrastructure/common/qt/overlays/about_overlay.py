@@ -75,7 +75,7 @@ class AboutOverlay(BaseOverlay):
         self._btn_close = QPushButton(self.tr("Close"))
         self._btn_close.setMinimumSize(200, 64)
         self._btn_close.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._btn_close.setStyleSheet(styles.dialog_focused())
+        styles.style_dialog_button(self._btn_close, role="primary", focused=True)
         self._btn_close.clicked.connect(self._close)
         layout.addWidget(self._btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
 

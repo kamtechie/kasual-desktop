@@ -71,19 +71,6 @@ def _home_button_icon() -> QIcon:
     painter.end()
     return QIcon(canvas)
 
-# Staged-but-not-focused button: dialog_idle() background with accent border,
-# used when the recall trigger is selected but the focus group is elsewhere.
-_DIALOG_STAGED = """
-    QPushButton {
-        font-size: 22px;
-        padding: 14px 24px;
-        background-color: #4c566a;
-        color: white;
-        border-radius: 25px;
-        border: 2px solid #88c0d0;
-    }
-"""
-
 # Focus groups (cycled by LB/RB, clamped at the edges).
 _RECALL = 0
 _COLOR = 1
@@ -178,6 +165,7 @@ class TileSettings(BaseOverlay):
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             btn.clicked.connect(
                 lambda _checked=False, idx=i: self._stage_recall(idx))
+            self._bind_hover(btn, lambda idx=i: self._focus_recall(idx))
             recall_row.addWidget(btn)
             self._recall_buttons.append(btn)
         layout.addLayout(recall_row)
@@ -200,6 +188,7 @@ class TileSettings(BaseOverlay):
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             btn.clicked.connect(
                 lambda _checked=False, idx=i: self._stage_color(idx))
+            self._bind_hover(btn, lambda idx=i: self._focus_color(idx))
             grid.addWidget(btn, i // _MAX_PER_ROW, i % _MAX_PER_ROW)
             self._swatches.append(btn)
         layout.addLayout(grid)
@@ -211,9 +200,10 @@ class TileSettings(BaseOverlay):
         btn_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._btn_cancel = QPushButton("✘  " + translate("Desktop", "Cancel"))
         self._btn_save = QPushButton("✔  " + translate("Desktop", "Save"))
-        for btn in (self._btn_cancel, self._btn_save):
+        for i, btn in enumerate((self._btn_cancel, self._btn_save)):
             btn.setMinimumSize(210, 80)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self._bind_hover(btn, lambda idx=i: self._focus_action(idx))
         self._btn_cancel.clicked.connect(self._cancel)
         self._btn_save.clicked.connect(self._save)
         btn_row.addWidget(self._btn_cancel)
@@ -335,6 +325,34 @@ class TileSettings(BaseOverlay):
             else:
                 self._cancel()
 
+    # ── Mouse hover (moves the cursor, so mouse and pad agree) ────────────────
+
+    def _bind_hover(self, btn: QPushButton, on_enter: Callable[[], None]) -> None:
+        def _enter(event) -> None:
+            QPushButton.enterEvent(btn, event)
+            on_enter()
+        btn.enterEvent = _enter
+
+    def _focus_recall(self, index: int) -> None:
+        self._move_focus(_RECALL, changed=self._recall_index != index)
+        self._recall_index = index
+        self._render_all()
+
+    def _focus_color(self, index: int) -> None:
+        self._move_focus(_COLOR, changed=self._color_cursor.index != index)
+        self._color_cursor.index = index
+        self._render_all()
+
+    def _focus_action(self, index: int) -> None:
+        self._move_focus(_ACTIONS, changed=self._action_index != index)
+        self._action_index = index
+        self._render_all()
+
+    def _move_focus(self, group: int, *, changed: bool) -> None:
+        if self._active_group != group or changed:
+            self._feedback.play(Cue.CURSOR)
+        self._active_group = group
+
     # ── Staging / committing ─────────────────────────────────────────────────
 
     def _stage_recall(self, index: int) -> None:
@@ -370,20 +388,21 @@ class TileSettings(BaseOverlay):
     def _render_recall(self) -> None:
         focused = self._active_group == _RECALL
         for i, btn in enumerate(self._recall_buttons):
-            is_staged = _RECALL_OPTIONS[i][1] == self._pending_trigger
-            if focused and i == self._recall_index:
-                btn.setStyleSheet(styles.dialog_focused())
-            elif is_staged:
-                btn.setStyleSheet(_DIALOG_STAGED)
-            else:
-                btn.setStyleSheet(styles.dialog_idle())
+            role = "selected" if _RECALL_OPTIONS[i][1] == self._pending_trigger \
+                else "secondary"
+            styles.style_dialog_button(
+                btn, role=role, focused=focused and i == self._recall_index)
 
     def _render_actions(self) -> None:
-        for i, btn in enumerate((self._btn_cancel, self._btn_save)):
-            if i == self._action_index:
-                btn.setStyleSheet(styles.dialog_focused())
-            else:
-                btn.setStyleSheet(styles.dialog_idle())
+        # The ring shows only while this group holds the cursor, so Save keeps its
+        # primary fill elsewhere instead of looking permanently focused.
+        focused = self._active_group == _ACTIONS
+        styles.style_dialog_button(
+            self._btn_cancel, role="secondary",
+            focused=focused and self._action_index == 0)
+        styles.style_dialog_button(
+            self._btn_save, role="primary",
+            focused=focused and self._action_index == 1)
 
     def _refresh_swatches(self, index: int) -> None:
         focused = self._active_group == _COLOR

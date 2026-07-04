@@ -59,13 +59,15 @@ class PowerDropdown:
         col.setContentsMargins(8, 8, 8, 8)
         col.setSpacing(4)
         self._buttons: list[QPushButton] = []
-        for it in items:
+        for i, it in enumerate(items):
             button = QPushButton(it.label)
             button.setMinimumHeight(46)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             if it.icon:
                 button.setIcon(qta.icon(it.icon, color="white"))
                 button.setIconSize(QSize(20, 20))
+            button.clicked.connect(lambda _checked=False, idx=i: self._click(idx))
+            self._bind_hover(button, i)
             col.addWidget(button)
             self._buttons.append(button)
 
@@ -91,6 +93,22 @@ class PowerDropdown:
     def close(self) -> None:
         """Silent external close — the host is tearing the menu down."""
         self._teardown()
+
+    def _bind_hover(self, button: QPushButton, index: int) -> None:
+        def _enter(event) -> None:
+            QPushButton.enterEvent(button, event)
+            self._hover(index)
+        button.enterEvent = _enter
+
+    def _hover(self, index: int) -> None:
+        if index != self._index:
+            self._index = index
+            self._render()
+            self._feedback.play(Cue.CURSOR)
+
+    def _click(self, index: int) -> None:
+        self._index = index
+        self._pick()
 
     def _move(self, delta: int) -> None:
         target = max(0, min(self._index + delta, len(self._items) - 1))

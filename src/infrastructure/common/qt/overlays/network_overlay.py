@@ -84,8 +84,10 @@ class NetworkOverlay(BaseOverlay):
         self._btn.setMinimumHeight(64)
         self._btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._btn.setEnabled(self._button.enabled)
-        self._btn.setStyleSheet(
-            styles.dialog_focused() if self._button.enabled else _DISABLED_BUTTON
+        styles.style_dialog_button(
+            self._btn,
+            role="primary" if self._button.enabled else "disabled",
+            focused=self._button.enabled,
         )
         self._btn.clicked.connect(self._activate)
         layout.addWidget(self._btn)
@@ -130,15 +132,3 @@ class NetworkOverlay(BaseOverlay):
     def _close(self) -> None:
         if self._dismiss(sound=Cue.POPUP_CLOSE):
             self.closed.emit()
-
-
-_DISABLED_BUTTON = """
-    QPushButton {
-        font-size: 22px;
-        padding: 14px 24px;
-        background-color: #3b4252;
-        color: #6b7280;
-        border-radius: 25px;
-        border: 2px solid transparent;
-    }
-"""

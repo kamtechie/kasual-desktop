@@ -1,6 +1,7 @@
 from domain.shared.text import truncate  # noqa: F401 - re-exported: callers use styles.truncate
 
 COLOR_ACCENT    = "#88c0d0"
+COLOR_ACCENT_HI = "#9fd6e2"   # accent lifted for the mouse-hover echo
 COLOR_BG_DARK   = "#0b140e"
 COLOR_TEXT      = "white"
 COLOR_TOPBAR    = "rgba(15, 17, 25, 210)"
@@ -149,30 +150,80 @@ def topbar_selected() -> str:
     """
 
 
-def dialog_idle() -> str:
+# Dialog buttons carry two independent axes: role (the fill) and focus (the white
+# ring). Keeping them separate lets a primary button stay the accent-filled anchor
+# without impersonating the cursor, which only the ring marks.
+
+def _dialog_button(bg: str, fg: str, hover_bg: str, *,
+                   focused: bool, border: str = "transparent") -> str:
+    ring = "3px solid white" if focused else f"2px solid {border}"
     return f"""
         QPushButton {{
             font-size: 22px;
+            font-weight: 600;
             padding: 14px 24px;
-            background-color: #4c566a;
-            color: white;
+            background-color: {bg};
+            color: {fg};
             border-radius: {_DIALOG_RADIUS}px;
-            border: 2px solid transparent;
+            border: {ring};
         }}
+        QPushButton:hover {{ background-color: {hover_bg}; }}
     """
 
 
-def dialog_focused() -> str:
-    return f"""
-        QPushButton {{
-            font-size: 22px;
-            padding: 14px 24px;
-            background-color: {COLOR_ACCENT};
-            color: black;
-            border-radius: {_DIALOG_RADIUS}px;
-            border: 2px solid white;
-        }}
-    """
+def dialog_primary(focused: bool = False) -> str:
+    """The default / affirmative action — accent-filled even when unfocused."""
+    return _dialog_button(COLOR_ACCENT, "black", COLOR_ACCENT_HI, focused=focused)
+
+
+def dialog_secondary(focused: bool = False) -> str:
+    return _dialog_button("#434c5e", "white", "#4c566a", focused=focused)
+
+
+def dialog_selected(focused: bool = False) -> str:
+    """A chosen radio value: accent *outline*, not fill, so it marks the pick
+    without reading as a primary action."""
+    return _dialog_button("#4c566a", "white", "#5b6884",
+                          focused=focused, border=COLOR_ACCENT)
+
+
+def dialog_disabled() -> str:
+    return _dialog_button("#3b4252", "#6b7280", "#3b4252", focused=False)
+
+
+_DIALOG_ROLES = {
+    "primary": dialog_primary,
+    "secondary": dialog_secondary,
+    "selected": dialog_selected,
+}
+
+
+def apply_focus_glow(widget, on: bool) -> None:
+    """The accent halo behind a focused button, drawn as a graphics effect since
+    Qt style sheets have no box-shadow."""
+    if not on:
+        widget.setGraphicsEffect(None)
+        return
+    from PyQt6.QtGui import QColor
+    from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+
+    glow = QGraphicsDropShadowEffect(widget)
+    glow.setOffset(0, 0)
+    glow.setBlurRadius(28)
+    color = QColor(COLOR_ACCENT)
+    color.setAlpha(180)
+    glow.setColor(color)
+    widget.setGraphicsEffect(glow)
+
+
+def style_dialog_button(btn, *, role: str = "primary", focused: bool = False) -> None:
+    """Paint one button. ``role``: primary / secondary / selected / disabled."""
+    if role == "disabled":
+        btn.setStyleSheet(dialog_disabled())
+        apply_focus_glow(btn, False)
+        return
+    btn.setStyleSheet(_DIALOG_ROLES[role](focused))
+    apply_focus_glow(btn, focused)
 
 
 def home_menu_item_normal() -> str:

@@ -309,9 +309,8 @@ class OnboardingOverlay(BaseOverlay, ProvisioningView, metaclass=ProtocolQtMeta)
             )
         if self._confirm is not None:
             on_confirm_row = index == len(self._rows)
-            self._confirm.setStyleSheet(
-                styles.dialog_focused() if on_confirm_row else styles.dialog_idle()
-            )
+            styles.style_dialog_button(
+                self._confirm, role="primary", focused=on_confirm_row)
         # Keep the focused row visible as the cursor moves. Confirm sits outside
         # the scroll area (always visible), so it needs no scrolling.
         if index < len(self._rows):

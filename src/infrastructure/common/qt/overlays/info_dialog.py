@@ -47,7 +47,7 @@ class InfoDialog(BaseOverlay):
         self._btn_ok = QPushButton("✔  " + self.tr("OK"))
         self._btn_ok.setMinimumSize(200, 80)
         self._btn_ok.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._btn_ok.setStyleSheet(styles.dialog_focused())
+        styles.style_dialog_button(self._btn_ok, role="primary", focused=True)
         self._btn_ok.clicked.connect(self._confirm)
         layout.addWidget(self._btn_ok, alignment=Qt.AlignmentFlag.AlignCenter)
 
