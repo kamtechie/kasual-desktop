@@ -13,6 +13,10 @@ The cross-platform domain logic and Qt UI are shared; only genuinely OS-specific
 pieces (window management, app launching, gamepad, audio, notifications, the
 in-game HUD, …) live behind platform adapters. See [Architecture](#-architecture).
 
+[![Kasual Desktop — video](https://img.youtube.com/vi/0NrV0Tr0HXA/hqdefault.jpg)](https://youtu.be/0NrV0Tr0HXA)
+
+*Click the thumbnail above to watch the video on YouTube.*
+
 ## ✨ Key Features
 
 - **Gamepad-First Interface**: Full controller navigation (Linux via `evdev`, Windows via `pygame`/XInput).
