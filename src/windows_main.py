@@ -21,43 +21,19 @@ from pathlib import Path
 # src/ on sys.path[0], so the top-level ``infrastructure``/``domain``/``application``
 # imports resolve.
 
-_LOG_FMT      = "%(asctime)s  [%(name)-22s]  %(levelname)-8s  %(message)s"
-_LOG_DATE_FMT = "%Y-%m-%d %H:%M:%S"
-
-
-def _setup_logging() -> Path:
-    """Mirror Linux's main.py: file + stderr handlers, under the user cache dir.
-
-    On Windows the conventional per-user cache is ``%LOCALAPPDATA%`` (the
-    counterpart of ``~/.local/cache`` on Linux), so logs land in
-    ``%LOCALAPPDATA%/kasual/kasual.log``. A real file handler is needed because
-    the tray "Logs" viewer reads that file — without it the viewer would only
-    show an empty / missing file. ``KASUAL_DEBUG`` lowers the level to DEBUG;
-    the default is INFO (matches Linux).
-    """
-    log_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "kasual-desktop"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "kasual.log"
-
-    fmt = logging.Formatter(_LOG_FMT, datefmt=_LOG_DATE_FMT)
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(fmt)
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setFormatter(fmt)
-
-    level = logging.DEBUG if os.environ.get("KASUAL_DEBUG") else logging.INFO
-    logging.basicConfig(level=level, handlers=[stream_handler, file_handler])
-    return log_file
-
-
 logger = logging.getLogger(__name__)
 
 
 def main():
-    from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import QApplication
 
-    log_file = _setup_logging()
+    from session import (
+        build_controller, build_power_menu, build_tray, defer_start,
+        run_onboarding_or_start, setup_logging, wire_notification_badge,
+    )
+
+    log_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "kasual-desktop"
+    log_file = setup_logging(log_dir)
 
     app = QApplication(sys.argv)
     app.setApplicationName("Kasual Desktop")
@@ -151,15 +127,8 @@ def main():
 
     def start_session() -> None:
         from infrastructure.common.qt.desktop.desktop_builder import build_desktop
-        from domain.shared.feedback import Cue
-        from domain.system.actions import ActionDeps
-        from infrastructure.common.qt.ui.tray import SystemTray
-        from infrastructure.common.qt.overlays.about_overlay import AboutOverlay
-        from domain.system.power_menu import PowerMenu
-        from domain.system.action_view import make_action_confirm
         from infrastructure.windows.qt.log_window import LogWindow
         from infrastructure.windows.notifications.listener import WindowsNotificationSource
-        from application import Application
 
         # Recent-notifications feature (mirrors KDE): the Windows source (WinRT
         # Action-Center poller) feeds the platform-agnostic NotificationCenter,
@@ -203,41 +172,25 @@ def main():
         # don't need a separate process — see LogWindow). Owned by start_session
         # like every other collaborator; released on quit via aboutToQuit below.
         log_window = LogWindow(log_file=str(log_file))
-        tray = SystemTray(
-            on_show=lambda: (feedback.play(Cue.START), desktop.show_desktop()),
-            on_logs=log_window.open,
-            on_about=lambda: _refs.__setitem__("about", AboutOverlay(version, gamepad, feedback)),
-            on_quit=app.quit,
+        tray = build_tray(
+            feedback=feedback, desktop=desktop, log_viewer=log_window,
+            version=version, gamepad=gamepad, quit_fn=app.quit,
+            keep_alive=lambda o: _refs.__setitem__("about", o),
         )
-        power_menu = PowerMenu(
-            ActionDeps(desktop=desktop, power=power),
-            power_preference,
-            make_action_confirm(desktop.show_confirm),
-        )
-        desktop.set_power_menu(power_menu)
-        controller = Application(
-            gamepad=gamepad,
-            desktop=desktop,
-            app_control=desktop.app_control,
-            action_deps=ActionDeps(desktop=desktop, power=power),
-            tray=tray,
-            wm=wm,
-            overlay_factory=desktop.home_overlay_factory(),
-            hud=WindowsRtssHudControl(),
+        build_power_menu(desktop, power, power_preference)
+        controller = build_controller(
+            gamepad=gamepad, desktop=desktop, tray=tray, wm=wm,
+            power=power, hud=WindowsRtssHudControl(),
         )
         _refs.update(desktop=desktop, tray=tray, controller=controller)
 
-        # Keep the top-bar notifications badge in sync with the in-memory count.
         # Subscribed after `record` above, so the count is already updated when
         # this runs; delivered on the GUI thread by the source's signal hop.
-        notification_source.on_notification(
-            lambda _n: desktop.refresh_notification_badge()
-        )
+        wire_notification_badge(notification_source, desktop)
         _refs["notification_source"] = notification_source
         # Start polling only once the event loop is running, so the WinRT
         # access request / first poll never sits on the critical startup path.
-        QTimer.singleShot(0, notification_source.start)
-        app.aboutToQuit.connect(notification_source.stop)
+        defer_start(app, notification_source)
 
         # Top-bar network indicator: a polling monitor over the Windows probe
         # (reuses the domain PollingNetworkMonitor), feeding the Desktop.
@@ -246,11 +199,10 @@ def main():
         network_monitor.on_changed(desktop.update_network_status)
         desktop.update_network_status(network_monitor.current())
         _refs["network_monitor"] = network_monitor
-        QTimer.singleShot(0, network_monitor.start)
+        defer_start(app, network_monitor)
 
         wm.start_periodic_refresh(3000)
         app.aboutToQuit.connect(controller.shutdown)
-        app.aboutToQuit.connect(network_monitor.stop)
         app.aboutToQuit.connect(log_window.close)
         # The Desktop is NOT shown here: it starts hidden and is surfaced by the
         # Application/SessionPolicy when a gamepad connects (and re-hidden on
@@ -261,16 +213,10 @@ def main():
     # to the session. Mirrors the Linux composition root — uses the domain
     # Provisioning use-case (`candidates()` / `complete()`) rather than bypassing
     # it. The Windows-specific Start Menu scan lives in `WindowsAppDiscovery`.
-    if not provisioning.is_provisioned():
-        from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlayFactory
-        onboarding = OnboardingOverlayFactory(gamepad, feedback).create()
-        _refs["onboarding"] = onboarding
-        onboarding.present(
-            provisioning_uc.candidates(),
-            on_confirm=lambda chosen: (provisioning_uc.complete(chosen), start_session()),
-        )
-    else:
-        start_session()
+    run_onboarding_or_start(
+        provisioning, provisioning_uc, gamepad, feedback, start_session,
+        keep_alive=lambda o: _refs.__setitem__("onboarding", o),
+    )
 
     app.aboutToQuit.connect(lambda: (wm.close(), gamepad.shutdown()))
 

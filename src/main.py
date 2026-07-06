@@ -13,8 +13,11 @@ os.environ.setdefault("QT_WAYLAND_SHELL_INTEGRATION", "layer-shell")
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
-from application import Application
 from version import get_version
+from session import (
+    build_controller, build_power_menu, build_tray, defer_start,
+    run_onboarding_or_start, setup_logging, wire_notification_badge,
+)
 from infrastructure.common.audio.feedback import SoundFeedback
 from infrastructure.common.single_instance import SingleInstanceGuard
 from infrastructure.linux.input.gamepad_watcher import GamepadWatcher
@@ -22,9 +25,6 @@ from infrastructure.common.qt.desktop import build_desktop
 from infrastructure.kde.qt.desktop.deferred_hide import DeferredHide
 from infrastructure.kde.qt.desktop.surface import LayerShellSurface
 from infrastructure.common.qt.icons import install_fontawesome5
-from infrastructure.common.qt.overlays.about_overlay import AboutOverlay
-from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlayFactory
-from infrastructure.common.qt.ui.tray import SystemTray
 from infrastructure.common.catalog.app_config import (
     DesktopAppProvisioning, DesktopTileSettingsStore, DesktopTileOrderStore,
     load_apps,
@@ -32,7 +32,7 @@ from infrastructure.common.catalog.app_config import (
 from infrastructure.linux.catalog.app_discovery import WhichAppDiscovery
 from infrastructure.linux.catalog.app_pinning import DesktopAppPinning
 from infrastructure.linux.catalog.installed_apps import XdgInstalledApps
-from domain.provisioning.provisioning import Provisioning, needs_provisioning
+from domain.provisioning.provisioning import Provisioning
 from domain.provisioning.add_apps import AppAdder
 from infrastructure.linux.catalog.app_manager import AppManager
 from infrastructure.linux.proc import parent_pid, is_game_pid
@@ -42,38 +42,15 @@ from infrastructure.linux.audio.volume import PactlVolumeControl
 from infrastructure.linux.display.brightness import select_brightness_control
 from infrastructure.common.qt.scheduler import QtScheduler
 from infrastructure.linux.hud.mangohud import MangoHudControl
-from domain.shared.feedback import Cue
 from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
 from infrastructure.linux.notifications.notifications import KdeNotificationMonitor
 from infrastructure.linux.network.network_manager import NMNetworkControl, NMNetworkMonitor
 from domain.notifications.center import NotificationCenter
-from domain.system.actions import ActionDeps
-from domain.system.action_view import make_action_confirm
-from domain.system.power_menu import PowerMenu
 from infrastructure.common.catalog.preferences import DesktopPowerPreference
 from infrastructure.kde.wm.window_manager import KWinWindowManager
 from infrastructure.common.qt.i18n import install_translations
 
 logger = logging.getLogger(__name__)
-
-_LOG_FMT      = "%(asctime)s  [%(name)-22s]  %(levelname)-8s  %(message)s"
-_LOG_DATE_FMT = "%Y-%m-%d %H:%M:%S"
-
-
-def _setup_logging() -> Path:
-    log_dir = Path.home() / ".local" / "cache" / "kasual"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "kasual.log"
-
-    fmt = logging.Formatter(_LOG_FMT, datefmt=_LOG_DATE_FMT)
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(fmt)
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setFormatter(fmt)
-
-    level = logging.DEBUG if os.environ.get("KASUAL_DEBUG") else logging.INFO
-    logging.basicConfig(level=level, handlers=[stream_handler, file_handler])
-    return log_file
 
 
 def main() -> None:
@@ -82,7 +59,7 @@ def main() -> None:
     # unkillable from the terminal. SIG_DFL lets the OS terminate it directly.
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    log_file = _setup_logging()
+    log_file = setup_logging(Path.home() / ".local" / "cache" / "kasual")
     version = get_version()
     logger.info("Running Kasual Desktop %s", version)
 
@@ -166,12 +143,9 @@ def main() -> None:
             deferred_hide_factory=lambda wm_, pm_, on_hide:
                 DeferredHide(wm_, pm_, on_hide=on_hide),
         )
-        # Keep the top-bar notifications badge in sync with the in-memory count.
         # Subscribed after `record` above, so the count is already updated when
         # this runs; delivered on the GUI thread by the monitor's signal hop.
-        notification_monitor.on_notification(
-            lambda _n: desktop.refresh_notification_badge()
-        )
+        wire_notification_badge(notification_monitor, desktop)
 
         # Parented to `app`, or this QObject would be GC'd once this method
         # returns, silently tearing down its D-Bus subscriptions.
@@ -185,56 +159,29 @@ def main() -> None:
             log_file=str(log_file),
             entry=Path(__file__).parent / "log_viewer_main.py",
         )
-        tray = SystemTray(
-            on_show=lambda: (feedback.play(Cue.START), desktop.show_desktop()),
-            on_logs=log_viewer.open,
-            on_about=lambda: AboutOverlay(version, gamepad, feedback),
-            on_quit=app.quit,
+        tray = build_tray(
+            feedback=feedback, desktop=desktop, log_viewer=log_viewer,
+            version=version, gamepad=gamepad, quit_fn=app.quit,
         )
 
         # The sectioned factory needs the volume/brightness controls and a power
         # menu (sticky-default dropdown) backed by the same preference the top bar
         # reads. The top bar's Power dropdown (Y) runs + persists through it too.
-        power_menu = PowerMenu(
-            ActionDeps(desktop=desktop, power=power),
-            power_preference,
-            make_action_confirm(desktop.show_confirm),
-        )
-        desktop.set_power_menu(power_menu)
-        # Contexts 2/3 reuse the Desktop's one Home surface, so the header's live
-        # status carries over.
-        overlay_factory = desktop.home_overlay_factory()
+        build_power_menu(desktop, power, power_preference)
 
-        controller = Application(
-            gamepad=gamepad,
-            desktop=desktop,
-            app_control=desktop.app_control,
-            action_deps=ActionDeps(desktop=desktop, power=power),
-            tray=tray,
-            wm=wm,
-            overlay_factory=overlay_factory,
-            hud=MangoHudControl(),
+        controller = build_controller(
+            gamepad=gamepad, desktop=desktop, tray=tray, wm=wm,
+            power=power, hud=MangoHudControl(),
         )
         wm.start_periodic_refresh(3000)
         # Start the notification monitor only once the event loop is running, so
         # its subprocess spawn can never sit on the critical startup path (e.g.
         # delaying the gamepad-connected activation). Non-essential to bring-up.
-        QTimer.singleShot(0, notification_monitor.start)
+        defer_start(app, notification_monitor)
         app.aboutToQuit.connect(controller.shutdown)
-        app.aboutToQuit.connect(notification_monitor.stop)
         app.aboutToQuit.connect(log_viewer.close)
 
-    if needs_provisioning(provisioning):
-        logger.info("First run — showing onboarding")
-        onboarding = OnboardingOverlayFactory(gamepad, feedback).create()
-        # Confirm-only (the picker has no dismissal path); confirming with zero
-        # apps still marks provisioned, so onboarding won't nag on next launch.
-        onboarding.present(
-            provisioning_uc.candidates(),
-            on_confirm=lambda chosen: (provisioning_uc.complete(chosen), start_session()),
-        )
-    else:
-        start_session()
+    run_onboarding_or_start(provisioning, provisioning_uc, gamepad, feedback, start_session)
 
     QTimer.singleShot(0, feedback.init)
 
