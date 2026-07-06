@@ -14,6 +14,8 @@ import logging
 import shutil
 import subprocess
 
+from PyQt6.QtCore import QTimer
+
 from domain.system.brightness import Brightness, BrightnessControl
 
 logger = logging.getLogger(__name__)
@@ -85,13 +87,21 @@ class KdeBrightnessControl(BrightnessControl):
     _PATH    = "/org/kde/Solid/PowerManagement/Actions/BrightnessControl"
     _IFACE   = "org.kde.Solid.PowerManagement.Actions.BrightnessControl"
 
+    _DEBOUNCE_MS = 50
+
     def __init__(self, qdbus: str = "qdbus6") -> None:
         self._qdbus = qdbus
+        self._max: int | None = None   # brightnessMax is fixed for the session
+        self._pending: Brightness | None = None
+        self._debounce = QTimer()
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(self._DEBOUNCE_MS)
+        self._debounce.timeout.connect(self._flush)
 
     def get(self) -> Brightness:
         try:
             current = int(self._call("brightness"))
-            maximum = int(self._call("brightnessMax"))
+            maximum = self._brightness_max()
             if maximum <= 0:
                 return Brightness(Brightness.DEFAULT)
             return Brightness(round(current * 100 / maximum))
@@ -99,8 +109,18 @@ class KdeBrightnessControl(BrightnessControl):
             return Brightness(Brightness.DEFAULT)
 
     def set(self, brightness: Brightness) -> None:
+        # Slider drags fire valueChanged per pixel; collapse a burst of ticks
+        # into a single D-Bus call ~50ms after the last one.
+        self._pending = brightness
+        self._debounce.start()
+
+    def _flush(self) -> None:
+        brightness = self._pending
+        if brightness is None:
+            return
+        self._pending = None
         try:
-            maximum = int(self._call("brightnessMax"))
+            maximum = self._brightness_max()
             absolute = round(brightness.value * maximum / 100)
             subprocess.Popen(
                 [self._qdbus, self._SERVICE, self._PATH,
@@ -117,9 +137,14 @@ class KdeBrightnessControl(BrightnessControl):
         backlight reports a zero (or unavailable) maximum — treated as 'no
         controllable backlight'."""
         try:
-            return int(self._call("brightnessMax")) > 0
+            return self._brightness_max() > 0
         except Exception:
             return False
+
+    def _brightness_max(self) -> int:
+        if self._max is None:
+            self._max = int(self._call("brightnessMax"))
+        return self._max
 
     def _call(self, method: str) -> str:
         return subprocess.check_output(

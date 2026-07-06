@@ -11,7 +11,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import qtawesome as qta
-from PyQt6.QtCore import Qt, QSize, QPoint, QSignalBlocker, pyqtSignal
+from PyQt6.QtCore import (
+    Qt, QSize, QPoint, QSignalBlocker, QRunnable, QThreadPool, pyqtSignal,
+)
 from PyQt6.QtGui import QPainterPath, QRegion, QCursor
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -29,10 +31,10 @@ from domain.navigation import hints as nav_hints
 from domain.shared.feedback import Cue, Feedback
 from domain.system.actions import HIDE_DESKTOP, VOLUME
 from domain.system.bounded_value import BoundedValue
-from domain.system.brightness import BrightnessControl
+from domain.system.brightness import Brightness, BrightnessControl
 from domain.system.hud import HudControl
 from domain.system.power_menu import PowerMenu
-from domain.system.volume import VolumeControl
+from domain.system.volume import Volume, VolumeControl
 from infrastructure.common.qt.ui import styles
 from .power_dropdown import PowerDropdown
 
@@ -169,6 +171,10 @@ class HomeMenuContent(QWidget):
     LT/RT triggers adjust global volume regardless of zone or focus.
     """
 
+    # (build generation, row index, action, fetched value) — the generation
+    # guards against a value arriving after the menu has since been rebuilt.
+    _value_ready = pyqtSignal(int, int, str, object)
+
     def __init__(
         self,
         feedback: Feedback,
@@ -185,6 +191,12 @@ class HomeMenuContent(QWidget):
         self._zones: list[_Zone] = []
         self._active = 0
         self._quick_state: list[_QuickRow] = []   # aligned with the quick zone's items
+        # Last value read for each Quick action — reused as the initial slider
+        # position on the next open, so re-fetching it can happen off the GUI
+        # thread instead of blocking the open animation.
+        self._last_values: dict[str, BoundedValue] = {}
+        self._build_gen = 0
+        self._value_ready.connect(self._on_value_ready)
         self._power_card: QWidget | None = None  # the Power split-button (X opens its dropdown)
         self._dropdown: PowerDropdown | None = None   # the open Power dropdown, while expanded
         self._on_action: Callable[[MenuItem], None] | None = None
@@ -271,6 +283,7 @@ class HomeMenuContent(QWidget):
     # ── Building ─────────────────────────────────────────────────────────────
 
     def _build(self, sections: list[HomeSection]) -> None:
+        self._build_gen += 1
         while self._zones_layout.count():
             item = self._zones_layout.takeAt(0)
             if item.widget():
@@ -305,7 +318,7 @@ class HomeMenuContent(QWidget):
         rows: list[QWidget] = []
         for row_i, item in enumerate(section.items):
             control = self._control_for(item.action)
-            value = control.get()
+            value = self._last_values.get(item.action) or self._default_value(item.action)
             row = _RoundedFrame()
             row.setFrameShape(QFrame.Shape.NoFrame)
             row.setStyleSheet(_quick_row_style(False))
@@ -334,6 +347,7 @@ class HomeMenuContent(QWidget):
             rows.append(row)
             self._quick_state.append(
                 _QuickRow(control, value, slider, vlabel))
+            self._fetch_value_async(item.action, control, len(self._quick_state) - 1)
         # Fixed, not max: under AlignHCenter a mere maximum collapses to the
         # slider's tiny size hint.
         container.setFixedWidth(_QUICK_WIDTH)
@@ -371,6 +385,32 @@ class HomeMenuContent(QWidget):
 
     def _control_for(self, action: str):
         return self._volume if action == VOLUME else self._brightness
+
+    @staticmethod
+    def _default_value(action: str) -> BoundedValue:
+        return Volume(Volume.DEFAULT) if action == VOLUME else Brightness(Brightness.DEFAULT)
+
+    def _fetch_value_async(self, action: str, control, row_index: int) -> None:
+        """Read the control's current value off the GUI thread — ``pactl`` /
+        ``brightnessctl`` are blocking subprocess calls, and running them here
+        would hold up the menu's open animation."""
+        gen = self._build_gen
+
+        def work() -> None:
+            value = control.get()
+            self._value_ready.emit(gen, row_index, action, value)
+
+        QThreadPool.globalInstance().start(QRunnable.create(work))
+
+    def _on_value_ready(self, gen: int, row_index: int, action: str, value: BoundedValue) -> None:
+        if gen != self._build_gen or row_index >= len(self._quick_state):
+            return   # menu was rebuilt/closed while the read was in flight
+        self._last_values[action] = value
+        row = self._quick_state[row_index]
+        row.value = value
+        with QSignalBlocker(row.slider):
+            row.slider.setValue(value.value)
+        row.vlabel.setText(f"{value.value}%")
 
     def _focus_default(self, foreground: Target | None, desktop_minimized: bool) -> None:
         """Pre-focus the card most likely wanted on open: "Return to {app}" over a

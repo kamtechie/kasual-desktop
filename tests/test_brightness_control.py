@@ -1,6 +1,6 @@
 """Tests for the BrightnessControl adapters and the DE-dependent selector."""
 
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from domain.system.brightness import Brightness
 from infrastructure.linux.display.brightness import (
@@ -71,14 +71,36 @@ class TestKdeBrightnessControl:
     def test_set_scales_percent_to_absolute(self):
         with patch.object(KdeBrightnessControl, "_call", return_value="1000"), \
              patch("infrastructure.linux.display.brightness.subprocess.Popen") as popen:
-            KdeBrightnessControl().set(Brightness(40))
+            control = KdeBrightnessControl()
+            control.set(Brightness(40))
+            control._flush()   # debounced — fires ~50ms later in real use
         assert popen.call_args[0][0][-1] == "400"
 
     def test_uses_given_qdbus_binary(self):
         with patch.object(KdeBrightnessControl, "_call", return_value="1000"), \
              patch("infrastructure.linux.display.brightness.subprocess.Popen") as popen:
-            KdeBrightnessControl("qdbus6").set(Brightness(40))
+            control = KdeBrightnessControl("qdbus6")
+            control.set(Brightness(40))
+            control._flush()
         assert popen.call_args[0][0][0] == "qdbus6"
+
+    def test_set_debounces_rapid_calls_into_one(self):
+        with patch.object(KdeBrightnessControl, "_call", return_value="1000"), \
+             patch("infrastructure.linux.display.brightness.subprocess.Popen") as popen:
+            control = KdeBrightnessControl()
+            for pct in (10, 20, 30):
+                control.set(Brightness(pct))
+            control._flush()
+        assert popen.call_count == 1
+        assert popen.call_args[0][0][-1] == "300"   # only the last value wins
+
+    def test_caches_brightness_max_across_calls(self):
+        with patch.object(KdeBrightnessControl, "_call", return_value="1000") as mock_call:
+            control = KdeBrightnessControl()
+            control.get()
+            control.get()
+        assert mock_call.call_args_list.count(call("brightness")) == 2       # read fresh each time...
+        assert mock_call.call_args_list.count(call("brightnessMax")) == 1   # ...but max only once
 
     def test_is_controllable_true_when_max_positive(self):
         with patch.object(KdeBrightnessControl, "_call", return_value="1000"):
