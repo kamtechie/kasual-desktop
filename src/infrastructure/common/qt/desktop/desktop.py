@@ -215,6 +215,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._status_timer.start(500)
 
         self._wallpaper: 'QPixmap | None' = self._load_wallpaper_pixmap()
+        self._wallpaper_scaled: 'QPixmap | None' = None
 
         self._wm.on_windows_updated(self._tilebar.update_windows)
 
@@ -416,6 +417,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._wallpaper_scaled = None
         if hasattr(self, '_tilebar'):
             QTimer.singleShot(0, self._tilebar.center_current)
 
@@ -434,11 +436,13 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def paintEvent(self, _) -> None:
         painter = QPainter(self)
         if self._wallpaper and not self._wallpaper.isNull():
-            scaled = self._wallpaper.scaled(
-                self.size(),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
+            if self._wallpaper_scaled is None:
+                self._wallpaper_scaled = self._wallpaper.scaled(
+                    self.size(),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            scaled = self._wallpaper_scaled
             x = (self.width()  - scaled.width())  // 2
             y = (self.height() - scaled.height()) // 2
             painter.drawPixmap(x, y, scaled)
