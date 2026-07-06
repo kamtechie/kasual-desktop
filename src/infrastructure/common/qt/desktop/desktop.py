@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt, QTimer, QEvent
@@ -7,14 +6,10 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QApplication
 
 from domain.catalog.live_catalog import LiveCatalog
 from domain.shell.desktop_state import DesktopState
-from domain.input.vocabulary import Event, Trigger
+from domain.input.vocabulary import Event
 from domain.input.pad_control import PadControl
 from domain.navigation import hints as home_hints
-from infrastructure.common.qt.overlays.base_overlay import BaseOverlay
-from infrastructure.common.qt.overlays.confirm_dialog import ConfirmDialog
 from infrastructure.common.qt.overlays.info_dialog import InfoDialog
-from infrastructure.common.qt.overlays.tile_popover import TilePopoverMenu
-from infrastructure.common.qt.overlays.tile_settings import TileSettings
 from infrastructure.common.qt.overlays.notifications_overlay import NotificationsOverlay
 from infrastructure.common.qt.overlays.network_overlay import NetworkOverlay
 from domain.notifications.center import NotificationCenter
@@ -39,11 +34,9 @@ from domain.navigation.tile_mover import TileMover
 from domain.system.runner import ActionRunner
 from domain.menu.entry import SETTINGS, MOVE, PIN, POWER, RETURN_TO_DESKTOP, UNPIN
 from domain.menu.item import MenuItem
-from domain.menu.palette import TILE_COLORS
 from domain.menu.ports import AppPinning, TileSettingsStore
 from domain.catalog.tile_settings_editor import TileSettingsEditor
 from domain.catalog.app_pinner import AppPinner
-from domain.menu.tile import tile_menu_for
 from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Feedback
 from domain.shared.i18n import translate
@@ -56,14 +49,13 @@ from domain.shell.wallpaper import SystemWallpaper
 from infrastructure.common.qt._meta import ProtocolQtMeta
 from infrastructure.common.qt.ui.nav_key_map import nav_key_map
 from .app_add_controller import AppAddController
+from .dialog_host_controller import DialogHostController
 from .hint_bar import HintBar
 from .home_surface import HomeSurface
 from .power_popover_controller import PowerPopoverController
 from .tile_bar import TileBar
 from infrastructure.common.qt.overlays.home_header import HomeHeader
 from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
-
-logger = logging.getLogger(__name__)
 
 # Keyboard keys → navigation events, so a keyboard drives the same handler
 # stack (injected via the gamepad). The directional + confirm/dispatch core is
@@ -117,9 +109,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._notifications = notifications
         self._network_control = network_control
         self._network_status = NetworkStatus.offline()
-        # System-action overlays (volume/brightness/…) are tracked as a group in
-        # the domain registry; only the confirm dialog keeps a named handle, for
-        # its single-instance guard and the app-ended force-close.
+        # System-action overlays (volume/brightness/…) and the dialog/popover
+        # handles (confirm, tile settings, tile popover — see DialogHostController,
+        # built in attach()) are tracked as a group in this shared registry.
         self._overlays       = overlays
         self._settings_store    = settings_store
         self._tile_settings_editor = TileSettingsEditor(self._apps, settings_store)
@@ -139,9 +131,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         # OS-specific seam, injected by the composition root. Falls back to a
         # plain frameless fullscreen window (offscreen tests).
         self._surface        = surface or PlainSurface()
-        self._confirm_dialog = None
-        self._tile_popover   = None
-        self._tile_settings  = None
 
         # Desktop visibility + paused + what the BTN_MODE menu targets (foreground).
         # The foreground is shared by reference with the AppLifecycle coordinator.
@@ -204,11 +193,12 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
         # Domain coordinators are assembled by the package builder (build_desktop)
         # and injected via attach(); the widget itself stays a pure view.
-        self._nav:           'FocusNavigator | None'     = None
-        self._lifecycle:     'AppLifecycle | None'       = None
-        self._desktop:       'DesktopCoordinator | None' = None
-        self._action_runner: 'ActionRunner | None'       = None
-        self._tile_mover:    'TileMover | None'          = None
+        self._nav:           'FocusNavigator | None'          = None
+        self._lifecycle:     'AppLifecycle | None'            = None
+        self._desktop:       'DesktopCoordinator | None'      = None
+        self._action_runner: 'ActionRunner | None'            = None
+        self._tile_mover:    'TileMover | None'               = None
+        self._dialogs:       'DialogHostController | None'    = None
 
         self._status_timer = QTimer(self)
         self._status_timer.timeout.connect(self._tilebar.refresh_status)
@@ -239,6 +229,12 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._desktop       = desktop_coordinator
         self._action_runner = action_runner
         self._tile_mover    = tile_mover
+        self._dialogs = DialogHostController(
+            self._gamepad, self._feedback, self._overlays, self._hintbar, nav,
+            self._surface, self._tilebar, self._tile_settings_editor, self,
+            on_tile_select=self._on_tile_select,
+            sync_hint_visibility=self._sync_hint_visibility,
+        )
 
         # Platform reactivation seam: where the surface itself detects the Desktop
         # should return (Windows polls the foreground window), route it through the
@@ -283,8 +279,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         them, so its slot just needs clearing. Move mode is not a registered
         overlay (it owns a pushed pad handler), so it is cancelled explicitly."""
         self._overlays.cancel()
-        self._confirm_dialog = None
-        self._tile_settings = None
+        self._dialogs.cancel()
         self._app_add.cancel()
         if self._tile_mover is not None:
             self._tile_mover.cancel()
@@ -388,7 +383,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._wm.refresh_now()
 
     def close_active_dialog(self) -> None:
-        self._close_active_dialog()
+        self._dialogs.close_active_dialog()
 
     def show_error(self, message: str) -> None:
         InfoDialog(
@@ -487,7 +482,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     # ── Tile actions ───────────────────────────────────────────────────────
 
     def _on_tile_hovered(self, _idx: int) -> None:
-        if self._tile_popover is not None:
+        if self._dialogs.tile_popover_open:
             return
         self._nav.hover_tiles()
 
@@ -530,41 +525,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     # ── Closing an application ─────────────────────────────────────────────
 
     def _show_tile_popover(self) -> None:
-        """Show the single, state-dependent tile popover above the focused tile.
-
-        The menu (which items appear, by running state and tile kind) is the
-        domain's — `tile_menu_for` composes the merged lifecycle + management
-        list. Activation is routed here: lifecycle items go to the lifecycle
-        coordinator, management items to the tile-management handlers.
-        """
-        ctx = self._tilebar.current_context()
-        if ctx is None:
-            return
-        items = tile_menu_for(
-            ctx, lambda idx: self._tilebar.is_tile_running(idx, self._tilebar.last_windows))
-        # The [＋] add tile (and any future menu-less target) has no popover —
-        # don't open an empty one.
-        if not items:
-            return
-        popover = TilePopoverMenu(
-            items=items,
-            on_select=self._on_tile_select,
-            gamepad=self._gamepad,
-            feedback=self._feedback,
-            parent=self,
-        )
-        self._tile_popover = popover
-        self._overlays.register(popover)
-        popover.closed.connect(self._on_tile_popover_closed)
-        # Swap the hint bar to the popover's own controls (incl. Y to close the
-        # menu it opened); restored to the tiles screen on close.
-        self._hintbar.show_hints(home_hints.TILE_POPOVER)
-        popover.show_above(self._tilebar.current_tile())
-
-    def _on_tile_popover_closed(self) -> None:
-        self._overlays.forget(self._tile_popover)
-        self._tile_popover = None
-        self._nav.render()   # restore the tiles-screen hints
+        self._dialogs.show_tile_popover()
 
     # ── Tile popover activation ────────────────────────────────────────────
 
@@ -582,7 +543,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         if item.action == MOVE:
             self._tile_mover.start()
         elif item.action == SETTINGS:
-            self._show_tile_settings()
+            self._dialogs.show_tile_settings()
         elif item.action == PIN:
             self._app_pinner.pin(item.target.window_id)
         elif item.action == UNPIN:
@@ -598,104 +559,13 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             on_confirmed=lambda: self._app_pinner.unpin(index),
         )
 
-    def _show_tile_settings(self) -> None:
-        """Open the Tile Settings modal for the focused app tile.
-
-        Both sections (recall trigger + colour) are visible at once. Staging a
-        colour previews it live on the tile; *Save* persists both values to the
-        ``.desktop`` file; *Cancel* (or B / Escape / backdrop / BTN_MODE) reverts
-        the preview. The capture of the tile index is safe: the modal is modal,
-        so the focus cannot move underneath it."""
-        if self._tile_settings is not None or not self._tilebar.current_is_app():
-            return
-        index = self._tilebar.current_app_index()
-        original_color = self._tilebar.current_app_color()
-
-        def _on_color_preview(color: str) -> None:
-            self._tilebar.set_app_color(index, color)
-
-        def _on_save(color: str, trigger: str) -> None:
-            self._forget_tile_settings()
-            self._tile_settings_editor.apply(index, color, trigger)
-
-        def _on_cancel() -> None:
-            self._forget_tile_settings()
-            if original_color is not None:
-                self._tilebar.set_app_color(index, original_color)
-
-        self._tile_settings = TileSettings(
-            app_name=self._tilebar.current_app_name() or "",
-            colors=TILE_COLORS,
-            original_color=original_color,
-            original_trigger=self._tilebar.current_app_recall_trigger() or Trigger.CLICK,
-            on_color_preview=_on_color_preview,
-            on_save=_on_save,
-            on_cancel=_on_cancel,
-            gamepad=self._gamepad,
-            feedback=self._feedback,
-            parent=self,
-        )
-        self._overlays.register(self._tile_settings)
-        self._hintbar.show_hints(home_hints.TILE_SETTINGS)
-
-    def _forget_tile_settings(self) -> None:
-        self._overlays.forget(self._tile_settings)
-        self._tile_settings = None
-        self._nav.render()   # restore the tiles-screen hints
-
-    def _close_active_dialog(self) -> None:
-        if self._confirm_dialog is not None:
-            logger.warning("Dialog window still active after app ending – forcing to close")
-            self._confirm_dialog.cancel()
-            self._forget_confirm()
-
-    def _forget_confirm(self) -> None:
-        """Drop the confirm dialog from the registry and clear its slot.
-
-        Restore the screen hints that were replaced when the dialog opened, so
-        the hint bar doesn't show stale confirm controls after it closes.
-        """
-        self._overlays.forget(self._confirm_dialog)
-        self._confirm_dialog = None
-        if self._surface.is_visible() and self._nav is not None:
-            self._nav.render()
-        self._sync_hint_visibility()
-
-    # ── Confirmation dialogs ───────────────────────────────────────────────
-
     def _show_confirm(
         self,
         question: str,
         on_confirmed: Callable[[], None],
         on_cancelled: Callable[[], None] | None = None,
     ) -> None:
-        """Open a ConfirmDialog, ignoring the call if one is already up.
-
-        The callbacks are wrapped to forget the dialog before handing control on,
-        so its slot and registry entry clear on whichever button is pressed.
-        """
-        if self._confirm_dialog is not None:
-            return
-
-        def _wrap(cb: Callable[[], None] | None) -> Callable[[], None]:
-            def _inner() -> None:
-                self._forget_confirm()
-                if cb:
-                    cb()
-            return _inner
-
-        self._confirm_dialog = ConfirmDialog(
-            question=question,
-            on_confirmed=_wrap(on_confirmed),
-            on_cancelled=_wrap(on_cancelled),
-            gamepad=self._gamepad,
-            feedback=self._feedback,
-            parent=self,
-            dim=False,
-        )
-        self._overlays.register(self._confirm_dialog)
-        self._hintbar.show_hints(home_hints.CONFIRM)
-        self._hintbar.show()
+        self._dialogs.show_confirm(question, on_confirmed, on_cancelled)
 
     # ── Top bar actions ────────────────────────────────────────────────────
 
@@ -796,16 +666,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         if self._power_popover is not None:
             self._power_popover.show_topbar(index)
 
-    def _present(self, overlay: BaseOverlay) -> None:
-        """Track a freshly opened top-bar overlay; return focus to the bar when
-        it closes. The registry then pauses/resumes/cancels it with the group."""
-        self._overlays.register(overlay)
-        overlay.closed.connect(lambda: self._on_overlay_closed(overlay))
-
-    def _on_overlay_closed(self, overlay: BaseOverlay) -> None:
-        self._overlays.forget(overlay)
-        self._nav.focus_topbar()
-
     def refresh_notification_badge(self) -> None:
         """Sync the notifications badge to the unread count in memory — on the
         Home header."""
@@ -824,7 +684,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             self._gamepad, self._network_status, self._network_control,
             self._feedback, parent=self, dim=False,
         )
-        self._present(overlay)
+        self._dialogs.present(overlay)
         self._hintbar.show_hints(home_hints.NETWORK)
 
     def open_notifications_overlay(self) -> None:
@@ -835,5 +695,5 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         )
         self._notifications.mark_all_read()
         self.refresh_notification_badge()
-        self._present(overlay)
+        self._dialogs.present(overlay)
         self._hintbar.show_hints(home_hints.NOTIFICATIONS)
