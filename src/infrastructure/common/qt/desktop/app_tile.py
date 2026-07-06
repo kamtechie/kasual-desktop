@@ -62,6 +62,7 @@ class AppTile(QWidget):
         self._marquee_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self._closing = False
+        self._running = False
         # Rejects the synthetic enterEvent Qt fires when an overlay above us
         # closes over a stationary cursor (see enterEvent).
         self._pos_at_leave: QPoint | None = None
@@ -129,6 +130,9 @@ class AppTile(QWidget):
             self._marquee_clip.setStyleSheet(f"background-color: {color};")
 
     def set_running(self, running: bool) -> None:
+        if running == self._running:
+            return
+        self._running = running
         if not running:
             self._closing = False
             self._status_bar.setGraphicsEffect(None)
@@ -139,6 +143,7 @@ class AppTile(QWidget):
 
     def set_closing(self) -> None:
         self._closing = True
+        self._running = True
         self._show_status_bar("#d08770")
 
     def is_closing(self) -> bool:
