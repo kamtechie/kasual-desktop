@@ -16,6 +16,14 @@ class TestGet:
         with patch("infrastructure.linux.audio.volume.subprocess.check_output", side_effect=FileNotFoundError):
             assert PactlVolumeControl().get() == Volume(Volume.DEFAULT)
 
+    def test_warns_once_on_repeated_failure(self):
+        control = PactlVolumeControl()
+        with patch("infrastructure.linux.audio.volume.subprocess.check_output", side_effect=FileNotFoundError), \
+             patch("infrastructure.linux.audio.volume.logger") as logger:
+            control.get()
+            control.get()
+        assert logger.warning.call_count == 1
+
 
 class TestSet:
     def test_calls_pactl_with_percent(self):

@@ -13,6 +13,9 @@ _SINK = "@DEFAULT_SINK@"
 class PactlVolumeControl(VolumeControl):
     """Implements the VolumeControl port for the default sink via ``pactl``."""
 
+    def __init__(self) -> None:
+        self._warned = False
+
     def get(self) -> Volume:
         try:
             out = subprocess.check_output(
@@ -23,8 +26,10 @@ class PactlVolumeControl(VolumeControl):
             for part in out.split():
                 if part.endswith("%"):
                     return Volume(int(part.rstrip("%")))
-        except Exception:
-            pass
+        except Exception as exc:
+            if not self._warned:
+                self._warned = True
+                logger.warning("pactl unavailable, falling back to default volume: %s", exc)
         return Volume(Volume.DEFAULT)
 
     def set(self, volume: Volume) -> None:
