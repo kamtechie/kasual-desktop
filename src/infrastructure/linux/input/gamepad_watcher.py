@@ -128,6 +128,7 @@ class GamepadWatcher(BaseGamepadWatcher):
 
                 found = False
                 for path in list_devices():
+                    d = None
                     try:
                         d = InputDevice(path)
                         if not self._is_gamepad(d):
@@ -153,7 +154,14 @@ class GamepadWatcher(BaseGamepadWatcher):
                         refresh_started_at = None
                         break
                     except Exception as exc:
-                        logger.debug("Ommitted device: %s", exc)
+                        logger.debug("Omitted device: %s", exc)
+                        # d.grab() may have already succeeded before UInput.from_device
+                        # failed — closing releases the exclusive grab on the physical pad.
+                        if d is not None:
+                            try:
+                                d.close()
+                            except Exception:
+                                pass
 
                 if not found and refresh_started_at is not None and was_connected:
                     # Give up the optimistic "still connected" state after a grace period.
