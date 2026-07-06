@@ -36,7 +36,7 @@ class TestPauseResume:
 class TestGoToDesktop:
     def test_clears_foreground_and_shows(self):
         fg = ForegroundState()
-        fg.set(AppTarget(0, "Steam"))
+        fg.set(AppTarget(index=0, app_id="steam", name="Steam"))
         s = DesktopState(fg)
         assert s.is_idle() is False
         s.go_to_desktop()
@@ -54,5 +54,5 @@ class TestSharedForeground:
     def test_composes_the_injected_foreground(self):
         fg = ForegroundState()
         s = DesktopState(fg)
-        fg.set(AppTarget(2, "X"))
-        assert s.current == AppTarget(2, "X")   # same instance, one truth
+        fg.set(AppTarget(index=2, app_id="x", name="X"))
+        assert s.current == AppTarget(index=2, app_id="x", name="X")   # same instance, one truth

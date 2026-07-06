@@ -10,7 +10,7 @@ from domain.catalog.target import AppTarget, WindowTarget
 
 
 def _app(i=0):
-    return AppTarget(index=i, name=f"App {i}")
+    return AppTarget(index=i, app_id=f"app{i}", name=f"App {i}")
 
 
 def _win(wid="w1"):
@@ -41,22 +41,22 @@ class TestClearIfApp:
     def test_clears_matching_app(self):
         fg = ForegroundState()
         fg.set(_app(3))
-        fg.clear_if_app(3)
+        fg.clear_if_app("app3")
         assert fg.is_idle() is True
 
     def test_keeps_different_app(self):
         fg = ForegroundState()
         fg.set(_app(3))
-        fg.clear_if_app(4)        # a different app finished
+        fg.clear_if_app("app4")        # a different app finished
         assert fg.current == _app(3)
 
     def test_keeps_window_target(self):
         fg = ForegroundState()
         fg.set(_win())
-        fg.clear_if_app(0)        # index must not match a WindowTarget
+        fg.clear_if_app("app0")        # app_id must not match a WindowTarget
         assert isinstance(fg.current, WindowTarget)
 
     def test_noop_when_idle(self):
         fg = ForegroundState()
-        fg.clear_if_app(0)        # must not raise
+        fg.clear_if_app("app0")        # must not raise
         assert fg.is_idle() is True

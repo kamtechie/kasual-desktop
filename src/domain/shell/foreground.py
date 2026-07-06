@@ -23,12 +23,12 @@ class ForegroundState:
     def clear(self) -> None:
         self._target = None
 
-    def clear_if_app(self, index: int) -> None:
-        """Clear only if the app at *index* is currently in front.
+    def clear_if_app(self, app_id: str) -> None:
+        """Clear only if app *app_id* is currently in front.
 
         Used when that app exits or fails to launch: the foreground must drop
         back to the Desktop, but a different target chosen meanwhile must stay.
         """
         t = self._target
-        if isinstance(t, AppTarget) and t.index == index:
+        if isinstance(t, AppTarget) and t.app_id == app_id:
             self._target = None

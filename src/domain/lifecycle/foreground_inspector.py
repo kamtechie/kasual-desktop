@@ -62,7 +62,7 @@ class ForegroundInspector:
         """OS pid of the foreground app, if one is a running App tile."""
         target = self._foreground.current
         if isinstance(target, AppTarget):
-            return self._app_manager.running_pid(target.index)
+            return self._app_manager.running_pid(target.app_id)
         return None
 
     def foreground_is_game(self) -> bool:

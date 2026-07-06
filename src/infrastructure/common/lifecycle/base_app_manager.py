@@ -1,9 +1,9 @@
 """Template-method base for platform `ProcessManager` adapters.
 
-Both platform app managers track processes in an ``idx -> proc`` dict and key
-all cleanup on process identity, not idx — a reorder or close+relaunch can
-re-key the dict before a process actually ends. Subclasses implement only the
-spawn/kill/wait mechanics.
+Both platform app managers track processes in an ``app_id -> proc`` dict, keyed
+by each app's stable id rather than its tile position — a reorder or unpin
+never touches this dict, and cleanup on process exit resolves the id back from
+the dict itself. Subclasses implement only the spawn/kill/wait mechanics.
 """
 
 from __future__ import annotations
@@ -33,16 +33,16 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
     """Shared lifecycle bookkeeping for a multi-app `ProcessManager` adapter.
 
     Subclasses provide the platform-specific spawn/kill mechanics via the hook
-    methods and the `launch` implementation. The base owns the per-idx process
+    methods and the `launch` implementation. The base owns the per-app process
     dict, the lifecycle event emitters, the cross-thread finish hop, and all
-    index-keyed queries (is_running / running_pid / swap_indices / ...).
+    id-keyed queries (is_running / running_pid / ...).
     """
 
     _proc_ended = pyqtSignal(object, int)   # monitor thread -> GUI thread
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._processes: dict[int, Proc] = {}
+        self._processes: dict[str, Proc] = {}
         self._started_emitter = EventEmitter[AppStarted]()
         self._finished_emitter = EventEmitter[AppFinished]()
         self._launch_failed_emitter = EventEmitter[AppLaunchFailed]()
@@ -63,48 +63,33 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
 
     # ── shared bookkeeping ────────────────────────────────────────────────────
 
-    def swap_indices(self, i: int, j: int) -> None:
-        pi = self._processes.pop(i, None)
-        pj = self._processes.pop(j, None)
-        if pi is not None:
-            self._processes[j] = pi
-        if pj is not None:
-            self._processes[i] = pj
-
-    def remove_index(self, idx: int) -> None:
-        self._processes.pop(idx, None)
-        self._processes = {
-            (k - 1 if k > idx else k): proc
-            for k, proc in self._processes.items()
-        }
-
-    def is_running(self, idx: int | None = None) -> bool:
-        if idx is not None:
-            proc = self._processes.get(idx)
+    def is_running(self, app_id: str | None = None) -> bool:
+        if app_id is not None:
+            proc = self._processes.get(app_id)
             return proc is not None and proc.poll() is None
         return any(p.poll() is None for p in self._processes.values())
 
-    def running_idxs(self) -> list[int]:
+    def running_app_ids(self) -> list[str]:
         return [i for i, p in self._processes.items() if p.poll() is None]
 
-    def running_pid(self, idx: int) -> int | None:
-        if self.is_running(idx):
-            return self._processes[idx].pid
+    def running_pid(self, app_id: str) -> int | None:
+        if self.is_running(app_id):
+            return self._processes[app_id].pid
         return None
 
     def all_running_pids(self) -> list[int]:
         return [p.pid for p in self._processes.values() if p.poll() is None]
 
-    def terminate(self, idx: int) -> None:
-        if not self.is_running(idx):
+    def terminate(self, app_id: str) -> None:
+        if not self.is_running(app_id):
             return
-        proc = self._processes[idx]
-        logger.info("Ending app %d", idx)
+        proc = self._processes[app_id]
+        logger.info("Ending app %s", app_id)
         try:
             self._terminate_proc(proc)
             QTimer.singleShot(3000, lambda: self._force_kill(proc))
         except Exception as e:
-            logger.warning("Failed to terminate app %d: %s", idx, e)
+            logger.warning("Failed to terminate app %s: %s", app_id, e)
 
     # ── shared pre/post helpers for `launch` ──────────────────────────────────
 
@@ -114,25 +99,25 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
         proc_env.update(env or {})
         return proc_env
 
-    def _after_spawn(self, idx: int, proc: Proc) -> bool:
-        self._processes[idx] = proc
+    def _after_spawn(self, app_id: str, proc: Proc) -> bool:
+        self._processes[app_id] = proc
         threading.Thread(
             target=self._monitor, args=(proc,), daemon=True
         ).start()
-        self._started_emitter.emit(AppStarted(idx))
+        self._started_emitter.emit(AppStarted(app_id))
         return True
 
-    def _fail_launch(self, idx: int, command: str, msg: str) -> bool:
+    def _fail_launch(self, app_id: str, command: str, msg: str) -> bool:
         logger.error(msg)
-        self._launch_failed_emitter.emit(AppLaunchFailed(idx, msg))
+        self._launch_failed_emitter.emit(AppLaunchFailed(app_id, msg))
         return False
 
     # ── shared monitoring / cleanup ───────────────────────────────────────────
 
     def _force_kill(self, proc: Proc) -> None:
-        idx = self._idx_of(proc)
-        if idx is not None and proc.poll() is None:
-            logger.warning("Force killing app %d", idx)
+        app_id = self._app_id_of(proc)
+        if app_id is not None and proc.poll() is None:
+            logger.warning("Force killing app %s", app_id)
             try:
                 self._force_kill_proc(proc)
             except Exception:
@@ -143,14 +128,14 @@ class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
         self._proc_ended.emit(proc, proc.returncode)
 
     def _on_finished(self, proc: Proc, exit_code: int) -> None:
-        idx = self._idx_of(proc)
-        if idx is None:
+        app_id = self._app_id_of(proc)
+        if app_id is None:
             return
-        logger.info("Application %d ended (exit code=%d)", idx, exit_code)
-        self._processes.pop(idx, None)
-        self._finished_emitter.emit(AppFinished(idx))
+        logger.info("Application %s ended (exit code=%d)", app_id, exit_code)
+        self._processes.pop(app_id, None)
+        self._finished_emitter.emit(AppFinished(app_id))
 
-    def _idx_of(self, proc: Proc) -> int | None:
+    def _app_id_of(self, proc: Proc) -> str | None:
         return next((i for i, p in self._processes.items() if p is proc), None)
 
     # ── platform hooks (override in subclasses) ───────────────────────────────

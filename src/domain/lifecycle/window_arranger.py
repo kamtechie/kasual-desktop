@@ -27,13 +27,13 @@ class WindowArranger:
         if other_pids:
             self._wm.minimize_windows_for_pids(other_pids)
 
-    def raise_app(self, idx: int, app: App) -> None:
-        """Bring app *idx* to the front, minimizing the other running apps.
+    def raise_app(self, app: App) -> None:
+        """Bring *app* to the front, minimizing the other running apps.
 
         Raised by tracked pid, except by window identity for a Steam game (whose
         tracked process is the shared Steam client) and a pinned externally-started
         app (no tracked pid)."""
-        pid = self._app_manager.running_pid(idx)
+        pid = self._app_manager.running_pid(app.id)
         if app.steam_app_id is None and pid is not None:
             self.arrange(pid)
             return

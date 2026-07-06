@@ -163,8 +163,8 @@ def main() -> None:
             is_game_pid=is_game_pid,
             app_adder=app_adder,
             power_preference=power_preference,
-            deferred_hide_factory=lambda wm_, pm_, apps_, on_hide:
-                DeferredHide(wm_, pm_, apps_, on_hide=on_hide),
+            deferred_hide_factory=lambda wm_, pm_, on_hide:
+                DeferredHide(wm_, pm_, on_hide=on_hide),
         )
         # Keep the top-bar notifications badge in sync with the in-memory count.
         # Subscribed after `record` above, so the count is already updated when

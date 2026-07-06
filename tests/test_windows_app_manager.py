@@ -1,9 +1,8 @@
 """Unit tests for WindowsAppManager (Windows ShellExecuteEx/subprocess version).
 
 Mirror of the Linux ``test_app_manager.py``: same lifecycle bookkeeping (initial
-state, is_running/running_idxs/running_pid/all_running_pids, _on_finished,
-terminate/force-kill, swap_indices, remove_index) plus the Windows-specific
-launch paths:
+state, is_running/running_app_ids/running_pid/all_running_pids, _on_finished,
+terminate/force-kill) plus the Windows-specific launch paths:
 
   - ``.lnk`` and ``ms-*`` protocol schemes go through ``ShellExecuteEx``;
   - a normal ``.exe`` is spawned via ``subprocess.Popen`` with
@@ -64,75 +63,75 @@ class TestInitialState:
         assert _make_manager().is_running() is False
 
     def test_is_running_specific_not_running(self, qapp):
-        assert _make_manager().is_running(0) is False
+        assert _make_manager().is_running("a") is False
 
-    def test_running_idxs_empty(self, qapp):
-        assert _make_manager().running_idxs() == []
+    def test_running_app_ids_empty(self, qapp):
+        assert _make_manager().running_app_ids() == []
 
     def test_all_running_pids_empty(self, qapp):
         assert _make_manager().all_running_pids() == []
 
 
-# ── is_running / running_idxs / running_pid / all_running_pids ────────────────
+# ── is_running / running_app_ids / running_pid / all_running_pids ─────────────
 
 class TestIsRunning:
-    def test_true_for_specific_running_idx(self, qapp):
+    def test_true_for_specific_running_id(self, qapp):
         am = _make_manager()
-        am._processes[2] = _running_proc()
-        assert am.is_running(2) is True
+        am._processes["a"] = _running_proc()
+        assert am.is_running("a") is True
 
     def test_false_for_exited_process(self, qapp):
         am = _make_manager()
-        am._processes[2] = _exited_proc()
-        assert am.is_running(2) is False
+        am._processes["a"] = _exited_proc()
+        assert am.is_running("a") is False
 
-    def test_false_for_unknown_idx(self, qapp):
+    def test_false_for_unknown_id(self, qapp):
         am = _make_manager()
-        assert am.is_running(99) is False
+        assert am.is_running("unknown") is False
 
     def test_no_arg_true_when_any_running(self, qapp):
         am = _make_manager()
-        am._processes[0] = _running_proc()
+        am._processes["a"] = _running_proc()
         assert am.is_running() is True
 
     def test_no_arg_false_when_all_exited(self, qapp):
         am = _make_manager()
-        am._processes[0] = _exited_proc()
+        am._processes["a"] = _exited_proc()
         assert am.is_running() is False
 
-    def test_running_idxs_returns_only_running(self, qapp):
+    def test_running_app_ids_returns_only_running(self, qapp):
         am = _make_manager()
-        am._processes[0] = _running_proc(pid=1)
-        am._processes[1] = _exited_proc()
-        am._processes[2] = _running_proc(pid=2)
-        assert sorted(am.running_idxs()) == [0, 2]
+        am._processes["a"] = _running_proc(pid=1)
+        am._processes["b"] = _exited_proc()
+        am._processes["c"] = _running_proc(pid=2)
+        assert sorted(am.running_app_ids()) == ["a", "c"]
 
     def test_running_pid_returns_pid(self, qapp):
         am = _make_manager()
-        am._processes[3] = _running_proc(pid=4242)
-        assert am.running_pid(3) == 4242
+        am._processes["a"] = _running_proc(pid=4242)
+        assert am.running_pid("a") == 4242
 
     def test_running_pid_none_when_not_running(self, qapp):
         am = _make_manager()
-        assert am.running_pid(0) is None
+        assert am.running_pid("a") is None
 
     def test_running_pid_none_for_exited(self, qapp):
         am = _make_manager()
-        am._processes[0] = _exited_proc()
-        assert am.running_pid(0) is None
+        am._processes["a"] = _exited_proc()
+        assert am.running_pid("a") is None
 
     def test_all_running_pids(self, qapp):
         am = _make_manager()
-        am._processes[0] = _running_proc(pid=100)
-        am._processes[1] = _running_proc(pid=200)
-        am._processes[2] = _exited_proc()
+        am._processes["a"] = _running_proc(pid=100)
+        am._processes["b"] = _running_proc(pid=200)
+        am._processes["c"] = _exited_proc()
         assert sorted(am.all_running_pids()) == [100, 200]
 
 
 # ── launch — zwykły .exe przez subprocess.Popen ────────────────────────────────
 
 class TestLaunchExe:
-    def _launch(self, am, idx=0, command="C:\\app\\foo.exe", args=None, pid=1234,
+    def _launch(self, am, app_id="a", command="C:\\app\\foo.exe", args=None, pid=1234,
                 exists=True):
         """Run a normal-exe launch with Popen + Thread mocked.
 
@@ -144,7 +143,7 @@ class TestLaunchExe:
         with patch("infrastructure.windows.catalog.app_manager.subprocess.Popen", return_value=proc) as popen, \
              patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"), \
              patch("infrastructure.windows.catalog.app_manager.os.path.exists", return_value=exists):
-            am.launch(idx, command, args or [])
+            am.launch(app_id, command, args or [])
         return popen, proc
 
     def test_creates_process_with_command_and_args(self, qapp):
@@ -175,36 +174,36 @@ class TestLaunchExe:
         proc = _running_proc(pid=1234)
         with patch("infrastructure.windows.catalog.app_manager.subprocess.Popen", return_value=proc) as popen, \
              patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"):
-            am.launch(0, "cmd.exe", [], {"FOO": "bar"})
+            am.launch("a", "cmd.exe", [], {"FOO": "bar"})
         env = popen.call_args.kwargs["env"]
         assert env["FOO"] == "bar"
 
     def test_emits_app_started(self, qapp):
         am = _make_manager()
         received = []
-        am.on_started(lambda e: received.append(e.idx))
-        self._launch(am, idx=3)
-        assert received == [3]
+        am.on_started(lambda e: received.append(e.app_id))
+        self._launch(am, app_id="d")
+        assert received == ["d"]
 
-    def test_ignored_when_same_idx_already_running(self, qapp):
+    def test_ignored_when_same_id_already_running(self, qapp):
         am = _make_manager()
-        am._processes[0] = _running_proc()
+        am._processes["a"] = _running_proc()
         with patch("infrastructure.windows.catalog.app_manager.subprocess.Popen") as popen:
-            am.launch(0, "foo.exe")
+            am.launch("a", "foo.exe")
         popen.assert_not_called()
 
-    def test_allows_different_idxs_simultaneously(self, qapp):
+    def test_allows_different_ids_simultaneously(self, qapp):
         am = _make_manager()
-        self._launch(am, idx=0, pid=100)
-        self._launch(am, idx=1, pid=200)
-        assert sorted(am.running_idxs()) == [0, 1]
+        self._launch(am, app_id="a", pid=100)
+        self._launch(am, app_id="b", pid=200)
+        assert sorted(am.running_app_ids()) == ["a", "b"]
 
     def test_starts_monitor_thread(self, qapp):
         am = _make_manager()
         with patch("infrastructure.windows.catalog.app_manager.subprocess.Popen", return_value=_running_proc()), \
              patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread") as mock_thread, \
              patch("infrastructure.windows.catalog.app_manager.os.path.exists", return_value=True):
-            am.launch(0, "foo.exe")
+            am.launch("a", "foo.exe")
         mock_thread.assert_called_once()
         mock_thread.return_value.start.assert_called_once()
 
@@ -213,27 +212,27 @@ class TestLaunchExe:
         with patch("infrastructure.windows.catalog.app_manager.subprocess.Popen", return_value=_running_proc()), \
              patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"), \
              patch("infrastructure.windows.catalog.app_manager.os.path.exists", return_value=True):
-            assert am.launch(0, "foo.exe") is True
+            assert am.launch("a", "foo.exe") is True
 
     def test_returns_false_when_already_running(self, qapp):
         am = _make_manager()
-        am._processes[0] = _running_proc()
+        am._processes["a"] = _running_proc()
         with patch("infrastructure.windows.catalog.app_manager.subprocess.Popen"):
-            assert am.launch(0, "foo.exe") is False
+            assert am.launch("a", "foo.exe") is False
 
     def test_returns_false_and_emits_failed_on_file_not_found(self, qapp):
         am = _make_manager()
         failed = []
-        am.on_launch_failed(lambda e: failed.append((e.idx, e.error)))
+        am.on_launch_failed(lambda e: failed.append((e.app_id, e.error)))
         with patch("infrastructure.windows.catalog.app_manager.subprocess.Popen", side_effect=FileNotFoundError):
-            assert am.launch(2, "C:\\nope.exe") is False
-        assert failed and failed[0][0] == 2
-        assert not am.is_running(2)
+            assert am.launch("c", "C:\\nope.exe") is False
+        assert failed and failed[0][0] == "c"
+        assert not am.is_running("c")
 
     def test_returns_false_on_permission_error(self, qapp):
         am = _make_manager()
         with patch("infrastructure.windows.catalog.app_manager.subprocess.Popen", side_effect=PermissionError):
-            assert am.launch(0, "C:\\secret.exe") is False
+            assert am.launch("a", "C:\\secret.exe") is False
 
 
 # ── launch — PATH resolution ──────────────────────────────────────────────────
@@ -272,7 +271,7 @@ class TestLaunchPathResolution:
         with patch.dict("os.environ", {"PATH": str(tmp_path)}), \
              patch("infrastructure.windows.catalog.app_manager.subprocess.Popen", return_value=proc) as popen, \
              patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"):
-            am.launch(0, "tool")
+            am.launch("a", "tool")
         assert popen.call_args[0][0][0] == str(exe)
 
 
@@ -282,29 +281,29 @@ class TestLaunchStartfileFallback:
     def test_startfile_emits_app_started_and_returns_true(self, qapp):
         am = _make_manager()
         received = []
-        am.on_started(lambda e: received.append(e.idx))
+        am.on_started(lambda e: received.append(e.app_id))
         with patch("infrastructure.windows.catalog.app_manager.os.path.exists", return_value=False), \
              patch.object(WindowsAppManager, "_find_in_path", return_value=None), \
              patch("infrastructure.windows.catalog.app_manager.os.startfile") as startfile:
-            assert am.launch(4, "weird-command") is True
+            assert am.launch("e", "weird-command") is True
         startfile.assert_called_once_with("weird-command")
-        assert received == [4]
+        assert received == ["e"]
 
     def test_startfile_failure_returns_false_and_emits_failed(self, qapp):
         am = _make_manager()
         failed = []
-        am.on_launch_failed(lambda e: failed.append(e.idx))
+        am.on_launch_failed(lambda e: failed.append(e.app_id))
         with patch("infrastructure.windows.catalog.app_manager.os.path.exists", return_value=False), \
              patch.object(WindowsAppManager, "_find_in_path", return_value=None), \
              patch("infrastructure.windows.catalog.app_manager.os.startfile", side_effect=OSError("no")):
-            assert am.launch(4, "weird-command") is False
-        assert failed == [4]
+            assert am.launch("e", "weird-command") is False
+        assert failed == ["e"]
 
 
 # ── launch — .lnk / ms-* przez ShellExecuteEx ──────────────────────────────────
 
 class TestLaunchShellExecute:
-    def _shell_launch(self, am, idx=0, command="ms-settings:",
+    def _shell_launch(self, am, app_id="a", command="ms-settings:",
                       hProcess=0x100, pid=4321):
         """Run a shell-execute launch with mocked Win32 calls.
 
@@ -327,7 +326,7 @@ class TestLaunchShellExecute:
                 sei.hProcess = hProcess
                 return 1
             windll.shell32.ShellExecuteExW.side_effect = _sei_side_effect
-            am.launch(idx, command)
+            am.launch(app_id, command)
         return windll, captured.get("sei")
 
     def test_lnk_routes_to_shell_execute(self, qapp):
@@ -345,16 +344,16 @@ class TestLaunchShellExecute:
         start — running state is tracked via window-matching."""
         am = _make_manager()
         received = []
-        am.on_started(lambda e: received.append(e.idx))
+        am.on_started(lambda e: received.append(e.app_id))
         with patch("infrastructure.windows.catalog.app_manager.ctypes.windll") as windll, \
              patch("infrastructure.windows.catalog.app_manager.ctypes.byref", lambda obj: obj), \
              patch("infrastructure.windows.catalog.app_manager.ctypes.sizeof", return_value=64), \
              patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"):
             windll.shell32.ShellExecuteExW.return_value = 1
-            am.launch(5, "ms-settings:")
-        assert received == [5]
+            am.launch("f", "ms-settings:")
+        assert received == ["f"]
         # No process registered — running is detected via window-matching.
-        assert not am.is_running(5)
+        assert not am.is_running("f")
 
     def test_with_handle_registers_process(self, qapp):
         am = _make_manager()
@@ -375,20 +374,20 @@ class TestLaunchShellExecute:
                 sei.hProcess = 0x200
                 return 1
             windll.shell32.ShellExecuteExW.side_effect = _sei
-            am.launch(2, "C:\\s.lnk")
-            assert am.is_running(2)
-            assert am.running_pid(2) == 999
+            am.launch("c", "C:\\s.lnk")
+            assert am.is_running("c")
+            assert am.running_pid("c") == 999
 
     def test_shell_execute_failure_returns_false(self, qapp):
         am = _make_manager()
         failed = []
-        am.on_launch_failed(lambda e: failed.append(e.idx))
+        am.on_launch_failed(lambda e: failed.append(e.app_id))
         with patch("infrastructure.windows.catalog.app_manager.ctypes.windll") as windll, \
              patch("infrastructure.windows.catalog.app_manager.ctypes.byref", lambda obj: obj), \
              patch("infrastructure.windows.catalog.app_manager.ctypes.sizeof", return_value=64):
             windll.shell32.ShellExecuteExW.return_value = 0  # failure
-            assert am.launch(7, "ms-broken:") is False
-        assert failed == [7]
+            assert am.launch("g", "ms-broken:") is False
+        assert failed == ["g"]
 
 
 # ── _WinHandle — Win32 process HANDLE wrapper ─────────────────────────────────
@@ -474,31 +473,31 @@ class TestOnFinished:
     def test_removes_process(self, qapp):
         am = _make_manager()
         proc = _running_proc()
-        am._processes[1] = proc
+        am._processes["a"] = proc
         am._on_finished(proc, 0)
-        assert 1 not in am._processes
+        assert "a" not in am._processes
 
     def test_other_processes_remain(self, qapp):
         am = _make_manager()
         ended = _running_proc(pid=100)
-        am._processes[0] = ended
-        am._processes[1] = _running_proc(pid=200)
+        am._processes["a"] = ended
+        am._processes["b"] = _running_proc(pid=200)
         am._on_finished(ended, 0)
-        assert 1 in am._processes
+        assert "b" in am._processes
 
-    def test_emits_app_finished_with_current_index(self, qapp):
+    def test_emits_app_finished_with_current_id(self, qapp):
         am = _make_manager()
         proc = _running_proc()
-        am._processes[5] = proc
+        am._processes["e"] = proc
         received = []
-        am.on_finished(lambda e: received.append(e.idx))
+        am.on_finished(lambda e: received.append(e.app_id))
         am._on_finished(proc, 0)
-        assert received == [5]
+        assert received == ["e"]
 
     def test_noop_for_untracked_process(self, qapp):
         am = _make_manager()
         received = []
-        am.on_finished(lambda e: received.append(e.idx))
+        am.on_finished(lambda e: received.append(e.app_id))
         am._on_finished(_running_proc(), 0)   # never registered
         assert received == []
 
@@ -508,44 +507,44 @@ class TestOnFinished:
 class TestTerminate:
     def test_noop_when_not_running(self, qapp):
         am = _make_manager()
-        am.terminate(0)   # nie powinno rzucać
+        am.terminate("a")   # nie powinno rzucać
 
     def test_calls_terminate_on_proc(self, qapp):
         am = _make_manager()
         proc = _running_proc(pid=1234)
-        am._processes[0] = proc
+        am._processes["a"] = proc
         with patch.object(proc, "terminate") as term, \
              patch("infrastructure.common.lifecycle.base_app_manager.QTimer.singleShot"):
-            am.terminate(0)
+            am.terminate("a")
         term.assert_called_once()
 
     def test_schedules_force_kill_after_3s(self, qapp):
         am = _make_manager()
         proc = _running_proc()
-        am._processes[0] = proc
+        am._processes["a"] = proc
         with patch.object(proc, "terminate"), \
              patch("infrastructure.common.lifecycle.base_app_manager.QTimer.singleShot") as mock_timer:
-            am.terminate(0)
+            am.terminate("a")
         assert mock_timer.call_args[0][0] == 3000
 
     def test_noop_when_process_already_exited(self, qapp):
         am = _make_manager()
         proc = _exited_proc()
-        am._processes[0] = proc
+        am._processes["a"] = proc
         with patch.object(proc, "terminate") as term:
-            am.terminate(0)
+            am.terminate("a")
         term.assert_not_called()
 
-    def test_terminate_only_affects_target_idx(self, qapp):
+    def test_terminate_only_affects_target_id(self, qapp):
         am = _make_manager()
         p0 = _running_proc(pid=100)
         p1 = _running_proc(pid=200)
-        am._processes[0] = p0
-        am._processes[1] = p1
+        am._processes["a"] = p0
+        am._processes["b"] = p1
         with patch.object(p0, "terminate") as t0, \
              patch.object(p1, "terminate") as t1, \
              patch("infrastructure.common.lifecycle.base_app_manager.QTimer.singleShot"):
-            am.terminate(0)
+            am.terminate("a")
         t0.assert_called_once()
         t1.assert_not_called()
 
@@ -554,17 +553,7 @@ class TestForceKill:
     def test_calls_kill_when_still_running(self, qapp):
         am = _make_manager()
         proc = _running_proc(pid=5678)
-        am._processes[0] = proc
-        with patch.object(proc, "kill") as kill:
-            am._force_kill(proc)
-        kill.assert_called_once()
-
-    def test_sends_kill_after_reorder_moved_the_index(self, qapp):
-        """A reorder re-keys the process; the force-kill timer (bound to the
-        proc, not its old index) must still kill it under its new key."""
-        am = _make_manager()
-        proc = _running_proc(pid=5678)
-        am._processes[3] = proc          # moved here by swap_indices after launch
+        am._processes["a"] = proc
         with patch.object(proc, "kill") as kill:
             am._force_kill(proc)
         kill.assert_called_once()
@@ -572,84 +561,26 @@ class TestForceKill:
     def test_noop_when_process_exited(self, qapp):
         am = _make_manager()
         proc = _exited_proc()
-        am._processes[0] = proc
+        am._processes["a"] = proc
         with patch.object(proc, "kill") as kill:
             am._force_kill(proc)
         kill.assert_not_called()
 
     def test_noop_when_no_process(self, qapp):
         am = _make_manager()
-        proc = _running_proc()   # never registered under any idx
+        proc = _running_proc()   # never registered under any id
         with patch.object(proc, "kill") as kill:
             am._force_kill(proc)
         kill.assert_not_called()
 
     def test_noop_when_process_no_longer_tracked(self, qapp):
         """Regression: a close+relaunch swaps in a new process under the same
-        idx; the stale force-kill timer scheduled by the previous terminate must
-        not kill anything — its target is no longer tracked."""
+        app id; the stale force-kill timer scheduled by the previous terminate
+        must not kill anything — its target is no longer tracked."""
         am = _make_manager()
         old = _running_proc(pid=1111)    # what terminate() targeted, now gone
-        new = _running_proc(pid=4242)    # relaunched under the same idx
-        am._processes[0] = new
+        new = _running_proc(pid=4242)    # relaunched under the same id
+        am._processes["a"] = new
         with patch.object(old, "kill") as kill_old:
             am._force_kill(old)          # stale timer fires
         kill_old.assert_not_called()
-
-
-# ── swap_indices (tile reorder) ─────────────────────────────────────────────────
-
-class TestSwapIndices:
-    def test_moves_running_process_to_new_index(self, qapp):
-        am = _make_manager()
-        proc = _running_proc(pid=100)
-        am._processes[0] = proc
-        am.swap_indices(0, 2)
-        assert am._processes == {2: proc}
-        assert am.running_pid(2) == 100
-        assert am.running_pid(0) is None
-
-    def test_exchanges_two_running_processes(self, qapp):
-        am = _make_manager()
-        p0 = _running_proc(pid=100)
-        p1 = _running_proc(pid=200)
-        am._processes[0] = p0
-        am._processes[1] = p1
-        am.swap_indices(0, 1)
-        assert am._processes == {0: p1, 1: p0}
-
-    def test_noop_when_neither_index_tracked(self, qapp):
-        am = _make_manager()
-        am.swap_indices(0, 1)
-        assert am._processes == {}
-
-
-# ── remove_index (tile unpin) ───────────────────────────────────────────────────
-
-class TestRemoveIndex:
-    def test_shifts_higher_slots_down(self, qapp):
-        am = _make_manager()
-        p1 = _running_proc(pid=100)
-        p3 = _running_proc(pid=300)
-        am._processes[1] = p1
-        am._processes[3] = p3
-        am.remove_index(2)          # nothing at 2; 3 shifts down to 2
-        assert am._processes == {1: p1, 2: p3}
-
-    def test_drops_removed_slot_without_terminating(self, qapp):
-        am = _make_manager()
-        proc = _running_proc(pid=100)
-        am._processes[0] = proc
-        with patch.object(proc, "terminate") as term:
-            am.remove_index(0)
-        assert am._processes == {}
-        term.assert_not_called()     # unpinned-but-running app keeps running
-
-    def test_removed_then_lower_indices_unchanged(self, qapp):
-        am = _make_manager()
-        p0 = _running_proc(pid=100)
-        p2 = _running_proc(pid=200)
-        am._processes[0] = p0
-        am._processes[2] = p2
-        am.remove_index(1)          # 0 stays, 2 shifts to 1
-        assert am._processes == {0: p0, 1: p2}

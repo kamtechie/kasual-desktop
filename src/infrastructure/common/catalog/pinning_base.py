@@ -12,6 +12,7 @@ subclasses this and implements :meth:`pin`.
 import configparser
 import logging
 import re
+from dataclasses import replace
 from pathlib import Path
 
 from domain.catalog.app import App
@@ -65,7 +66,7 @@ class AppPinningBase(AppPinning):
             return None
 
         logger.info("Pinned %r to %s", app.name, path.name)
-        return app
+        return replace(app, id=path.stem)
 
     # ── Placement / filename ─────────────────────────────────────────────────
 

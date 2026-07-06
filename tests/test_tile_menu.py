@@ -11,11 +11,11 @@ from domain.catalog.target import AddTileTarget, AppTarget, WindowTarget
 
 class TestCompose:
     def test_app_not_running_offers_launch(self):
-        items = lifecycle_menu(AppTarget(0, "Steam"), is_running=False)
+        items = lifecycle_menu(AppTarget(index=0, app_id="steam", name="Steam"), is_running=False)
         assert [i.action for i in items] == [LAUNCH]
 
     def test_app_running_offers_restore_and_close(self):
-        items = lifecycle_menu(AppTarget(0, "Steam"), is_running=True)
+        items = lifecycle_menu(AppTarget(index=0, app_id="steam", name="Steam"), is_running=True)
         assert [i.action for i in items] == [RESTORE, CLOSE]
 
     def test_window_always_offers_restore_and_close(self):
@@ -24,7 +24,7 @@ class TestCompose:
         assert [i.action for i in items] == [RESTORE, CLOSE]
 
     def test_items_carry_their_target(self):
-        target = AppTarget(0, "Steam")
+        target = AppTarget(index=0, app_id="steam", name="Steam")
         items = lifecycle_menu(target, is_running=True)
         assert all(i.target == target for i in items)
 
@@ -36,11 +36,11 @@ class TestComposeTileMenu:
     section)."""
 
     def test_idle_app_has_launch_separator_then_management(self):
-        items = compose_tile_menu(AppTarget(0, "Steam"), is_running=False)
+        items = compose_tile_menu(AppTarget(index=0, app_id="steam", name="Steam"), is_running=False)
         assert [i.action for i in items] == [LAUNCH, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
     def test_running_app_keeps_management(self):
-        items = compose_tile_menu(AppTarget(0, "Steam"), is_running=True)
+        items = compose_tile_menu(AppTarget(index=0, app_id="steam", name="Steam"), is_running=True)
         assert [i.action for i in items] == [RESTORE, CLOSE, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
     def test_window_offers_restore_close_separator_pin(self):
@@ -48,7 +48,7 @@ class TestComposeTileMenu:
         assert [i.action for i in items] == [RESTORE, CLOSE, SEPARATOR, PIN]
 
     def test_separator_is_not_selectable_payload(self):
-        items = compose_tile_menu(AppTarget(0, "Steam"), is_running=False)
+        items = compose_tile_menu(AppTarget(index=0, app_id="steam", name="Steam"), is_running=False)
         sep = next(i for i in items if i.action == SEPARATOR)
         assert sep.target is None and sep.label == ""
 
@@ -62,12 +62,12 @@ class TestTileMenuFor:
         def is_running(idx):
             calls.append(idx)
             return False
-        items = tile_menu_for(AppTarget(3, "Steam"), is_running)
+        items = tile_menu_for(AppTarget(index=3, app_id="steam", name="Steam"), is_running)
         assert calls == [3]
         assert [i.action for i in items] == [LAUNCH, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
     def test_app_running_keeps_lifecycle_and_management(self):
-        items = tile_menu_for(AppTarget(0, "Steam"), lambda idx: True)
+        items = tile_menu_for(AppTarget(index=0, app_id="steam", name="Steam"), lambda idx: True)
         assert [i.action for i in items] == [RESTORE, CLOSE, SEPARATOR, MOVE, SETTINGS, UNPIN]
 
     def test_window_never_queries_and_is_running(self):
@@ -93,7 +93,7 @@ class TestTileMenuFor:
 
 class TestTileManagementMenu:
     def test_app_tile_offers_move_settings_and_unpin(self):
-        items = tile_management_menu(AppTarget(0, "Steam"))
+        items = tile_management_menu(AppTarget(index=0, app_id="steam", name="Steam"))
         assert [i.action for i in items] == [MOVE, SETTINGS, UNPIN]
 
     def test_window_tile_offers_pin(self):
@@ -101,7 +101,7 @@ class TestTileManagementMenu:
         assert [i.action for i in items] == [PIN]
 
     def test_items_carry_target(self):
-        target = AppTarget(2, "Steam")
+        target = AppTarget(index=2, app_id="steam", name="Steam")
         items = tile_management_menu(target)
         assert all(i.target == target for i in items)
 

@@ -12,6 +12,7 @@ Intentionally Qt-free: ``load_apps()`` runs before the ``QApplication`` exists
 import configparser
 import logging
 import os
+from dataclasses import replace
 from pathlib import Path
 
 from domain.catalog.app import App
@@ -70,7 +71,7 @@ def load_apps() -> AppCatalog:
         if parsed is None:
             continue
         order, app = parsed
-        entries.append((order, path.name, app))
+        entries.append((order, path.name, replace(app, id=path.stem)))
 
     catalog = AppCatalog.from_entries(entries)
     logger.info("Loaded %d app(s)", len(catalog))

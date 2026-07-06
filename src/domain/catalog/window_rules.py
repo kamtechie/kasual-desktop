@@ -41,7 +41,7 @@ def is_app_running(
     idx:        int,
     apps:       Sequence[App],
     windows:    Sequence[Window],
-    is_process_running: Callable[[int], bool],
+    is_process_running: Callable[[str], bool],
 ) -> bool:
     """True if the app at *idx* is running, by its process or a visible window (the
     window fallback covers an externally-launched or self-relaunched app).
@@ -54,7 +54,7 @@ def is_app_running(
     app = apps[idx]
     if app.steam_app_id is not None:
         return any(w.matches_app(app) for w in windows)
-    if is_process_running(idx):
+    if is_process_running(app.id):
         return True
     return any(w.matches_app(app) for w in windows)
 

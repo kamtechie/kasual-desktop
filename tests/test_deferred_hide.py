@@ -14,14 +14,14 @@ from domain.catalog.app import App
 from domain.catalog.window import Window
 
 
-def _make(apps=None, running_pid=None):
+def _make(app=None, running_pid=None):
     wm = MagicMock()
     am = MagicMock()
     am.running_pid.return_value = running_pid
-    apps = apps or [App(name="Foo", command="/usr/bin/foo")]
+    app = app or App(name="Foo", command="/usr/bin/foo", id="foo")
     on_hide = MagicMock()
-    dh = DeferredHide(wm, am, apps, on_hide=on_hide)
-    return dh, wm, am, on_hide
+    dh = DeferredHide(wm, am, on_hide=on_hide)
+    return dh, wm, am, on_hide, app
 
 
 def _win(pid=0, rc="", df=""):
@@ -30,75 +30,75 @@ def _win(pid=0, rc="", df=""):
 
 class TestAppWindowPresent:
     def test_matches_by_pid_subtree(self, qapp):
-        dh, _, _, _ = _make(running_pid=1000)
+        dh, _, _, _, app = _make(running_pid=1000)
         with patch("infrastructure.kde.qt.desktop.deferred_hide.expand_pid_tree", return_value={1000, 1001}):
-            assert dh._app_window_present(0, [_win(pid=1001)]) is True
+            assert dh._app_window_present(app, [_win(pid=1001)]) is True
 
     def test_matches_by_resource_class(self, qapp):
-        dh, _, _, _ = _make(apps=[App(name="Foo", command="/usr/bin/foo")])
-        assert dh._app_window_present(0, [_win(pid=9, rc="foo")]) is True
+        dh, _, _, _, app = _make(app=App(name="Foo", command="/usr/bin/foo", id="foo"))
+        assert dh._app_window_present(app, [_win(pid=9, rc="foo")]) is True
 
     def test_matches_by_desktop_file(self, qapp):
-        dh, _, _, _ = _make(apps=[App(name="Foo", command="foo")])
-        assert dh._app_window_present(0, [_win(pid=9, df="foo.desktop")]) is True
+        dh, _, _, _, app = _make(app=App(name="Foo", command="foo", id="foo"))
+        assert dh._app_window_present(app, [_win(pid=9, df="foo.desktop")]) is True
 
     def test_no_match(self, qapp):
-        dh, _, _, _ = _make(apps=[App(name="Foo", command="foo")])
-        assert dh._app_window_present(0, [_win(pid=9, rc="bar", df="baz.desktop")]) is False
+        dh, _, _, _, app = _make(app=App(name="Foo", command="foo", id="foo"))
+        assert dh._app_window_present(app, [_win(pid=9, rc="bar", df="baz.desktop")]) is False
 
 
 class TestArmCancel:
     def test_arm_sets_armed_connects_and_refreshes(self, qapp):
-        dh, wm, _, _ = _make()
-        dh.arm(0)
+        dh, wm, _, _, app = _make()
+        dh.arm(app)
         assert dh.is_armed is True
         wm.on_windows_updated.assert_called_once()
         wm.refresh_now.assert_called()
 
     def test_cancel_clears(self, qapp):
-        dh, _, _, _ = _make()
-        dh.arm(0)
+        dh, _, _, _, app = _make()
+        dh.arm(app)
         dh.cancel()
         assert dh.is_armed is False
 
     def test_cancel_when_idle_is_noop(self, qapp):
-        dh, _, _, _ = _make()
+        dh, _, _, _, app = _make()
         dh.cancel()
         assert dh.is_armed is False
 
     def test_arm_rearms_cleanly(self, qapp):
-        dh, _, _, _ = _make()
-        dh.arm(0)
-        dh.arm(0)   # cancel() inside arm() must not leave it stuck
+        dh, _, _, _, app = _make()
+        dh.arm(app)
+        dh.arm(app)   # cancel() inside arm() must not leave it stuck
         assert dh.is_armed is True
 
 
 class TestHideTrigger:
     def test_hides_when_window_appears_without_grace(self, qapp):
-        dh, _, _, on_hide = _make(apps=[App(name="Foo", command="foo")])
-        dh.arm(0)
+        dh, _, _, on_hide, app = _make(app=App(name="Foo", command="foo", id="foo"))
+        dh.arm(app)
         dh._on_windows([_win(pid=1, rc="foo")])
         on_hide.assert_called_once()
         assert dh.is_armed is False
 
     def test_defers_hide_when_grace_configured(self, qapp):
-        dh, _, _, on_hide = _make(
-            apps=[App(name="Foo", command="foo", launch_hide_grace_ms=500)]
+        dh, _, _, on_hide, app = _make(
+            app=App(name="Foo", command="foo", id="foo", launch_hide_grace_ms=500)
         )
-        dh.arm(0)
+        dh.arm(app)
         dh._on_windows([_win(pid=1, rc="foo")])
         on_hide.assert_not_called()   # waits for the grace timer to fire
 
     def test_no_hide_while_window_absent(self, qapp):
-        dh, _, _, on_hide = _make(apps=[App(name="Foo", command="foo")])
-        dh.arm(0)
+        dh, _, _, on_hide, app = _make(app=App(name="Foo", command="foo", id="foo"))
+        dh.arm(app)
         dh._on_windows([_win(pid=1, rc="bar")])
         on_hide.assert_not_called()
         assert dh.is_armed is True
 
     def test_guard_force_hides_without_a_window(self, qapp):
-        dh, _, _, on_hide = _make()
-        dh.arm(0)
+        dh, _, _, on_hide, app = _make()
+        dh.arm(app)
         dh._force()   # safety-timeout path
         on_hide.assert_called_once()
         assert dh.is_armed is False

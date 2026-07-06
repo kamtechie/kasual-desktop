@@ -38,7 +38,7 @@ def test_close_from_popover_over_app_tile_closes_the_application():
     closed = []
     # A Popover over a running App Tile
     cursor, _ = _popover(
-        AppTarget(0, "Steam"), is_running=True,
+        AppTarget(index=0, app_id="steam", name="Steam"), is_running=True,
         on_close=lambda: closed.append("Steam"),
         on_launch=lambda: None, on_restore=lambda: None,
         feedback=feedback,
@@ -56,7 +56,7 @@ def test_launch_from_popover_over_idle_app_tile_launches_it():
     launched = []
     # A Popover over an App Tile that is not running offers only Launch
     cursor, menu = _popover(
-        AppTarget(0, "Steam"), is_running=False,
+        AppTarget(index=0, app_id="steam", name="Steam"), is_running=False,
         on_close=lambda: None, on_launch=lambda: launched.append("Steam"),
         on_restore=lambda: None, feedback=feedback,
     )

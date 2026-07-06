@@ -10,11 +10,18 @@ from ..input.vocabulary import Trigger
 
 @dataclass(frozen=True)
 class AppTarget:
-    """A configured app tile, identified by its index in the app list.
+    """A configured app tile.
+
+    ``index`` is its current tile position — safe for an immediate lookup back
+    into the live apps list, but never held across an async boundary (a reorder
+    or unpin can move it). ``app_id`` is the app's stable identity, used
+    wherever a target is compared or acted on later (process tracking,
+    foreground matching against a lifecycle event).
 
     ``is_game`` gates the HUD toggle for a game tile's own window."""
 
     index:   int
+    app_id:  str
     name:    str
     is_game: bool = False
 
@@ -50,7 +57,8 @@ def target_at_index(
     """The Target at tile position *index*, or None if out of range. Layout is the
     configured apps, then the ``[＋]`` tile, then the open external windows."""
     if index < len(apps):
-        return AppTarget(index=index, name=apps[index].name, is_game=apps[index].is_game)
+        app = apps[index]
+        return AppTarget(index=index, app_id=app.id, name=app.name, is_game=app.is_game)
     if index == len(apps):
         return AddTileTarget()
     win_idx = index - len(apps) - 1

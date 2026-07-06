@@ -92,22 +92,21 @@ class AppLifecycle(AppControl):
 
         idx = target.index
         if self._is_running(idx):
-            logger.info("Restoring application %d", idx)
+            logger.info("Restoring application %s", target.app_id)
             self.restore_app(target)
         else:
-            logger.info("Launching application %d", idx)
+            logger.info("Launching application %s", target.app_id)
             self._feedback.play(Cue.SELECT)
             # So other apps' virtual pads don't interfere.
             self.arrange_windows()
-            trigger = self._apps[idx].recall_menu_trigger
-            self._gamepad.set_app_btn_mode_trigger(trigger)
-            self._gamepad.pop_handler(self._pad_handler)
             app = self._apps[idx]
+            self._gamepad.set_app_btn_mode_trigger(app.recall_menu_trigger)
+            self._gamepad.pop_handler(self._pad_handler)
             # launch() reports immediate failure synchronously (the Desktop is
             # already reactivated); only arm the deferred hide on a real launch.
-            if self._app_manager.launch(idx, app.command, app.args, app.env):
+            if self._app_manager.launch(app.id, app.command, app.args, app.env):
                 # Defer the hide until the window maps, so no DE-desktop flash.
-                self._deferred_hide.arm(idx)
+                self._deferred_hide.arm(app)
 
     def dispatch_tile_action(self, item: MenuItem) -> None:
         if item.action in (LAUNCH, RESTORE):
@@ -118,10 +117,9 @@ class AppLifecycle(AppControl):
     def restore_app(self, target: Target) -> None:
         self._feedback.play(Cue.SELECT)
         if isinstance(target, AppTarget):
-            idx = target.index
-            app = self._apps[idx]
+            app = self._apps[target.index]
             self._gamepad.set_app_btn_mode_trigger(app.recall_menu_trigger)
-            self._arranger.raise_app(idx, app)
+            self._arranger.raise_app(app)
         else:
             self._gamepad.set_app_btn_mode_trigger(target.trigger)
             self._wm.activate_window(target.window_id)
@@ -153,8 +151,8 @@ class AppLifecycle(AppControl):
                 # Terminating the tracked process would quit all of Steam, not
                 # the game; close the game's own window instead.
                 self._close_app_windows(idx)
-            elif self._app_manager.is_running(idx):
-                self._app_manager.terminate(idx)
+            elif self._app_manager.is_running(app.id):
+                self._app_manager.terminate(app.id)
             else:
                 # Forwarder-launched: no live process to kill, so close windows.
                 self._close_app_windows(idx)
@@ -181,24 +179,24 @@ class AppLifecycle(AppControl):
 
     # ── Exit handling ───────────────────────────────────────────────────────
 
-    def on_app_launch_failed(self, idx: int, error: str) -> None:
-        logger.warning("Application %d failed to launch: %s", idx, error)
+    def on_app_launch_failed(self, app_id: str, error: str) -> None:
+        logger.warning("Application %s failed to launch: %s", app_id, error)
         # Keep the Desktop up for the error dialog.
         self._deferred_hide.cancel()
         # The optimistic foreground set in on_tile_activated never started, so
         # clear it or BTN_MODE would target the never-launched app.
-        self._foreground.clear_if_app(idx)
+        self._foreground.clear_if_app(app_id)
         self.reactivate_desktop()
         self._view.show_error(self._prompts.launch_failed(error))
 
-    def on_app_finished(self, idx: int) -> None:
-        logger.info("Application %d finished – returning to desktop", idx)
+    def on_app_finished(self, app_id: str) -> None:
+        logger.info("Application %s finished – returning to desktop", app_id)
         # Don't hide onto a closed app.
         self._deferred_hide.cancel()
         self._view.close_active_dialog()
         self._tilebar.refresh_status()
         self._wm.refresh_now()
-        self._foreground.clear_if_app(idx)
+        self._foreground.clear_if_app(app_id)
         if not self._view.is_visible():
             self.reactivate_desktop()
         # Steam re-enumerates the gamepad on exit, leaving our evdev fd dead;

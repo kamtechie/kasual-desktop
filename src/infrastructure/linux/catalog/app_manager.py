@@ -24,21 +24,21 @@ class AppManager(BaseAppManager):
 
     def launch(
         self,
-        idx: int,
+        app_id: str,
         command: str,
         args: Sequence[object] = (),
         env: Mapping[str, str] | None = None,
     ) -> bool:
-        """Start app *idx*. Returns True if a new process was actually spawned,
+        """Start app *app_id*. Returns True if a new process was actually spawned,
         False if already running or the command could not be started — callers
         use this to decide whether to arm post-launch behaviour like deferred hide.
         """
-        if self.is_running(idx):
-            logger.warning("App %d is already running — ignoring", idx)
+        if self.is_running(app_id):
+            logger.warning("App %s is already running — ignoring", app_id)
             return False
 
         arg_list = [str(a) for a in args]
-        logger.info("Launching [%d] %s %s", idx, command, arg_list)
+        logger.info("Launching [%s] %s %s", app_id, command, arg_list)
 
         proc_env = self._build_env(env)
 
@@ -49,11 +49,11 @@ class AppManager(BaseAppManager):
                 env=proc_env,
             )
         except FileNotFoundError:
-            return self._fail_launch(idx, command, f"Command not found: {command}")
+            return self._fail_launch(app_id, command, f"Command not found: {command}")
         except PermissionError:
-            return self._fail_launch(idx, command, f"Permission denied: {command}")
+            return self._fail_launch(app_id, command, f"Permission denied: {command}")
 
-        return self._after_spawn(idx, proc)
+        return self._after_spawn(app_id, proc)
 
     # ── platform hooks ────────────────────────────────────────────────────────
 

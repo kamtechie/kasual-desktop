@@ -211,10 +211,7 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         the in-memory catalog, and keep the focus on the moved tile."""
         if not (0 <= i < len(self._tiles) and 0 <= j < len(self._tiles)):
             return
-        # AppManager keys running processes by tile position, so its tracking
-        # must move with the tiles or a later restore/close hits the wrong app.
         self._apps.swap(i, j)
-        self._app_manager.swap_indices(i, j)
         self._tiles[i], self._tiles[j] = self._tiles[j], self._tiles[i]
         # Re-seat both widgets at their new layout positions (static tiles occupy
         # layout items 0..n-1, ahead of the separator and dynamic tiles).
@@ -270,9 +267,7 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
 
         Appends a static tile after the configured ones (the catalog is the shared
         LiveCatalog, so the lifecycle/deferred-hide see the new app too), suppresses
-        the now-pinned window from the dynamic section, and focuses the new tile.
-        Existing tile indices are unchanged — the app is appended at the end — so
-        the AppManager's index-keyed process tracking stays valid."""
+        the now-pinned window from the dynamic section, and focuses the new tile."""
         self._apps.append(app)
         tile = self._make_static_tile(app)
         # The pinned window is open, so the new tile is running from the start —
@@ -294,8 +289,7 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         Like :meth:`pin_window` but for an idle app chosen from the add-app picker
         rather than a live window: the tile lands just before the [＋] (the end of
         the pinned section), the shared catalog grows so the lifecycle sees it, and
-        focus moves to the new tile. Existing indices are unchanged (appended at
-        the end), so the AppManager's index-keyed tracking stays valid."""
+        focus moves to the new tile."""
         self._apps.append(app)
         tile = self._make_static_tile(app)
         # Insert before the [＋] tile (which sits at layout position len(self._tiles)).
@@ -308,10 +302,11 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         """Remove the static app tile at *index* — the reverse of :meth:`pin_window`.
 
         The app leaves the shared catalog (so the lifecycle/deferred-hide stop
-        seeing it) and the AppManager's slots shift to match. Any open window the
-        app owned is no longer suppressed nor matched, so the dynamic rebuild brings
-        it back as an open-window tile — an *unpinned running app* lands in the
-        dynamic section, an unpinned idle one simply disappears."""
+        seeing it). Any open window the app owned is no longer suppressed nor
+        matched, so the dynamic rebuild brings it back as an open-window tile —
+        an *unpinned running app* lands in the dynamic section, an unpinned idle
+        one simply disappears. The AppManager keys its running process by the
+        app's own stable id, so unpinning it doesn't disturb that tracking."""
         if not (0 <= index < len(self._tiles)):
             return
         app = self._apps[index]
@@ -323,7 +318,6 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         self._tile_layout.removeWidget(tile)
         tile.deleteLater()
         self._apps.remove(index)
-        self._app_manager.remove_index(index)
         # Rebuild the dynamic section so the freed window reappears there.
         self._dyn_signature = None
         self.update_windows(self._last_windows)
@@ -580,9 +574,10 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         CLICK) lives in the domain; this only supplies the pid→app map from the
         AppManager and the injected parent-PID lookup.
         """
+        running_ids = set(self._app_manager.running_app_ids())
         pid_to_app = {
-            self._app_manager.running_pid(i): self._apps[i]
-            for i in self._app_manager.running_idxs()
-            if self._app_manager.running_pid(i) is not None
+            self._app_manager.running_pid(app.id): app
+            for app in self._apps
+            if app.id in running_ids
         }
         return resolve_recall_trigger(pid, pid_to_app, self._parent_of)

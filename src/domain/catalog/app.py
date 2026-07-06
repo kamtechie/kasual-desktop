@@ -30,6 +30,7 @@ class App:
     name:                 str
     command:              str
     args:                 tuple[str, ...]   = ()
+    id:                   str               = ""     # stable identity (.desktop filename stem)
     icon:                 str | None        = None   # X-Kasual-Icon
     icon_theme:           str | None        = None   # freedesktop Icon
     color:                str               = "#2e3440"

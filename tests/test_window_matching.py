@@ -28,7 +28,7 @@ def app_manager():
     mgr = MagicMock()
     mgr.all_running_pids.return_value = []
     mgr.is_running.return_value = False
-    mgr.running_idxs.return_value = []
+    mgr.running_app_ids.return_value = []
     mgr.running_pid.return_value = None
     return mgr
 
@@ -36,8 +36,8 @@ def app_manager():
 @pytest.fixture
 def apps():
     return [
-        App(name="Steam", command="steam", recall_menu_trigger=Trigger.HOLD_1S),
-        App(name="Firefox", command="/usr/bin/firefox"),
+        App(name="Steam", command="steam", id="steam", recall_menu_trigger=Trigger.HOLD_1S),
+        App(name="Firefox", command="/usr/bin/firefox", id="firefox"),
     ]
 
 
@@ -111,18 +111,18 @@ class TestFindTriggerForPid:
         assert bar._find_trigger_for_pid(0) == Trigger.CLICK
 
     def test_owned_pid_inherits_app_trigger(self, bar, app_manager):
-        app_manager.running_idxs.return_value = [0]        # Steam (HOLD_1S)
-        app_manager.running_pid.side_effect = lambda i: 1000 if i == 0 else None
+        app_manager.running_app_ids.return_value = ["steam"]        # Steam (HOLD_1S)
+        app_manager.running_pid.side_effect = lambda i: 1000 if i == "steam" else None
         assert bar._find_trigger_for_pid(1000) == Trigger.HOLD_1S
 
     def test_inherits_through_parent_chain(self, bar, app_manager):
-        app_manager.running_idxs.return_value = [0]
-        app_manager.running_pid.side_effect = lambda i: 1000 if i == 0 else None
+        app_manager.running_app_ids.return_value = ["steam"]
+        app_manager.running_pid.side_effect = lambda i: 1000 if i == "steam" else None
         # child 2000 → parent 1000 (owned by Steam) — parent_of is injected now.
         bar._parent_of = lambda pid: 1000
         assert bar._find_trigger_for_pid(2000) == Trigger.HOLD_1S
 
     def test_unowned_pid_defaults_to_click(self, bar, app_manager):
-        app_manager.running_idxs.return_value = []
+        app_manager.running_app_ids.return_value = []
         bar._parent_of = lambda pid: None
         assert bar._find_trigger_for_pid(7777) == Trigger.CLICK

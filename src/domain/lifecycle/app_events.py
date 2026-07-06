@@ -5,22 +5,22 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class AppStarted:
-    """A configured app (by index) was successfully spawned."""
+    """A configured app was successfully spawned."""
 
-    idx: int
+    app_id: str
 
 
 @dataclass(frozen=True)
 class AppFinished:
-    """A running app (by index) exited — its whole process group is gone."""
+    """A running app exited — its whole process group is gone."""
 
-    idx: int
+    app_id: str
 
 
 @dataclass(frozen=True)
 class AppLaunchFailed:
-    """Launching app *idx* failed before any process began (e.g. command
+    """Launching an app failed before any process began (e.g. command
     not found / permission denied)."""
 
-    idx: int
+    app_id: str
     error: str

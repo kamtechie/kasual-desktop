@@ -93,7 +93,7 @@ class TestUnpinConfirmation:
 
     def _target(self):
         from domain.catalog.target import AppTarget
-        return AppTarget(index=0, name="Konsole")
+        return AppTarget(index=0, app_id="konsole", name="Konsole")
 
     def test_unpin_opens_confirm_without_deleting(self, mock_gamepad):
         desktop = _make_desktop(mock_gamepad)

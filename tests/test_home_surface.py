@@ -348,7 +348,7 @@ class TestOnDemand:
 
     def _show_over_app(self, surface, on_action=None, on_cancel=None):
         surface.show_for_context(
-            foreground=AppTarget(index=0, name="Steam"), foreground_is_game=False,
+            foreground=AppTarget(index=0, app_id="steam", name="Steam"), foreground_is_game=False,
             hud=FakeHud(),
             on_action=on_action or (lambda i: None),
             on_cancel=on_cancel,
@@ -497,7 +497,7 @@ class TestOutsideClick:
         cancelled = []
         surface, _ = self._laid_out(qapp)
         surface.show_for_context(
-            foreground=AppTarget(index=0, name="Steam"), foreground_is_game=False,
+            foreground=AppTarget(index=0, app_id="steam", name="Steam"), foreground_is_game=False,
             hud=FakeHud(), on_action=lambda i: None,
             on_cancel=lambda: cancelled.append(1), set_hints=lambda h: None)
         self._press(surface, QPoint(5, surface.height() - 5))

@@ -89,7 +89,7 @@ class TestDesktopContext:
 class TestAppContext:
     def _app(self, hud=None, game=False, brightness=True):
         return compose_home_sections(
-            AppTarget(index=0, name="Steam"), hud or FakeHud(),
+            AppTarget(index=0, app_id="steam", name="Steam"), hud or FakeHud(),
             brightness_controllable=brightness, power_default=SHUTDOWN,
             foreground_is_game=game,
         )
@@ -114,7 +114,7 @@ class TestAppContext:
         assert all(i.action != POWER for i in actions.items)
 
     def test_cancel_restores_foreground(self):
-        target = AppTarget(index=0, name="Steam")
+        target = AppTarget(index=0, app_id="steam", name="Steam")
         s = compose_home_sections(
             target, FakeHud(), brightness_controllable=True, power_default=SLEEP)
         assert s.cancel_restores == target

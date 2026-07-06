@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from PyQt6.QtCore import QObject, QTimer
 
-from domain.catalog.live_catalog import LiveCatalog
+from domain.catalog.app import App
 from domain.catalog.window import Window
 from domain.catalog.window_rules import app_window_present
 from domain.lifecycle.process_manager import ProcessManager
@@ -25,7 +25,7 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
     Desktop stays up until KWin reports the app's window, polling meanwhile; a
     safety guard hides anyway if that never happens.
 
-    Lifecycle: ``arm(idx)`` after a successful launch, ``cancel()`` if the launch
+    Lifecycle: ``arm(app)`` after a successful launch, ``cancel()`` if the launch
     fails or the app exits before its window ever maps.
     """
 
@@ -33,17 +33,15 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
         self,
         wm:          WindowManager,
         app_manager: ProcessManager,
-        apps:        LiveCatalog,
         on_hide:     Callable[[], None],
         parent:      QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._wm          = wm
         self._app_manager = app_manager
-        self._apps        = apps
         self._on_hide     = on_hide
 
-        self._idx:      int | None         = None
+        self._app:      App | None         = None
         self._grace_ms: int                = 0
         self._unsub:    Unsubscribe | None = None   # active windows_updated subscription
 
@@ -63,13 +61,13 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
 
     @property
     def is_armed(self) -> bool:
-        return self._idx is not None
+        return self._app is not None
 
-    def arm(self, idx: int) -> None:
-        """Start watching for app *idx*'s window; hide the Desktop once it maps."""
+    def arm(self, app: App) -> None:
+        """Start watching for *app*'s window; hide the Desktop once it maps."""
         self.cancel()
-        self._idx = idx
-        self._grace_ms = self._apps[idx].launch_hide_grace_ms
+        self._app = app
+        self._grace_ms = app.launch_hide_grace_ms
         self._unsub = self._wm.on_windows_updated(self._on_windows)
         self._poll.start()
         self._guard.start(_GUARD_TIMEOUT_MS)
@@ -77,17 +75,17 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
 
     def cancel(self) -> None:
         """Tear the watcher down without hiding the Desktop."""
-        if self._idx is None:
+        if self._app is None:
             return
-        self._idx = None
+        self._app = None
         self._stop_watch()
         self._grace.stop()
 
     # ── Internal ─────────────────────────────────────────────────────────────
 
     def _on_windows(self, windows: list[Window]) -> None:
-        idx = self._idx
-        if idx is None or not self._app_window_present(idx, windows):
+        app = self._app
+        if app is None or not self._app_window_present(app, windows):
             return
         self._stop_watch()
         if self._grace_ms > 0:
@@ -95,15 +93,15 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
         else:
             self._hide_now()
 
-    def _app_window_present(self, idx: int, windows: list[Window]) -> bool:
-        """True if `windows` contains a window belonging to launched app `idx`.
+    def _app_window_present(self, app: App, windows: list[Window]) -> bool:
+        """True if `windows` contains a window belonging to launched *app*.
 
         The presence rule (PID subtree or app-identity match) lives in the
         domain; this supplies its one infrastructure input — the launch's PID
         subtree (/proc)."""
-        pid   = self._app_manager.running_pid(idx)
+        pid   = self._app_manager.running_pid(app.id)
         owned = expand_pid_tree({pid}) if pid else set()
-        return app_window_present(windows, self._apps[idx], owned)
+        return app_window_present(windows, app, owned)
 
     def _force(self) -> None:
         """Safety-timeout path: hide even if no window was detected."""
@@ -111,7 +109,7 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
         self._hide_now()
 
     def _hide_now(self) -> None:
-        self._idx = None
+        self._app = None
         self._on_hide()
 
     def _stop_watch(self) -> None:

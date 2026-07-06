@@ -75,14 +75,14 @@ class FakeView:
         self.confirm = (question, on_confirmed, on_cancelled)
 
 
-def _app(command="prog", trigger=Trigger.CLICK):
-    return App(name="App", command=command, recall_menu_trigger=trigger)
+def _app(command="prog", trigger=Trigger.CLICK, id="app0"):
+    return App(name="App", command=command, id=id, recall_menu_trigger=trigger)
 
 
-def _steam_game_app(appid="292030", trigger=Trigger.CLICK):
+def _steam_game_app(appid="292030", trigger=Trigger.CLICK, id="witcher3"):
     """A `steam steam://rungameid/<id>` tile — its window identity is
     steam_app_<id>, while its tracked process is the shared Steam client."""
-    return App(name="Witcher 3", command="steam",
+    return App(name="Witcher 3", command="steam", id=id,
                args=(f"steam://rungameid/{appid}",), recall_menu_trigger=trigger)
 
 
@@ -142,7 +142,7 @@ class TestCurrentApp:
 
     def test_plain_app_returned_when_no_spawned_window(self):
         c = _make()
-        target = AppTarget(index=0, name="App")
+        target = AppTarget(index=0, app_id="app0", name="App")
         c.fg.set(target)
         c.am.running_pid.return_value = 100
         c.wm.cached_windows.return_value = []
@@ -153,7 +153,7 @@ class TestCurrentApp:
         matches no app tile: BTN_MODE should target the game, inheriting Steam's
         recall trigger."""
         c = _make(apps=[_app(command="steam", trigger=Trigger.HOLD_1S)])
-        c.fg.set(AppTarget(index=0, name="Steam"))
+        c.fg.set(AppTarget(index=0, app_id="app0", name="Steam"))
         c.wm.cached_windows.return_value = [
             Window(id="g1", title="Witcher 3", pid=200, active=True,
                    resource_class="steam_app_292030"),
@@ -168,7 +168,7 @@ class TestCurrentApp:
     def test_own_window_active_keeps_app_target(self):
         """Steam's own window is active → it matches the Steam tile, no override."""
         c = _make(apps=[_app(command="steam")])
-        target = AppTarget(index=0, name="Steam")
+        target = AppTarget(index=0, app_id="app0", name="Steam")
         c.fg.set(target)
         c.wm.cached_windows.return_value = [
             Window(id="s1", title="Steam", pid=100, active=True,
@@ -178,7 +178,7 @@ class TestCurrentApp:
 
     def test_no_active_window_keeps_app_target(self):
         c = _make(apps=[_app(command="steam")])
-        target = AppTarget(index=0, name="Steam")
+        target = AppTarget(index=0, app_id="app0", name="Steam")
         c.fg.set(target)
         c.wm.cached_windows.return_value = [
             Window(id="s1", title="Steam", pid=100, active=False,
@@ -210,7 +210,7 @@ class TestOnTileActivated:
     def test_running_app_restores_not_launches(self):
         c = _make()
         c.am.is_running.return_value = True
-        c.lc.on_tile_activated(AppTarget(index=0, name="App"))
+        c.lc.on_tile_activated(AppTarget(index=0, app_id="app0", name="App"))
         c.am.launch.assert_not_called()
         assert c.view.hidden == 1  # restore hides the desktop
 
@@ -223,7 +223,7 @@ class TestOnTileActivated:
         c.wm.cached_windows.return_value = [
             Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030"),
         ]
-        c.lc.on_tile_activated(AppTarget(index=0, name="Witcher 3"))
+        c.lc.on_tile_activated(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
         c.am.launch.assert_not_called()
         c.wm.activate_window.assert_called_once_with("g1")
         assert c.view.hidden == 1
@@ -232,25 +232,25 @@ class TestOnTileActivated:
         c = _make(apps=[_app(trigger=Trigger.HOLD_1S)])
         c.am.is_running.return_value = False
         c.am.launch.return_value = True
-        c.lc.on_tile_activated(AppTarget(index=0, name="App"))
+        c.lc.on_tile_activated(AppTarget(index=0, app_id="app0", name="App"))
         app = c.apps[0]
-        c.am.launch.assert_called_once_with(0, app.command, app.args, app.env)
+        c.am.launch.assert_called_once_with(app.id, app.command, app.args, app.env)
         c.gamepad.set_app_btn_mode_trigger.assert_called_with(Trigger.HOLD_1S)
         c.gamepad.pop_handler.assert_called_once_with(c.pad)
-        c.dh.arm.assert_called_once_with(0)
+        c.dh.arm.assert_called_once_with(app)
 
     def test_failed_launch_does_not_arm_hide(self):
         c = _make()
         c.am.is_running.return_value = False
         c.am.launch.return_value = False
-        c.lc.on_tile_activated(AppTarget(index=0, name="App"))
+        c.lc.on_tile_activated(AppTarget(index=0, app_id="app0", name="App"))
         c.dh.arm.assert_not_called()
 
     def test_closing_app_activation_is_ignored(self):
         """Activating an app tile mid-shutdown is a no-op (the relocated guard)."""
         c = _make()
         c.tilebar.is_closing.return_value = True
-        c.lc.on_tile_activated(AppTarget(index=0, name="App"))
+        c.lc.on_tile_activated(AppTarget(index=0, app_id="app0", name="App"))
         assert c.fg.is_idle()              # foreground untouched
         c.am.launch.assert_not_called()
         c.am.is_running.assert_not_called()
@@ -266,7 +266,7 @@ class TestDispatchTileAction:
         c = _make()
         c.am.is_running.return_value = False
         c.am.launch.return_value = True
-        target = AppTarget(index=0, name="App")
+        target = AppTarget(index=0, app_id="app0", name="App")
         c.lc.dispatch_tile_action(MenuItem("Launch", LAUNCH, target=target))
         c.am.launch.assert_called_once()
         assert c.fg.current == target
@@ -276,7 +276,7 @@ class TestDispatchTileAction:
         from domain.menu.item import MenuItem
         c = _make()
         c.am.is_running.return_value = True
-        target = AppTarget(index=0, name="App")
+        target = AppTarget(index=0, app_id="app0", name="App")
         c.lc.dispatch_tile_action(MenuItem("Restore", RESTORE, target=target))
         assert c.view.hidden == 1          # restore hides the desktop
 
@@ -284,7 +284,7 @@ class TestDispatchTileAction:
         from domain.menu.entry import CLOSE
         from domain.menu.item import MenuItem
         c = _make()
-        target = AppTarget(index=0, name="App")
+        target = AppTarget(index=0, app_id="app0", name="App")
         c.lc.dispatch_tile_action(MenuItem("Close", CLOSE, target=target))
         assert c.view.confirm is not None  # request_close_app opened a confirm
 
@@ -295,7 +295,7 @@ class TestRestoreApp:
     def test_app_target_uses_app_trigger_and_arranges(self):
         c = _make(apps=[_app(trigger=Trigger.HOLD_1S)])
         c.am.running_pid.return_value = 4321
-        c.lc.restore_app(AppTarget(index=0, name="App"))
+        c.lc.restore_app(AppTarget(index=0, app_id="app0", name="App"))
         c.gamepad.set_app_btn_mode_trigger.assert_called_once_with(Trigger.HOLD_1S)
         c.wm.activate_windows_for_pids.assert_called_once_with({4321})
         c.gamepad.pop_handler.assert_called_once_with(c.pad)
@@ -319,7 +319,7 @@ class TestRestoreApp:
             Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030"),
             Window(id="s1", title="Steam",     pid=100, resource_class="steam"),
         ]
-        c.lc.restore_app(AppTarget(index=0, name="Witcher 3"))
+        c.lc.restore_app(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
         c.wm.activate_window.assert_called_once_with("g1")
         c.wm.activate_windows_for_pids.assert_not_called()
         assert c.view.hidden == 1
@@ -334,7 +334,7 @@ class TestRestoreApp:
         c.wm.cached_windows.return_value = [
             Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030"),
         ]
-        c.lc.restore_app(AppTarget(index=0, name="Witcher 3"))
+        c.lc.restore_app(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
         c.wm.activate_window.assert_called_once_with("g1")
         c.wm.minimize_windows_for_pids.assert_called_once_with({555})
 
@@ -345,20 +345,21 @@ class TestRestoreApp:
         c.am.running_pid.return_value = 100
         c.am.all_running_pids.return_value = [100]
         c.wm.cached_windows.return_value = []
-        c.lc.restore_app(AppTarget(index=0, name="Witcher 3"))
+        c.lc.restore_app(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
         c.wm.activate_windows_for_pids.assert_called_once_with({100})
 
     def test_pinned_external_app_raised_by_window_identity(self):
         # A pinned app that is running but was not launched by us has no tracked
         # pid; it is raised by its window (matched via the carried StartupWMClass)
         # instead of the no-op activate-by-pid path.
-        c = _make(apps=[App(name="Konsole", command="konsole", wm_class="org.kde.konsole")])
+        c = _make(apps=[App(name="Konsole", command="konsole", id="konsole",
+                             wm_class="org.kde.konsole")])
         c.am.running_pid.return_value = None         # not tracked — started externally
         c.am.all_running_pids.return_value = []
         c.wm.cached_windows.return_value = [
             Window(id="k1", title="Konsole", pid=200, resource_class="org.kde.konsole"),
         ]
-        c.lc.restore_app(AppTarget(index=0, name="Konsole"))
+        c.lc.restore_app(AppTarget(index=0, app_id="konsole", name="Konsole"))
         c.wm.activate_window.assert_called_once_with("k1")
         c.wm.activate_windows_for_pids.assert_not_called()
         assert c.view.hidden == 1
@@ -393,26 +394,26 @@ class TestArrangeWindows:
 class TestOnAppFinished:
     def test_reactivates_when_hidden(self):
         c = _make(visible=False)
-        c.fg.set(AppTarget(index=0, name="App"))
-        c.lc.on_app_finished(0)
+        c.fg.set(AppTarget(index=0, app_id="app0", name="App"))
+        c.lc.on_app_finished("app0")
         c.dh.cancel.assert_called_once()
         assert c.view.dialog_closed == 1
         assert c.view.shown == 1          # desktop brought back
-        assert c.fg.is_idle()             # foreground cleared (was app 0)
+        assert c.fg.is_idle()             # foreground cleared (was app0)
         c.gamepad.push_handler.assert_called_with(c.pad)
 
     def test_does_not_reshow_when_visible(self):
         c = _make(visible=True)
-        c.fg.set(AppTarget(index=0, name="App"))
-        c.lc.on_app_finished(0)
+        c.fg.set(AppTarget(index=0, app_id="app0", name="App"))
+        c.lc.on_app_finished("app0")
         assert c.view.shown == 0          # already visible — no re-show
         c.gamepad.push_handler.assert_not_called()
 
     def test_keeps_foreground_for_other_app(self):
         c = _make(visible=True)
-        c.fg.set(AppTarget(index=2, name="Other"))
-        c.lc.on_app_finished(0)           # a different app exited
-        assert c.fg.current == AppTarget(index=2, name="Other")
+        c.fg.set(AppTarget(index=2, app_id="other", name="Other"))
+        c.lc.on_app_finished("app0")      # a different app exited
+        assert c.fg.current == AppTarget(index=2, app_id="other", name="Other")
 
 
 # ── on_app_launch_failed ────────────────────────────────────────────────────
@@ -420,8 +421,8 @@ class TestOnAppFinished:
 class TestOnAppLaunchFailed:
     def test_cancels_hide_clears_fg_and_shows_error(self):
         c = _make(visible=False)
-        c.fg.set(AppTarget(index=0, name="App"))
-        c.lc.on_app_launch_failed(0, "command not found")
+        c.fg.set(AppTarget(index=0, app_id="app0", name="App"))
+        c.lc.on_app_launch_failed("app0", "command not found")
         c.dh.cancel.assert_called_once()
         assert c.fg.is_idle()
         assert c.view.shown == 1          # reactivated for the dialog
@@ -451,7 +452,7 @@ class TestCheckActiveDynGone:
 
     def test_noop_when_foreground_is_app(self):
         c = _make(visible=True)
-        c.fg.set(AppTarget(index=0, name="App"))
+        c.fg.set(AppTarget(index=0, app_id="app0", name="App"))
         c.lc.check_active_dyn_gone()
         c.tilebar.has_dynamic_window.assert_not_called()
 
@@ -470,17 +471,17 @@ class TestCheckActiveDynGone:
 class TestRequestCloseApp:
     def test_opens_confirm_dialog(self):
         c = _make()
-        c.lc.request_close_app(AppTarget(index=0, name="App"))
+        c.lc.request_close_app(AppTarget(index=0, app_id="app0", name="App"))
         assert c.view.confirm is not None
 
     def test_confirm_terminates_running_app(self):
         c = _make(visible=True)
         c.am.is_running.return_value = True
-        c.lc.request_close_app(AppTarget(index=0, name="App"))
+        c.lc.request_close_app(AppTarget(index=0, app_id="app0", name="App"))
         _, on_confirmed, _ = c.view.confirm
         on_confirmed()
         c.tilebar.set_static_closing.assert_called_once_with(0)
-        c.am.terminate.assert_called_once_with(0)
+        c.am.terminate.assert_called_once_with("app0")
 
     def test_confirm_closes_windows_when_no_live_process(self):
         c = _make(apps=[_app(command="/usr/bin/steam")])
@@ -489,7 +490,7 @@ class TestRequestCloseApp:
             Window(id="win1", title="", resource_class="Steam"),
             Window(id="win2", title="", resource_class="other"),
         ]
-        c.lc.request_close_app(AppTarget(index=0, name="Steam"))
+        c.lc.request_close_app(AppTarget(index=0, app_id="app0", name="Steam"))
         _, on_confirmed, _ = c.view.confirm
         on_confirmed()
         c.am.terminate.assert_not_called()
@@ -504,7 +505,7 @@ class TestRequestCloseApp:
             Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030"),
             Window(id="s1", title="Steam",     pid=100, resource_class="steam"),
         ]
-        c.lc.request_close_app(AppTarget(index=0, name="Witcher 3"))
+        c.lc.request_close_app(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
         _, on_confirmed, _ = c.view.confirm
         on_confirmed()
         c.am.terminate.assert_not_called()
@@ -523,7 +524,7 @@ class TestRequestCloseApp:
 
     def test_cancel_from_desktop_restores_view(self):
         c = _make(visible=True)            # opened from the tile menu
-        c.lc.request_close_app(AppTarget(index=0, name="App"))
+        c.lc.request_close_app(AppTarget(index=0, app_id="app0", name="App"))
         _, _, on_cancelled = c.view.confirm
         on_cancelled()
         # restore_desktop_view path raises the desktop via KWin
@@ -533,7 +534,7 @@ class TestRequestCloseApp:
     def test_cancel_over_app_restores_app(self):
         c = _make(visible=False)           # overlay opened over the running app
         c.am.is_running.return_value = True
-        c.lc.request_close_app(AppTarget(index=0, name="App"))
+        c.lc.request_close_app(AppTarget(index=0, app_id="app0", name="App"))
         _, _, on_cancelled = c.view.confirm
         on_cancelled()
         assert c.view.hidden == 1          # restore_app hides the desktop again
@@ -542,7 +543,7 @@ class TestRequestCloseApp:
 # ── foreground_is_game (gates the in-game HUD toggle) ────────────────────────
 
 def _game_app():
-    return App(name="Game", command="game", categories=("Game",))
+    return App(name="Game", command="game", id="game0", categories=("Game",))
 
 
 class TestForegroundIsGame:
@@ -552,13 +553,13 @@ class TestForegroundIsGame:
     def test_category_game_tile_qualifies(self):
         # No spawned window → falls back to the tile's Categories=Game (signal C).
         c = _make(apps=[_game_app()])
-        c.fg.set(AppTarget(index=0, name="Game", is_game=True))
+        c.fg.set(AppTarget(index=0, app_id="game0", name="Game", is_game=True))
         c.wm.cached_windows.return_value = []
         assert c.lc.foreground_is_game() is True
 
     def test_plain_app_tile_does_not_qualify(self):
         c = _make(apps=[_app()])
-        c.fg.set(AppTarget(index=0, name="App"))
+        c.fg.set(AppTarget(index=0, app_id="app0", name="App"))
         c.wm.cached_windows.return_value = []
         assert c.lc.foreground_is_game() is False
 
@@ -568,7 +569,7 @@ class TestForegroundIsGame:
             apps=[_app(command="steam")],
             is_game_pid={500: True}.get,
         )
-        c.fg.set(AppTarget(index=0, name="Steam"))
+        c.fg.set(AppTarget(index=0, app_id="app0", name="Steam"))
         c.wm.cached_windows.return_value = [
             Window(id="g1", title="KCD", pid=500, active=True, resource_class="kcd"),
         ]
@@ -577,7 +578,7 @@ class TestForegroundIsGame:
     def test_steam_ui_without_game_does_not_qualify(self):
         # Steam's own window active (no spawned game) → launcher UI, not a game.
         c = _make(apps=[_app(command="steam")])
-        c.fg.set(AppTarget(index=0, name="Steam"))
+        c.fg.set(AppTarget(index=0, app_id="app0", name="Steam"))
         c.wm.cached_windows.return_value = [
             Window(id="s1", title="Steam", pid=100, active=True, resource_class="steam"),
         ]
@@ -599,7 +600,7 @@ class TestForegroundIsGame:
             apps=[_app(command="steam")],
             is_game_pid={777: True}.get,
         )
-        c.fg.set(AppTarget(index=0, name="Steam"))
+        c.fg.set(AppTarget(index=0, app_id="app0", name="Steam"))
         c.wm.cached_windows.return_value = [
             Window(id="g1", title="Witcher 3", pid=777, active=True, resource_class="witcher3"),
         ]
@@ -610,7 +611,7 @@ class TestForegroundIsGame:
             apps=[_app(command="steam")],
             is_game_pid=lambda _pid: False,
         )
-        c.fg.set(AppTarget(index=0, name="Steam"))
+        c.fg.set(AppTarget(index=0, app_id="app0", name="Steam"))
         c.wm.cached_windows.return_value = [
             Window(id="w1", title="Notepad", pid=777, active=True, resource_class="notepad"),
         ]

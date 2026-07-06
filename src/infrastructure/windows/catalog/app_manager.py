@@ -59,17 +59,17 @@ class WindowsAppManager(BaseAppManager):
 
     def launch(
         self,
-        idx: int,
+        app_id: str,
         command: str,
         args: Sequence[object] = (),
         env: Mapping[str, str] | None = None,
     ) -> bool:
-        if self.is_running(idx):
-            logger.warning("App %d is already running", idx)
+        if self.is_running(app_id):
+            logger.warning("App %s is already running", app_id)
             return False
 
         arg_list = [str(a) for a in args]
-        logger.info("Launching [%d] %s %s", idx, command, arg_list)
+        logger.info("Launching [%s] %s %s", app_id, command, arg_list)
 
         proc_env = self._build_env(env)
 
@@ -81,7 +81,7 @@ class WindowsAppManager(BaseAppManager):
             # Protocol handlers (ms-settings: …) and shortcuts (.lnk) go through
             # the shell, which resolves them without pywin32/.lnk parsing.
             if command.startswith("ms-") or command.lower().endswith(".lnk"):
-                return self._shell_execute(idx, command)
+                return self._shell_execute(app_id, command)
 
             target = command
             if os.path.exists(target):
@@ -96,10 +96,10 @@ class WindowsAppManager(BaseAppManager):
                 if found is None:
                     try:
                         os.startfile(command)
-                        self._started_emitter.emit(AppStarted(idx))
+                        self._started_emitter.emit(AppStarted(app_id))
                         return True
                     except Exception:
-                        return self._fail_launch(idx, command, f"Command not found: {command}")
+                        return self._fail_launch(app_id, command, f"Command not found: {command}")
                 else:
                     target = found
                     proc = subprocess.Popen(
@@ -109,15 +109,15 @@ class WindowsAppManager(BaseAppManager):
                         creationflags=CREATE_NO_WINDOW,
                     )
         except FileNotFoundError as e:
-            return self._fail_launch(idx, command, f"Command not found: {command} - {e}")
+            return self._fail_launch(app_id, command, f"Command not found: {command} - {e}")
         except PermissionError as e:
-            return self._fail_launch(idx, command, f"Permission denied: {command} - {e}")
+            return self._fail_launch(app_id, command, f"Permission denied: {command} - {e}")
         except Exception as e:
-            return self._fail_launch(idx, command, f"Failed to launch {command}: {e}")
+            return self._fail_launch(app_id, command, f"Failed to launch {command}: {e}")
 
-        return self._after_spawn(idx, proc)
+        return self._after_spawn(app_id, proc)
 
-    def _shell_execute(self, idx: int, command: str) -> bool:
+    def _shell_execute(self, app_id: str, command: str) -> bool:
         """Launch a protocol or shortcut via ShellExecuteEx.
 
         Tracks the spawned process when the shell returns a handle (normal exe
@@ -130,14 +130,14 @@ class WindowsAppManager(BaseAppManager):
         sei.nShow = 1  # SW_SHOW
         ok = ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(sei))
         if not ok:
-            return self._fail_launch(idx, command, f"ShellExecuteEx failed for {command}")
+            return self._fail_launch(app_id, command, f"ShellExecuteEx failed for {command}")
         if sei.hProcess:
             pid = ctypes.windll.kernel32.GetProcessId(sei.hProcess)
             proc = _WinHandle(int(sei.hProcess), pid)
-            self._after_spawn(idx, proc)
+            self._after_spawn(app_id, proc)
         else:
             logger.info("No process handle for %s — running tracked via window match", command)
-        self._started_emitter.emit(AppStarted(idx))
+        self._started_emitter.emit(AppStarted(app_id))
         return True
 
     def _find_in_path(self, cmd: str) -> str | None:

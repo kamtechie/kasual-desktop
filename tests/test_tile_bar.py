@@ -30,7 +30,7 @@ def app_manager():
     mgr = MagicMock()
     mgr.all_running_pids.return_value = []
     mgr.is_running.return_value = False
-    mgr.running_idxs.return_value = []
+    mgr.running_app_ids.return_value = []
     return mgr
 
 
@@ -317,10 +317,12 @@ class TestUnpinApp:
         assert len(bar._tiles) == before - 1
         assert [a.name for a in bar._apps] == ["App 0", "App 2"]
 
-    def test_app_manager_slots_shift(self, bar_with_tiles, app_manager):
+    def test_app_manager_untouched(self, bar_with_tiles, app_manager):
+        """Process tracking keys on the app's own id, so unpinning a tile — which
+        only changes tile position — must not terminate or re-key anything."""
         bar = bar_with_tiles
         bar.unpin_app(1)
-        app_manager.remove_index.assert_called_once_with(1)
+        app_manager.terminate.assert_not_called()
 
     def test_out_of_range_is_noop(self, bar_with_tiles):
         bar = bar_with_tiles

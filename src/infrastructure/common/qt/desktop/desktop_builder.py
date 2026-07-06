@@ -81,7 +81,7 @@ def build_desktop(
     settings_store: TileSettingsStore,
     app_pinning: AppPinning,
     surface: DesktopSurface | None = None,
-    deferred_hide_factory: 'Callable[[WindowManager, ProcessManager, LiveCatalog, Callable[[], None]], LaunchHide] | None' = None,
+    deferred_hide_factory: 'Callable[[WindowManager, ProcessManager, Callable[[], None]], LaunchHide] | None' = None,
     parent_of: Callable[[int], int | None] | None = None,
     is_game_pid: Callable[[int], bool] = lambda _: False,
     app_adder: AppAdder | None = None,
@@ -145,7 +145,7 @@ def build_desktop(
     # hide keeps this shared builder free of any platform import.
     if deferred_hide_factory is not None:
         deferred_hide = deferred_hide_factory(
-            window_manager, process_manager, live_apps, widget.hide_view,
+            window_manager, process_manager, widget.hide_view,
         )
     else:
         deferred_hide = _ImmediateHide(widget.hide_view)

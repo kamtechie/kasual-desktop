@@ -205,7 +205,7 @@ class TestTargetAtIndex:
 
     def test_static_index_yields_app_target(self):
         assert target_at_index(1, self.APPS, self.WINS, self._no_trigger) == \
-            AppTarget(index=1, name="Firefox")
+            AppTarget(index=1, app_id="", name="Firefox")
 
     def test_position_after_apps_is_the_add_tile(self):
         # index 2 == right after the 2 static apps → the [＋] add-app tile.

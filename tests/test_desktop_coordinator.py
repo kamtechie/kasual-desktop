@@ -44,7 +44,7 @@ class TestShowDesktop:
 
     def test_clears_foreground(self):
         coord, state, _, _, _ = _make()
-        state.foreground.set(AppTarget(0, "Steam"))
+        state.foreground.set(AppTarget(index=0, app_id="steam", name="Steam"))
         coord.show_desktop()
         assert state.is_idle() is True
 
@@ -86,6 +86,6 @@ class TestResume:
 
     def test_resume_keeps_foreground(self):
         coord, state, _, _, _ = _make()
-        state.foreground.set(AppTarget(1, "X"))
+        state.foreground.set(AppTarget(index=1, app_id="x", name="X"))
         coord.resume()
-        assert state.current == AppTarget(1, "X")   # resume does not clear
+        assert state.current == AppTarget(index=1, app_id="x", name="X")   # resume does not clear

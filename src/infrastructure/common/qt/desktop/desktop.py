@@ -248,9 +248,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._tilebar.activated.connect(self._lifecycle.on_tile_activated)
         self._tilebar.windows_changed.connect(self._lifecycle.check_active_dyn_gone)
         self._app_manager.on_finished(
-            lambda e: self._lifecycle.on_app_finished(e.idx))
+            lambda e: self._lifecycle.on_app_finished(e.app_id))
         self._app_manager.on_launch_failed(
-            lambda e: self._lifecycle.on_app_launch_failed(e.idx, e.error))
+            lambda e: self._lifecycle.on_app_launch_failed(e.app_id, e.error))
 
         QApplication.instance().installEventFilter(self)
 

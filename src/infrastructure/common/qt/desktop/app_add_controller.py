@@ -10,6 +10,7 @@ callback.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from domain.catalog.live_catalog import LiveCatalog
@@ -78,7 +79,9 @@ class AppAddController:
             return
         self._app_adder.add(chosen)
         for candidate in chosen:
-            self._tilebar.add_app(candidate.app)
+            # add() just wrote this candidate to <candidate.key>.desktop — set the
+            # same id here so process tracking matches without waiting for a reload.
+            self._tilebar.add_app(replace(candidate.app, id=candidate.key))
         self._feedback.play(Cue.SELECT)
 
     def _forget(self) -> None:
