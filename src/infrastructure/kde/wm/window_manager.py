@@ -208,6 +208,9 @@ class _WindowListHost(QObject):
     def add_callback(self, cb) -> None:
         self._callbacks.append(cb)
 
+    def clear_callbacks(self) -> None:
+        self._callbacks.clear()
+
     def _on_receive(self, data: list[dict]) -> None:
         callbacks, self._callbacks = self._callbacks, []
         for cb in callbacks:
@@ -356,7 +359,7 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         if not self._load_script(path, plugin):
             self._loading = False
             self._timeout_guard.stop()
-            self._host._callbacks.clear()
+            self._host.clear_callbacks()
             try:
                 os.unlink(path)
             except Exception:
@@ -387,6 +390,10 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
                 _SCRIPT_TIMEOUT_MS,
             )
             self._loading = False
+            # Drop the orphaned callback so a late reply doesn't fire it
+            # alongside the next request's callback with that request's data.
+            if self._host is not None:
+                self._host.clear_callbacks()
 
     # ── Internal: script helpers ───────────────────────────────────────────
 
