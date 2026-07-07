@@ -465,7 +465,7 @@ class HomeMenuContent(QWidget):
             self._active = new
             zone = self._zones[new]
             if zone.kind == SectionKind.HEADER:
-                zone.index = self._header_default_index(zone)
+                zone.index = self._header.default_index
             self._render()
             self.sync_hints()
             self._feedback.play(Cue.CURSOR)
@@ -475,25 +475,19 @@ class HomeMenuContent(QWidget):
         section, landing on its first (when entering from above) or last (from
         below) widget — so the whole overlay reads as one vertical flow. Clamps
         silently at the first/last section. The header is the exception: it
-        always lands on Power, its one item with a secondary action."""
+        always lands on its own default button, regardless of entry direction."""
         new = self._active + delta
         if not 0 <= new < len(self._zones):
             return
         self._active = new
         zone = self._zones[new]
         if zone.kind == SectionKind.HEADER:
-            zone.index = self._header_default_index(zone)
+            zone.index = self._header.default_index
         else:
             zone.index = 0 if landing == "first" else len(zone.items) - 1
         self._render()
         self.sync_hints()
         self._feedback.play(Cue.CURSOR)
-
-    @staticmethod
-    def _header_default_index(zone: "_Zone") -> int:
-        """The header button focus lands on when the header is freshly
-        entered — Power, not wherever it sits among the header's buttons."""
-        return next((i for i, it in enumerate(zone.items) if it.action == POWER), 0)
 
     def _quick_event(self, zone: _Zone, event: str) -> None:
         if event == Event.UP:
@@ -690,11 +684,10 @@ class HomeMenuContent(QWidget):
         if zone.kind == SectionKind.QUICK:
             hints = nav_hints.OVERLAY_QUICK
         elif zone.kind == SectionKind.HEADER:
-            # The header row navigates left/right; only Power (not Network /
-            # Notifications) opens anything further on Y.
-            focused = zone.items[zone.index] if zone.items else None
-            hints = (nav_hints.OVERLAY_HEADER_POWER if focused is not None
-                     and focused.action == POWER else nav_hints.OVERLAY_HEADER)
+            # The header row navigates left/right; Y/Options only applies to
+            # whichever button the header itself says has a menu.
+            hints = (nav_hints.OVERLAY_HEADER_POWER if self._header.has_menu_at(zone.index)
+                     else nav_hints.OVERLAY_HEADER)
         else:
             hints = nav_hints.OVERLAY_ACTIONS
         self._set_hints(hints)
