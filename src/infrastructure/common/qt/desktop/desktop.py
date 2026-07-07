@@ -13,36 +13,23 @@ from infrastructure.common.qt.overlays.info_dialog import InfoDialog
 from infrastructure.common.qt.overlays.notifications_overlay import NotificationsOverlay
 from infrastructure.common.qt.overlays.network_overlay import NetworkOverlay
 from domain.notifications.center import NotificationCenter
-from domain.network import view as network_view
 from domain.network.control import NetworkControl
 from domain.network.status import NetworkStatus
-from domain.system.actions import ACTIONS
-from domain.system.volume import VolumeControl
-from domain.system.brightness import BrightnessControl
-from domain.system.power_control import PowerControl
-from domain.system.power_preference import PowerPreference
-from domain.system.power_menu import PowerMenu
-from domain.shared.scheduler import Scheduler
 from domain.lifecycle.app_control import AppControl
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.window_manager import WindowManager
 from .surface import DesktopSurface, PlainSurface
 from domain.shell.desktop import Desktop as DesktopCoordinator
 from domain.lifecycle.app_lifecycle import AppLifecycle
+from domain.menu.dispatcher import TileMenuDispatcher
 from domain.navigation.focus_navigator import FocusNavigator
 from domain.navigation.tile_mover import TileMover
-from domain.system.runner import ActionRunner
-from domain.menu.entry import SETTINGS, MOVE, PIN, POWER, RETURN_TO_DESKTOP, UNPIN
-from domain.menu.item import MenuItem
-from domain.menu.ports import AppPinning, TileSettingsStore
-from domain.catalog.tile_settings_editor import TileSettingsEditor
-from domain.catalog.app_pinner import AppPinner
 from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Feedback
-from domain.shared.i18n import translate
-from domain.shared.text import truncate
 from domain.shell.desktop_view import DesktopView
 from domain.shell.desktop_control import DesktopControl
+from domain.shell.home_actions import HomeActions
+from domain.shell.home_chrome import HomeChrome
 from domain.shell.open_overlays import OpenOverlays
 from domain.system.desktop_shell import DesktopShell
 from domain.shell.wallpaper import SystemWallpaper
@@ -80,20 +67,13 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         window_manager: WindowManager,
         wallpaper: SystemWallpaper,
         feedback: Feedback,
-        volume: VolumeControl,
-        brightness: BrightnessControl,
-        power: PowerControl,
-        scheduler: Scheduler,
         process_manager: ProcessManager,
         notifications: NotificationCenter,
         network_control: NetworkControl,
         overlays: OpenOverlays,
-        settings_store: TileSettingsStore,
-        app_pinning: AppPinning,
         surface: DesktopSurface | None = None,
         parent_of: 'Callable[[int], int | None] | None' = None,
         app_adder: AppAdder | None = None,
-        power_preference: PowerPreference | None = None,
     ):
         super().__init__()
         self._apps        = apps
@@ -102,31 +82,15 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._system_wallpaper = wallpaper
         self._feedback    = feedback
         self._app_manager = process_manager
-        self._volume_control = volume
-        self._brightness_control = brightness
-        self._power       = power
-        self._scheduler   = scheduler
         self._notifications = notifications
         self._network_control = network_control
-        self._network_status = NetworkStatus.offline()
         # System-action overlays (volume/brightness/…) and the dialog/popover
-        # handles (confirm, tile settings, tile popover — see DialogHostController,
-        # built in attach()) are tracked as a group in this shared registry.
+        # handles (confirm, tile settings, tile popover) are tracked as a group
+        # in this shared registry.
         self._overlays       = overlays
-        self._settings_store    = settings_store
-        self._tile_settings_editor = TileSettingsEditor(self._apps, settings_store)
         # The add-app use-case behind the [＋] tile. Optional so offscreen test
         # builds can omit it — the [＋] tile then simply does nothing.
         self._app_adder      = app_adder
-        # The single top-bar Power button mirrors this persisted default (and runs
-        # it on click). Optional so bare/offscreen test builds can omit it.
-        self._power_preference = power_preference
-        # Injected after construction (needs this Desktop's confirm dialog):
-        # backs the top-bar Power dropdown, so a pick runs + persists the default.
-        self._power_menu: PowerMenu | None = None
-        # The Power-chooser collaborator (built in set_power_menu, once the Home
-        # surface and Power menu exist); the thin delegates below forward to it.
-        self._power_popover: PowerPopoverController | None = None
         # How this widget becomes a fullscreen, stay-on-top surface — the one
         # OS-specific seam, injected by the composition root. Falls back to a
         # plain frameless fullscreen window (offscreen tests).
@@ -147,13 +111,10 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         main = QVBoxLayout(self)
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(0)
-        # The top bar is the Home surface's collapsed header, created here (it
-        # needs no Power menu, so it can exist before set_power_menu builds the
-        # surface around it) and handed to the FocusNavigator as the TopBarView.
-        self._home_surface: 'HomeSurface | None' = None
+        # The top bar is the Home surface's collapsed header, created here (the
+        # builder later builds the surface around it) and handed to the
+        # FocusNavigator as the TopBarView.
         self._home_header = HomeHeader(self._open_system_action, CARD_WIDTH)
-        if power_preference is not None:
-            self._home_header.set_power_icon(ACTIONS[power_preference.default()].icon)
         # Mouse parity with the tile bar: hover moves the highlight, a click
         # activates the button — routed through the same navigator slots gamepad A
         # follows.
@@ -167,7 +128,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._topbar = self._home_header
         main.addStretch(1)
         self._tilebar = TileBar(self._apps, self._app_manager, parent_of=parent_of)
-        self._app_pinner = AppPinner(self._tilebar, app_pinning, self._feedback)
         self._tilebar.tile_hovered.connect(self._on_tile_hovered)
         self._tilebar.tile_context_menu.connect(self._on_tile_context_menu)
 
@@ -176,9 +136,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         # Created before the add-app controller, which needs it.
         self._hintbar = HintBar()
         self._hintbar.install_surface()
-        # True while the Home Overlay owns the hints (BTN_MODE menu), so the bar
-        # stays visible over a running app and shows the overlay's own controls.
-        self._overlay_hints = False
 
         # The [＋] add-app flow lives in its own controller; the tile bar's
         # add-requested signal drives it directly.
@@ -191,14 +148,19 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         main.addWidget(self._tilebar)
         main.addStretch(1)
 
-        # Domain coordinators are assembled by the package builder (build_desktop)
-        # and injected via attach(); the widget itself stays a pure view.
+        # Domain coordinators and dialog/popover hosts are assembled by the
+        # package builder (build_desktop) and injected via attach(); the widget
+        # itself stays a pure view.
         self._nav:           'FocusNavigator | None'          = None
         self._lifecycle:     'AppLifecycle | None'            = None
         self._desktop:       'DesktopCoordinator | None'      = None
-        self._action_runner: 'ActionRunner | None'            = None
         self._tile_mover:    'TileMover | None'               = None
         self._dialogs:       'DialogHostController | None'    = None
+        self._chrome:        'HomeChrome | None'              = None
+        self._home_actions:  'HomeActions | None'             = None
+        self._tile_menu:     'TileMenuDispatcher | None'      = None
+        self._home_surface:  'HomeSurface | None'             = None
+        self._power_popover: 'PowerPopoverController | None'  = None
 
         self._status_timer = QTimer(self)
         self._status_timer.timeout.connect(self._tilebar.refresh_status)
@@ -214,11 +176,17 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     def attach(
         self,
+        *,
         nav: FocusNavigator,
         lifecycle: AppLifecycle,
         desktop_coordinator: DesktopCoordinator,
-        action_runner: ActionRunner,
         tile_mover: TileMover,
+        dialogs: DialogHostController,
+        chrome: HomeChrome,
+        home_actions: HomeActions,
+        tile_menu: TileMenuDispatcher,
+        home_surface: 'HomeSurface | None' = None,
+        power_popover: 'PowerPopoverController | None' = None,
     ) -> None:
         """Inject the domain coordinators assembled by build_desktop and wire the
         orchestration signals. Called once, before the Desktop is ever shown, so
@@ -227,14 +195,13 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._nav           = nav
         self._lifecycle     = lifecycle
         self._desktop       = desktop_coordinator
-        self._action_runner = action_runner
         self._tile_mover    = tile_mover
-        self._dialogs = DialogHostController(
-            self._gamepad, self._feedback, self._overlays, self._hintbar, nav,
-            self._surface, self._tilebar, self._tile_settings_editor, self,
-            on_tile_select=self._on_tile_select,
-            sync_hint_visibility=self._sync_hint_visibility,
-        )
+        self._dialogs       = dialogs
+        self._chrome        = chrome
+        self._home_actions  = home_actions
+        self._tile_menu     = tile_menu
+        self._home_surface  = home_surface
+        self._power_popover = power_popover
 
         # Platform reactivation seam: where the surface itself detects the Desktop
         # should return (Windows polls the foreground window), route it through the
@@ -266,7 +233,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     def show_desktop(self) -> None:
         """Show the desktop without interrupting the running application."""
-        self._refresh_power_default()
+        self._chrome.refresh_power_default()
         self._desktop.show_desktop()
 
     def pause(self) -> None:
@@ -286,71 +253,19 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     def resume(self) -> None:
         """Restore the Desktop after reconnecting the gamepad — without resetting state."""
-        self._refresh_power_default()
+        self._chrome.refresh_power_default()
         self._desktop.resume()
 
-    # ── Hint bar (its own bottom surface; driven by the Application) ─────────
+    # ── Hint bar / Home chrome (decisions live in the HomeChrome coordinator) ─
 
     def begin_overlay_hints(self) -> None:
-        """The Home Overlay opened: show the overlay-menu controls on the hint
-        bar and keep it on screen (even over a running app, where the Desktop is
-        hidden). The bar is its own surface, so this only swaps content/visibility
-        — it does not move, so no fade animation when the overlay appears."""
-        self._overlay_hints = True
-        self._hintbar.show_hints(home_hints.OVERLAY_MENU)
-        self._sync_hint_visibility()
+        self._chrome.begin_overlay_hints()
 
     def set_overlay_hints(self, hints) -> None:
-        """Swap the hint bar to *hints* while the Home Overlay owns it.
-
-        The overlay calls this as focus moves between its zones (Quick ⇄ Actions);
-        the bar is already visible from begin_overlay_hints, so this only swaps
-        content."""
-        if self._overlay_hints:
-            self._hintbar.show_hints(hints)
+        self._chrome.set_overlay_hints(hints)
 
     def end_overlay_hints(self) -> None:
-        """The Home Overlay closed: restore the current screen's hints if the
-        Desktop is up, otherwise let the bar go (back to a bare app)."""
-        self._overlay_hints = False
-        if self._surface.is_visible() and self._nav is not None:
-            self._nav.render()
-        self._sync_hint_visibility()
-
-    def _sync_hint_visibility(self) -> None:
-        """Show the hint-bar surface while the Desktop or the Home Overlay is on
-        screen; hide it otherwise (minimized to tray / a bare foreground app)."""
-        if self._overlay_hints or self._surface.is_visible():
-            self._hintbar.position_at_bottom()
-            self._hintbar.show()
-            self._hintbar.raise_()
-        else:
-            self._hintbar.hide()
-        self._sync_home_surface_visibility()
-
-    def _sync_home_surface_visibility(self) -> None:
-        """The persistent Home surface is shown (collapsed) whenever the Desktop
-        is on screen. When the Desktop is down it normally hides — unless it is
-        itself open on demand over an app / minimized Kasual (contexts 2/3),
-        where the controller has mapped it and owns its lifetime. Snapping to
-        collapsed on the way out means it never reappears mid-expand. Kept free of
-        hint-bar calls so it never re-enters the sync above."""
-        if self._home_surface is None:
-            return
-        if self._surface.is_visible():
-            # A map-on-demand overlay belongs only while the Desktop is down;
-            # reclaim a still-mapped one as collapsed chrome rather than
-            # resurface a stale app-context menu.
-            if self._home_surface.is_showing():
-                self._home_surface.collapse_immediately()
-            self._home_surface.position_at_top()
-            self._home_surface.show()
-            self._home_surface.raise_()
-        elif self._home_surface.is_open():
-            return   # on-demand overlay over an app / minimized — leave it mapped
-        else:
-            self._home_surface.collapse_immediately()
-            self._home_surface.hide()
+        self._chrome.end_overlay_hints()
 
     # ── DesktopView port (driven by AppLifecycle) ───────────────────────────
 
@@ -359,19 +274,15 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     def show_fullscreen(self) -> None:
         self._surface.show_fullscreen()
-        self._sync_hint_visibility()
+        self._chrome.sync()
 
     def activate(self) -> None:
         self._surface.activate()
-        # Bringing the Desktop forward from an app always lands on the bare Home
-        # chrome — never a leftover Home Overlay menu from the app we just left.
-        if self._home_surface is not None:
-            self._home_surface.collapse_immediately()
-        self._sync_hint_visibility()
+        self._chrome.on_desktop_activated()
 
     def hide_view(self) -> None:
         self._surface.hide()
-        self._sync_hint_visibility()
+        self._chrome.sync()
 
     def take_input(self) -> None:
         self._gamepad.push_handler(self._handle_pad)
@@ -400,7 +311,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         on_confirmed: Callable[[], None],
         on_cancelled: Callable[[], None] | None = None,
     ) -> None:
-        self._show_confirm(question, on_confirmed, on_cancelled)
+        self._dialogs.show_confirm(question, on_confirmed, on_cancelled)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -446,12 +357,10 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     def changeEvent(self, event) -> None:
         super().changeEvent(event)
-        if (event.type() == QEvent.Type.ActivationChange and self.isActiveWindow()
-                and not self._state.paused):
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
             # KWin giving us focus back delegates the reactivate decision to the
             # domain layer; also covers launcher-forwarder apps (e.g. `steam
             # steam://...`) whose process exits before app_finished fires.
-            # Skipped while paused so a stray focus event can't bounce us back.
             self._lifecycle.on_focus_gained()
 
     # ── Gamepad handler ────────────────────────────────────────────────────
@@ -522,178 +431,60 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._nav.focus_tiles()
         self._show_tile_popover()
 
-    # ── Closing an application ─────────────────────────────────────────────
-
     def _show_tile_popover(self) -> None:
         self._dialogs.show_tile_popover()
 
-    # ── Tile popover activation ────────────────────────────────────────────
-
-    _MANAGEMENT_ACTIONS = frozenset({MOVE, SETTINGS, PIN, UNPIN})
-
-    def _on_tile_select(self, item: MenuItem) -> None:
-        """Route a chosen tile-menu item: management actions to their handlers,
-        everything else (Launch / Restore / Close) to the lifecycle coordinator."""
-        if item.action in self._MANAGEMENT_ACTIONS:
-            self._on_manage_select(item)
-        else:
-            self._lifecycle.dispatch_tile_action(item)
-
-    def _on_manage_select(self, item: MenuItem) -> None:
-        if item.action == MOVE:
-            self._tile_mover.start()
-        elif item.action == SETTINGS:
-            self._dialogs.show_tile_settings()
-        elif item.action == PIN:
-            self._app_pinner.pin(item.target.window_id)
-        elif item.action == UNPIN:
-            self._unpin_app(item.target)
-
-    def _unpin_app(self, target) -> None:
-        """Confirm, then unpin. The index is captured for the confirm callback: the
-        dialog is modal so the focus cannot move underneath it."""
-        index = target.index
-        self._show_confirm(
-            question=translate("Desktop", 'Are you sure you want to unpin\n"{0}"?')
-                .format(truncate(target.name, 40)),
-            on_confirmed=lambda: self._app_pinner.unpin(index),
-        )
-
-    def _show_confirm(
-        self,
-        question: str,
-        on_confirmed: Callable[[], None],
-        on_cancelled: Callable[[], None] | None = None,
-    ) -> None:
-        self._dialogs.show_confirm(question, on_confirmed, on_cancelled)
-
     # ── Top bar actions ────────────────────────────────────────────────────
 
-    def _refresh_power_default(self) -> None:
-        """Re-read the persisted default and update the header's Power button glyph.
-        Cheap, event-driven (on show/resume): the default only changes by
-        executing a power action, and Sleep is the one that returns to this
-        session."""
-        if self._power_preference is None:
-            return
-        action = ACTIONS[self._power_preference.default()]
-        self._home_header.set_power_icon(action.icon)
-
     def _open_system_action(self, action_type: str) -> None:
-        """Act on a header button via A (the FocusNavigator's trigger path in the
-        collapsed Home view): Power runs the current default immediately (X
-        opens the chooser to change it — see _show_topbar_power_menu); Network /
-        Notifications open their overlay."""
-        if action_type == POWER:
-            if self._power_menu is not None:
-                self._power_menu.activate_default()
-        else:
-            self._action_runner.run(action_type)
-
-    def _open_header_power_chooser(self) -> None:
-        """Delegate the header's Power chooser to the collaborator (built in
-        :meth:`set_power_menu`). Wired as the Home surface's on_power_chooser."""
-        if self._power_popover is not None:
-            self._power_popover.open_header_chooser()
-
-    def set_power_menu(self, power_menu: PowerMenu) -> None:
-        """Inject the Power menu (built after this Desktop, since it needs the
-        confirm dialog) so the top-bar Power dropdown can run + persist a pick.
-
-        This is also where the Home surface is built: it needs the same Power menu,
-        and by now ``attach`` has wired the action runner its menu items dispatch
-        through. The Power-chooser collaborator is wired here too — it needs the
-        Power menu, the Home surface, and the navigator (all set by this point)."""
-        self._power_menu = power_menu
-        if self._home_surface is None:
-            self._home_surface = HomeSurface(
-                self._gamepad, self._feedback,
-                self._volume_control, self._brightness_control, power_menu,
-                self._home_header,
-                on_action=self._home_surface_action,
-                on_power_chooser=self._open_header_power_chooser,
-                begin_hints=self.begin_overlay_hints,
-                set_hints=self.set_overlay_hints,
-                end_hints=self.end_overlay_hints,
-            )
-            self._home_surface.install_surface()
-        self._power_popover = PowerPopoverController(
-            power_menu, self._gamepad, self._feedback, self._home_header,
-            self._home_surface, self._nav, self._hintbar, self._overlays,
-        )
+        if self._home_actions is not None:
+            self._home_actions.open_header_action(action_type)
 
     def home_overlay_factory(self) -> 'PersistentOverlayFactory':
         """The SectionedOverlayFactory the controller uses in persistent-surface
         mode: every BTN_MODE over an app / minimized Kasual (contexts 2/3) reuses
         this one surface instead of mapping a fresh overlay.
 
-        Fail fast if :meth:`set_power_menu` hasn't built the surface yet — the
-        factory dereferences it, so a wrong wiring order would otherwise surface
-        as an opaque AttributeError later."""
+        Fail fast without the Home surface — the factory dereferences it, and
+        build_desktop only builds it when given a power preference."""
         if self._home_surface is None:
             raise RuntimeError(
-                "home_overlay_factory() called before set_power_menu() — the "
-                "Home surface is not built yet."
+                "home_overlay_factory() needs the Home surface — build_desktop() "
+                "builds it only when a power_preference is provided."
             )
         from .home_surface import PersistentOverlayFactory
         return PersistentOverlayFactory(self._home_surface)
 
-    def _home_surface_action(self, item: MenuItem) -> None:
-        """Dispatch a Home-surface menu pick (context 1). The content collapses the
-        surface itself before this runs, so "Return to Home screen" is a no-op (we
-        are already here); the Power card runs internally via the Power menu;
-        everything else (network / notifications / minimize) is a system action."""
-        if item.action == RETURN_TO_DESKTOP:
-            return
-        self._action_runner.run(item.action)
-
     def try_toggle_home_surface(self) -> bool:
-        if self._home_surface is None or not self._surface.is_visible():
-            return False
-        if self._home_surface.is_expanded():
-            self._home_surface.request_close()
-        else:
-            # A fresh expansion supersedes any open top-bar overlay, mirroring the
-            # map-on-demand path's dismiss_overlays.
-            self.dismiss_overlays()
-            self._home_surface.expand()
-        return True
+        return self._chrome.try_toggle()
 
     def _show_topbar_power_menu(self, index: int) -> None:
         """Delegate the top-bar Power chooser (X / right-click on Power) to the
         collaborator. Wired as the FocusNavigator's on_topbar_menu; a no-op on
-        the other header buttons and before set_power_menu builds the controller."""
+        the other header buttons and in builds without a power preference."""
         if self._power_popover is not None:
             self._power_popover.show_topbar(index)
 
     def refresh_notification_badge(self) -> None:
-        """Sync the notifications badge to the unread count in memory — on the
-        Home header."""
-        count = self._notifications.unread_count
-        self._home_header.set_notification_badge(count)
+        self._chrome.refresh_notification_badge()
 
     def update_network_status(self, status: NetworkStatus) -> None:
-        """Store the latest network status and reflect its kind in the Home header
-        icon (driven by the NetworkMonitor; the popup reads the stored status)."""
-        self._network_status = status
-        glyph = network_view.icon_for(status.kind)
-        self._home_header.set_network_icon(glyph)
+        self._chrome.update_network_status(status)
 
     def open_network_overlay(self) -> None:
         overlay = NetworkOverlay(
-            self._gamepad, self._network_status, self._network_control,
+            self._gamepad, self._chrome.network_status, self._network_control,
             self._feedback, parent=self, dim=False,
         )
         self._dialogs.present(overlay)
         self._hintbar.show_hints(home_hints.NETWORK)
 
     def open_notifications_overlay(self) -> None:
-        # The overlay reads the unread tally (to highlight new rows) as it builds;
-        # only then do we clear it and drop the badge — the user has now seen them.
+        self._chrome.open_notifications()
+
+    def _show_notifications_view(self) -> None:
         overlay = NotificationsOverlay(
             self._gamepad, self._notifications, self._feedback, parent=self, dim=False,
         )
-        self._notifications.mark_all_read()
-        self.refresh_notification_badge()
         self._dialogs.present(overlay)
         self._hintbar.show_hints(home_hints.NOTIFICATIONS)

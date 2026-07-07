@@ -46,6 +46,7 @@ class AppLifecycle(AppControl):
         feedback: Feedback,
         prompts: Prompts,
         inspector: ForegroundInspector,
+        is_paused: Callable[[], bool] = lambda: False,
     ):
         self._view          = view
         self._gamepad       = gamepad
@@ -61,6 +62,7 @@ class AppLifecycle(AppControl):
         self._feedback      = feedback
         self._prompts       = prompts
         self._inspector     = inspector
+        self._is_paused     = is_paused
 
     def current_app(self) -> Target | None:
         return self._inspector.current_app()
@@ -220,8 +222,11 @@ class AppLifecycle(AppControl):
     # ── Focus / Reactivation ────────────────────────────────────────────────
 
     def on_focus_gained(self) -> None:
-        """Reactivate the Desktop on regained focus, if the foreground is idle and
-        no gamepad handler is active."""
+        """Reactivate the Desktop on regained focus, if it isn't paused, the
+        foreground is idle and no gamepad handler is active. The pause check
+        keeps a stray focus event from bouncing a minimized Desktop back."""
+        if self._is_paused():
+            return
         if self._foreground.is_idle() and self._gamepad.top_handler() is None:
             self.reactivate_desktop()
 

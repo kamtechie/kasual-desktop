@@ -10,8 +10,10 @@ package, it may reach the widget's internal collaborators without widening
 its public API.
 """
 
+from domain.catalog.app_pinner import AppPinner
 from domain.catalog.catalog import AppCatalog
 from domain.catalog.live_catalog import LiveCatalog
+from domain.catalog.tile_settings_editor import TileSettingsEditor
 from domain.input.pad_control import PadControl
 from domain.lifecycle.app_lifecycle import AppLifecycle
 from domain.lifecycle.foreground_inspector import ForegroundInspector
@@ -19,6 +21,7 @@ from domain.lifecycle.launch_hide import LaunchHide
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.prompts import LocalizedPrompts
 from domain.lifecycle.window_manager import WindowManager
+from domain.menu.dispatcher import TileMenuDispatcher
 from domain.menu.ports import AppPinning, TileSettingsStore, TileOrderStore
 from domain.navigation.focus_navigator import FocusNavigator
 from domain.navigation.tile_mover import TileMover
@@ -28,11 +31,14 @@ from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Feedback
 from domain.shared.scheduler import Scheduler
 from domain.shell.desktop import Desktop as DesktopCoordinator
+from domain.shell.home_actions import HomeActions
+from domain.shell.home_chrome import HomeChrome
 from domain.shell.open_overlays import OpenOverlays
 from domain.shell.wallpaper import SystemWallpaper
 from domain.system.action_view import make_action_confirm
 from domain.system.actions import ActionDeps
 from domain.system.power_control import PowerControl
+from domain.system.power_menu import PowerMenu
 from domain.system.power_preference import PowerPreference
 from domain.system.runner import ActionRunner
 from domain.system.volume import VolumeControl
@@ -41,6 +47,9 @@ from domain.system.brightness import BrightnessControl
 from collections.abc import Callable
 
 from .desktop import Desktop
+from .dialog_host_controller import DialogHostController
+from .home_surface import HomeSurface
+from .power_popover_controller import PowerPopoverController
 from .surface import DesktopSurface
 
 
@@ -56,7 +65,7 @@ class _ImmediateHide:
     def is_armed(self) -> bool:
         return False
 
-    def arm(self, idx: int) -> None:
+    def arm(self, app) -> None:
         self._on_hide()
 
     def cancel(self) -> None:
@@ -95,13 +104,17 @@ def build_desktop(
     ``is_game_pid`` is the platform predicate that decides whether a foreground
     pid is a game (gates the in-game HUD toggle). KDE wires ``kde.proc.is_game_pid``
     (graphics-API maps check + launcher ancestry); Windows wires the RTSS signal.
+
+    ``power_preference`` also gates the power-driven chrome: without it (bare
+    test builds) no PowerMenu, Home surface or Power popover is built, and the
+    BTN_MODE in-place toggle reports unhandled.
     """
     parent_of = parent_of or (lambda _pid: None)
     # Shared: the widget registers/forgets overlays; the coordinator pauses/
     # resumes the group as the surface hides and returns.
     overlays = OpenOverlays()
     # Mutable in place, so a tile reorder/recolour is seen by the lifecycle and
-    # deferred hide too — both key on tile position.
+    # deferred hide too.
     live_apps = LiveCatalog(apps)
     widget = Desktop(
         apps=live_apps,
@@ -109,20 +122,13 @@ def build_desktop(
         window_manager=window_manager,
         wallpaper=wallpaper,
         feedback=feedback,
-        volume=volume,
-        brightness=brightness,
-        power=power,
-        scheduler=scheduler,
         process_manager=process_manager,
         notifications=notifications,
         network_control=network_control,
         overlays=overlays,
-        settings_store=settings_store,
-        app_pinning=app_pinning,
         surface=surface,
         parent_of=parent_of,
         app_adder=app_adder,
-        power_preference=power_preference,
     )
 
     nav = FocusNavigator(
@@ -173,6 +179,7 @@ def build_desktop(
         feedback=feedback,
         prompts=LocalizedPrompts(),
         inspector=inspector,
+        is_paused=lambda: widget._state.paused,
     )
     # Coordinates show/pause/resume of the Desktop surface (the widget = view).
     desktop_coordinator = DesktopCoordinator(
@@ -180,10 +187,77 @@ def build_desktop(
     )
     action_runner = ActionRunner(
         ActionDeps(desktop=widget, power=power),
-        make_action_confirm(
-            lambda q, cb: widget._show_confirm(question=q, on_confirmed=cb)
-        ),
+        make_action_confirm(widget.show_confirm),
     )
 
-    widget.attach(nav, lifecycle, desktop_coordinator, action_runner, tile_mover)
+    # ``tile_menu`` and ``chrome`` are assigned further down; their lambdas only
+    # run at runtime, long after attach.
+    dialogs = DialogHostController(
+        gamepad, feedback, overlays, widget._hintbar, nav,
+        widget._surface, widget._tilebar,
+        TileSettingsEditor(live_apps, settings_store), widget,
+        on_tile_select=lambda item: tile_menu.dispatch(item),
+        sync_hint_visibility=lambda: chrome.sync(),
+    )
+
+    power_menu = None
+    home_surface = None
+    power_popover = None
+    if power_preference is not None:
+        power_menu = PowerMenu(
+            ActionDeps(desktop=widget, power=power),
+            power_preference,
+            make_action_confirm(widget.show_confirm),
+        )
+    home_actions = HomeActions(action_runner, power_menu)
+    if power_menu is not None:
+        home_surface = HomeSurface(
+            gamepad, feedback, volume, brightness, power_menu,
+            widget._home_header,
+            on_action=home_actions.menu_pick,
+            on_power_chooser=lambda: power_popover.open_header_chooser(),
+            begin_hints=lambda: chrome.begin_overlay_hints(),
+            set_hints=lambda h: chrome.set_overlay_hints(h),
+            end_hints=lambda: chrome.end_overlay_hints(),
+        )
+        home_surface.install_surface()
+        power_popover = PowerPopoverController(
+            power_menu, gamepad, feedback, widget._home_header,
+            home_surface, nav, widget._hintbar, overlays,
+        )
+
+    chrome = HomeChrome(
+        is_desktop_visible=widget.is_visible,
+        home_surface=home_surface,
+        hintbar=widget._hintbar,
+        header=widget._home_header,
+        notifications=notifications,
+        render_screen_hints=nav.render,
+        dismiss_overlays=widget.dismiss_overlays,
+        show_notifications_view=widget._show_notifications_view,
+        power_preference=power_preference,
+    )
+    chrome.refresh_power_default()
+
+    tile_menu = TileMenuDispatcher(
+        dispatch_lifecycle=lifecycle.dispatch_tile_action,
+        mover=tile_mover,
+        pinner=AppPinner(widget._tilebar, app_pinning, feedback),
+        show_settings=dialogs.show_tile_settings,
+        confirm=widget.show_confirm,
+        prompts=LocalizedPrompts(),
+    )
+
+    widget.attach(
+        nav=nav,
+        lifecycle=lifecycle,
+        desktop_coordinator=desktop_coordinator,
+        tile_mover=tile_mover,
+        dialogs=dialogs,
+        chrome=chrome,
+        home_actions=home_actions,
+        tile_menu=tile_menu,
+        home_surface=home_surface,
+        power_popover=power_popover,
+    )
     return widget

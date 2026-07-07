@@ -124,6 +124,11 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
     def showEvent(self, event) -> None:
         super().showEvent(event)
 
+    def show_at_bottom(self) -> None:
+        self.position_at_bottom()
+        self.show()
+        self.raise_()
+
     # ── Positioning ──────────────────────────────────────────────────────────
 
     def position_at_bottom(self) -> None:

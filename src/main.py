@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import QApplication
 
 from version import get_version
 from session import (
-    build_controller, build_power_menu, build_tray, defer_start,
+    build_controller, build_tray, defer_start,
     run_onboarding_or_start, setup_logging, wire_notification_badge,
 )
 from infrastructure.common.audio.feedback import SoundFeedback
@@ -163,11 +163,6 @@ def main() -> None:
             feedback=feedback, desktop=desktop, log_viewer=log_viewer,
             version=version, gamepad=gamepad, quit_fn=app.quit,
         )
-
-        # The sectioned factory needs the volume/brightness controls and a power
-        # menu (sticky-default dropdown) backed by the same preference the top bar
-        # reads. The top bar's Power dropdown (Y) runs + persists through it too.
-        build_power_menu(desktop, power, power_preference)
 
         controller = build_controller(
             gamepad=gamepad, desktop=desktop, tray=tray, wm=wm,

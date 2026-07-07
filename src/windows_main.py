@@ -28,7 +28,7 @@ def main():
     from PyQt6.QtWidgets import QApplication
 
     from session import (
-        build_controller, build_power_menu, build_tray, defer_start,
+        build_controller, build_tray, defer_start,
         run_onboarding_or_start, setup_logging, wire_notification_badge,
     )
 
@@ -177,7 +177,6 @@ def main():
             version=version, gamepad=gamepad, quit_fn=app.quit,
             keep_alive=lambda o: _refs.__setitem__("about", o),
         )
-        build_power_menu(desktop, power, power_preference)
         controller = build_controller(
             gamepad=gamepad, desktop=desktop, tray=tray, wm=wm,
             power=power, hud=WindowsRtssHudControl(),

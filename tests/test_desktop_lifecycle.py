@@ -91,27 +91,30 @@ class TestUnpinConfirmation:
     """Unpin is gated by a ConfirmDialog (like closing an app): the .desktop is
     only deleted once the user confirms."""
 
-    def _target(self):
+    def _unpin_item(self):
         from domain.catalog.target import AppTarget
-        return AppTarget(index=0, app_id="konsole", name="Konsole")
+        from domain.menu.entry import UNPIN
+        from domain.menu.item import MenuItem
+        target = AppTarget(index=0, app_id="konsole", name="Konsole")
+        return MenuItem(label="Unpin", action=UNPIN, target=target)
 
     def test_unpin_opens_confirm_without_deleting(self, mock_gamepad):
         desktop = _make_desktop(mock_gamepad)
-        desktop._unpin_app(self._target())
+        desktop._tile_menu.dispatch(self._unpin_item())
         assert desktop._dialogs._confirm_dialog is not None
-        desktop._app_pinner._pinning.unpin.assert_not_called()
+        desktop._tile_menu._pinner._pinning.unpin.assert_not_called()
 
     def test_confirm_performs_unpin(self, mock_gamepad):
         desktop = _make_desktop(mock_gamepad)
-        desktop._unpin_app(self._target())
+        desktop._tile_menu.dispatch(self._unpin_item())
         desktop._dialogs._confirm_dialog._handle_pad("select")   # "Yes" focused by default
-        desktop._app_pinner._pinning.unpin.assert_called_once_with(0)
+        desktop._tile_menu._pinner._pinning.unpin.assert_called_once_with(0)
 
     def test_cancel_leaves_tile_alone(self, mock_gamepad):
         desktop = _make_desktop(mock_gamepad)
-        desktop._unpin_app(self._target())
+        desktop._tile_menu.dispatch(self._unpin_item())
         desktop._dialogs._confirm_dialog._handle_pad("cancel")
-        desktop._app_pinner._pinning.unpin.assert_not_called()
+        desktop._tile_menu._pinner._pinning.unpin.assert_not_called()
 
 
 # ── on_app_finished (via AppLifecycle) ──────────────────────────────────────────

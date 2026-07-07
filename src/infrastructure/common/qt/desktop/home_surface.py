@@ -248,6 +248,11 @@ class HomeSurface(QWidget):
             g = screen.geometry()
             self.setGeometry(g.x(), g.y(), g.width(), SURFACE_H)
 
+    def show_collapsed(self) -> None:
+        self.position_at_top()
+        self.show()
+        self.raise_()
+
     # ── Context 1: persistent morph (driven by the Desktop) ──────────────────
 
     def expand(self) -> None:

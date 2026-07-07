@@ -2,10 +2,10 @@
 
 Each platform builds its own OS-specific adapters, then hands them to these
 helpers for the wiring that is identical either way — logging setup, the
-provisioning branch, tray/power-menu/controller assembly, and the
-deferred-start/stop-on-quit pattern used by the notification and network
-monitors. Kept here rather than duplicated so a fix made for one platform
-can't silently miss the other.
+provisioning branch, tray/controller assembly, and the deferred-start/
+stop-on-quit pattern used by the notification and network monitors. Kept here
+rather than duplicated so a fix made for one platform can't silently miss the
+other.
 """
 
 import logging
@@ -20,8 +20,6 @@ from application import Application
 from domain.provisioning.provisioning import needs_provisioning
 from domain.shared.feedback import Cue
 from domain.system.actions import ActionDeps
-from domain.system.action_view import make_action_confirm
-from domain.system.power_menu import PowerMenu
 from infrastructure.common.qt.overlays.about_overlay import AboutOverlay
 from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlayFactory
 from infrastructure.common.qt.ui.tray import SystemTray
@@ -74,16 +72,6 @@ def run_onboarding_or_start(
         )
     else:
         start_session()
-
-
-def build_power_menu(desktop, power, power_preference) -> PowerMenu:
-    power_menu = PowerMenu(
-        ActionDeps(desktop=desktop, power=power),
-        power_preference,
-        make_action_confirm(desktop.show_confirm),
-    )
-    desktop.set_power_menu(power_menu)
-    return power_menu
 
 
 def build_tray(
