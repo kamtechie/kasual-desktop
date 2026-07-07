@@ -269,6 +269,9 @@ class HomeSurface(QWidget):
         )
         self._panel.show()   # unhide the panel collapsed teardown hid (see below)
         self._begin_hints()
+        # configure() already computed this zone's hints, but that ran before
+        # begin_hints granted the bar to the overlay — re-push them now.
+        self._content.sync_hints()
         self._gamepad.push_handler(self._content.handle_pad)
         self._feedback.play(Cue.POPUP_OPEN)
         self._morph(open_=True)
@@ -402,7 +405,6 @@ class HomeSurface(QWidget):
         self._content.sync_hints()
 
     def _teardown_menu(self) -> None:
-        self._content.close_dropdown()
         self._gamepad.pop_handler(self._content.handle_pad)
 
     def _morph(self, *, open_: bool) -> None:

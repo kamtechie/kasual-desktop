@@ -23,9 +23,7 @@ from PyQt6.QtWidgets import (
 from domain.input.vocabulary import Event
 from domain.catalog.target import Target
 from domain.menu.entry import POWER, RETURN_TO_APP, RETURN_TO_DESKTOP
-from domain.menu.home import (
-    HomeSection, SectionKind, compose_home_sections, power_dropdown_items,
-)
+from domain.menu.home import HomeSection, SectionKind, compose_home_sections
 from domain.menu.item import MenuItem
 from domain.navigation import hints as nav_hints
 from domain.shared.feedback import Cue, Feedback
@@ -36,7 +34,6 @@ from domain.system.hud import HudControl
 from domain.system.power_menu import PowerMenu
 from domain.system.volume import Volume, VolumeControl
 from infrastructure.common.qt.ui import styles
-from .power_dropdown import PowerDropdown
 
 logger = logging.getLogger(__name__)
 
@@ -197,8 +194,6 @@ class HomeMenuContent(QWidget):
         self._last_values: dict[str, BoundedValue] = {}
         self._build_gen = 0
         self._value_ready.connect(self._on_value_ready)
-        self._power_card: QWidget | None = None  # the Power split-button (X opens its dropdown)
-        self._dropdown: PowerDropdown | None = None   # the open Power dropdown, while expanded
         self._on_action: Callable[[MenuItem], None] | None = None
         self._on_cancel: Callable[[], None] | None = None
         self._set_hints: Callable | None = None
@@ -208,8 +203,8 @@ class HomeMenuContent(QWidget):
         # Funnel back to the host so it can tear down/collapse its own surface when
         # an item is activated or B is pressed; defaults to a no-op until configure.
         self._request_hide: Callable[[], None] = lambda: None
-        # Opens the Power chooser when the header carries Power; the inline
-        # split-button dropdown is used instead when there is no header.
+        # Opens the Power chooser (Sleep/Restart/Shut Down) when X is pressed on
+        # the header's Power button.
         self._on_power_chooser: Callable[[], None] | None = None
 
         self.setStyleSheet("background: transparent;")
@@ -275,11 +270,6 @@ class HomeMenuContent(QWidget):
     def active(self, zone_index: int) -> None:
         self._active = zone_index
 
-    @property
-    def dropdown(self) -> "PowerDropdown | None":
-        """The open Power dropdown, or ``None`` when collapsed."""
-        return self._dropdown
-
     # ── Building ─────────────────────────────────────────────────────────────
 
     def _build(self, sections: list[HomeSection]) -> None:
@@ -290,8 +280,6 @@ class HomeMenuContent(QWidget):
                 item.widget().deleteLater()
         self._zones = []
         self._quick_state = []
-        self.close_dropdown()
-        self._power_card = None
 
         # The header is zone 0 but contributes no widgets — its buttons live on
         # the external widget, painted via header.set_selected (see _render).
@@ -363,9 +351,7 @@ class HomeMenuContent(QWidget):
         grid.setSpacing(8)
         cards: list[QWidget] = []
         for idx, item in enumerate(section.items):
-            is_power = item.action == POWER
-            label = "  " + item.label + ("   ▾" if is_power else "")
-            card = _MenuCard(label)
+            card = _MenuCard("  " + item.label)
             card.setMinimumHeight(58)
             card.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             if item.icon:
@@ -377,8 +363,6 @@ class HomeMenuContent(QWidget):
                 lambda _=False, zi=zone_index, ci=idx: self._click_item(zi, ci))
             grid.addWidget(card, idx, 0)
             cards.append(card)
-            if is_power:
-                self._power_card = card
         container.setFixedWidth(_LIST_WIDTH)
         self._zones_layout.addWidget(container, alignment=Qt.AlignmentFlag.AlignHCenter)
         return _Zone(section.kind, section.items, cards, columns=1)
@@ -442,15 +426,12 @@ class HomeMenuContent(QWidget):
 
     def handle_pad(self, event: str) -> None:
         # Triggers (LT/RT) adjust volume regardless of zone or focus — an
-        # always-at-hand shortcut, so they take priority even over the dropdown.
+        # always-at-hand shortcut.
         if event == Event.VOLUME_DOWN:
             self._nudge_volume(-1)
             return
         if event == Event.VOLUME_UP:
             self._nudge_volume(+1)
-            return
-        if self._dropdown is not None:
-            self._dropdown.handle_pad(event)
             return
         if event == Event.SECTION_PREV:
             self._switch_zone(-1)
@@ -482,6 +463,9 @@ class HomeMenuContent(QWidget):
         new = max(0, min(self._active + delta, len(self._zones) - 1))
         if new != self._active:
             self._active = new
+            zone = self._zones[new]
+            if zone.kind == SectionKind.HEADER:
+                zone.index = self._header_default_index(zone)
             self._render()
             self.sync_hints()
             self._feedback.play(Cue.CURSOR)
@@ -490,16 +474,26 @@ class HomeMenuContent(QWidget):
         """D-pad up/down spilling past a section's edge moves into the adjacent
         section, landing on its first (when entering from above) or last (from
         below) widget — so the whole overlay reads as one vertical flow. Clamps
-        silently at the first/last section."""
+        silently at the first/last section. The header is the exception: it
+        always lands on Power, its one item with a secondary action."""
         new = self._active + delta
         if not 0 <= new < len(self._zones):
             return
         self._active = new
         zone = self._zones[new]
-        zone.index = 0 if landing == "first" else len(zone.items) - 1
+        if zone.kind == SectionKind.HEADER:
+            zone.index = self._header_default_index(zone)
+        else:
+            zone.index = 0 if landing == "first" else len(zone.items) - 1
         self._render()
         self.sync_hints()
         self._feedback.play(Cue.CURSOR)
+
+    @staticmethod
+    def _header_default_index(zone: "_Zone") -> int:
+        """The header button focus lands on when the header is freshly
+        entered — Power, not wherever it sits among the header's buttons."""
+        return next((i for i, it in enumerate(zone.items) if it.action == POWER), 0)
 
     def _quick_event(self, zone: _Zone, event: str) -> None:
         if event == Event.UP:
@@ -547,6 +541,7 @@ class HomeMenuContent(QWidget):
         if target != i:
             zone.index = target
             self._render()
+            self.sync_hints()
             self._feedback.play(Cue.CURSOR)
 
     def _move_within(self, zone: _Zone, delta: int) -> None:
@@ -554,6 +549,7 @@ class HomeMenuContent(QWidget):
         if target != zone.index:
             zone.index = target
             self._render()
+            self.sync_hints()
             self._feedback.play(Cue.CURSOR)
 
     def _adjust(self, slider_index: int, sign: int) -> None:
@@ -604,8 +600,6 @@ class HomeMenuContent(QWidget):
 
     def _hover_item(self, zone_i: int, item_i: int) -> None:
         """Pointer moved onto a card or quick row: take the selection there."""
-        if self._dropdown is not None:
-            return
         zone = self._zones[zone_i]
         if self._active == zone_i and zone.index == item_i:
             return
@@ -617,8 +611,6 @@ class HomeMenuContent(QWidget):
 
     def _click_item(self, zone_i: int, item_i: int) -> None:
         """Left-click on a card: select it, then activate (as gamepad A does)."""
-        if self._dropdown is not None:
-            return
         zone = self._zones[zone_i]
         self._active = zone_i
         zone.index = item_i
@@ -651,10 +643,10 @@ class HomeMenuContent(QWidget):
             self._click_item(zi, index)
 
     def context_header(self, index: int) -> None:
-        """Right-click on a header button while the menu is open: open its dropdown
-        (only Power has one — the chooser); a no-op on the others."""
+        """Right-click on a header button while the menu is open: open its chooser
+        (only Power has one); a no-op on the others."""
         zi = self._header_zone()
-        if zi is None or self._dropdown is not None:
+        if zi is None:
             return
         zone = self._zones[zi]
         self._active = zi
@@ -662,49 +654,14 @@ class HomeMenuContent(QWidget):
         self._render()
         self._open_dropdown(zone.items[index])
 
-    # ── Power dropdown (X on the Power card) ─────────────────────────────────
+    # ── Power chooser (X on the header's Power button) ────────────────────────
 
     def _open_dropdown(self, item: MenuItem) -> None:
-        """X on the Power card expands the Sleep/Restart/Shut Down chooser (the same
-        button that opens a tile's popover); a no-op on any other card."""
+        """X on Power opens the Sleep/Restart/Shut Down chooser; a no-op on any
+        other item."""
         if item.action != POWER:
             return
-        # When the header carries Power, route to the header chooser (there is no
-        # in-grid power card to anchor an inline dropdown to).
-        if self._header is not None and self._on_power_chooser is not None:
-            self._on_power_chooser()
-            return
-        if self._power_card is None:
-            return
-        items = power_dropdown_items()
-        default = self._power.default_key()
-        # Open with the cursor on the current default (highlighted + focused) —
-        # no separate marker needed to show which one is active.
-        index = next((i for i, it in enumerate(items) if it.action == default), 0)
-        self._dropdown = PowerDropdown(
-            items, index, anchor=self._power_card, parent=self,
-            feedback=self._feedback,
-            on_pick=self._on_power_picked, on_dismiss=self._drop_dropdown,
-        )
-        self._feedback.play(Cue.POPUP_OPEN)
-
-    def _on_power_picked(self, item: MenuItem) -> None:
-        """A picked action runs *and* (once confirmed) becomes the new default —
-        the persist-only-on-confirm rule lives in PowerMenu.select. Hide first so
-        the confirm dialog owns the pad (the menu merely floated over it)."""
-        self._dropdown = None
-        self._request_hide()
-        self._power.select(item.action)
-
-    def _drop_dropdown(self) -> None:
-        """The dropdown dismissed itself (B/X/Y) — drop the handle so the menu
-        resumes its own navigation."""
-        self._dropdown = None
-
-    def close_dropdown(self) -> None:
-        if self._dropdown is not None:
-            self._dropdown.close()
-            self._dropdown = None
+        self._on_power_chooser()
 
     # ── Rendering ────────────────────────────────────────────────────────────
 
@@ -729,11 +686,15 @@ class HomeMenuContent(QWidget):
     def sync_hints(self) -> None:
         if self._set_hints is None or not self._zones:
             return
-        kind = self._zones[self._active].kind
-        if kind == SectionKind.QUICK:
+        zone = self._zones[self._active]
+        if zone.kind == SectionKind.QUICK:
             hints = nav_hints.OVERLAY_QUICK
-        elif kind == SectionKind.HEADER:
-            hints = nav_hints.OVERLAY_HEADER   # the header row navigates left/right
+        elif zone.kind == SectionKind.HEADER:
+            # The header row navigates left/right; only Power (not Network /
+            # Notifications) opens anything further on Y.
+            focused = zone.items[zone.index] if zone.items else None
+            hints = (nav_hints.OVERLAY_HEADER_POWER if focused is not None
+                     and focused.action == POWER else nav_hints.OVERLAY_HEADER)
         else:
             hints = nav_hints.OVERLAY_ACTIONS
         self._set_hints(hints)

@@ -4,10 +4,13 @@ persisted), SELECT/CANCEL leave. Clamps at both ends."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from domain.input.pad_control import PadControl
 from domain.input.vocabulary import Event
 from domain.menu.ports import TileOrderStore
-from domain.navigation.bar_views import TileReorderView
+from domain.navigation import hints
+from domain.navigation.bar_views import HintBarView, TileReorderView
 from domain.shared.feedback import Cue, Feedback
 
 
@@ -18,11 +21,15 @@ class TileMover:
         store: TileOrderStore,
         gamepad: PadControl,
         feedback: Feedback,
+        hint_bar: HintBarView,
+        restore_hints: Callable[[], None],
     ) -> None:
         self._view     = view
         self._store    = store
         self._gamepad  = gamepad
         self._feedback = feedback
+        self._hint_bar = hint_bar
+        self._restore_hints = restore_hints
         self._index    = 0
         self._active   = False
 
@@ -38,6 +45,7 @@ class TileMover:
         self._index = self._view.current_app_index()
         self._view.set_move_mode(True)
         self._gamepad.push_handler(self.handle_pad)
+        self._hint_bar.show_hints(hints.MOVE)
         self._feedback.play(Cue.POPUP_OPEN)
 
     def handle_pad(self, event: str) -> None:
@@ -74,4 +82,5 @@ class TileMover:
         self._active = False
         self._gamepad.pop_handler(self.handle_pad)
         self._view.set_move_mode(False)
+        self._restore_hints()
         return True

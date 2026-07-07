@@ -91,6 +91,9 @@ class FakeOverlay:
     def dispose(self):
         self.disposed = True
 
+    def refresh_hints(self):
+        pass
+
 
 class FakeOverlayFactory:
     def __init__(self):

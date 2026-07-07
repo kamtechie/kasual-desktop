@@ -62,6 +62,7 @@ class Hints:
 
 _NAVIGATE = translate("HintBar", "Navigate")
 _ADJUST   = translate("HintBar", "Adjust")
+_MOVE     = translate("HintBar", "Move")
 
 _SECTION = ButtonHint(Button.LB, translate("HintBar", "Section")), \
            ButtonHint(Button.RB, translate("HintBar", "Section"))
@@ -85,6 +86,16 @@ TILES_ADD = Hints(
     actions=(
         ButtonHint(Button.A, translate("HintBar", "Select")),
     ),
+)
+
+MOVE = Hints(
+    directions=(Direction.LEFT, Direction.RIGHT),
+    overlay=_HOME_MENU,
+    actions=(
+        ButtonHint(Button.A, translate("HintBar", "Confirm")),
+        ButtonHint(Button.B, translate("HintBar", "Cancel")),
+    ),
+    nav_label=_MOVE,
 )
 
 TOPBAR = Hints(
@@ -191,7 +202,6 @@ OVERLAY_ACTIONS = Hints(
     overlay=_HOME_MENU,
     actions=(
         ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.Y, translate("HintBar", "Options")),
         ButtonHint(Button.B, translate("HintBar", "Close")),
     ),
     bumpers=_SECTION,
@@ -199,6 +209,19 @@ OVERLAY_ACTIONS = Hints(
 )
 
 OVERLAY_HEADER = Hints(
+    directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
+    overlay=_HOME_MENU,
+    actions=(
+        ButtonHint(Button.A, translate("HintBar", "Select")),
+        ButtonHint(Button.B, translate("HintBar", "Close")),
+    ),
+    bumpers=_SECTION,
+    triggers=_VOLUME,
+)
+
+# Only the header's Power button opens a chooser on Y — the other header
+# buttons (Network, Notifications) have no such secondary action.
+OVERLAY_HEADER_POWER = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(

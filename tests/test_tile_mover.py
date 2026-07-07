@@ -6,6 +6,7 @@ and Feedback; no Qt. Events are plain strings (StrEnum-compatible).
 
 from unittest.mock import MagicMock
 
+from domain.navigation import hints
 from domain.navigation.tile_mover import TileMover
 
 
@@ -16,7 +17,12 @@ def _make(count=3, start_index=1):
     store = MagicMock()
     gamepad = MagicMock()
     feedback = MagicMock()
-    mover = TileMover(view=view, store=store, gamepad=gamepad, feedback=feedback)
+    hint_bar = MagicMock()
+    restore_hints = MagicMock()
+    mover = TileMover(
+        view=view, store=store, gamepad=gamepad, feedback=feedback,
+        hint_bar=hint_bar, restore_hints=restore_hints,
+    )
     return mover, view, store, gamepad
 
 
@@ -93,6 +99,25 @@ class TestFinish:
         mover.handle_pad("left")
         view.swap_app_tiles.assert_not_called()
         store.swap.assert_not_called()
+
+
+class TestHints:
+    def test_start_shows_move_hints(self):
+        mover, _, _, _ = _make()
+        mover.start()
+        mover._hint_bar.show_hints.assert_called_once_with(hints.MOVE)
+
+    def test_finish_restores_screen_hints(self):
+        mover, _, _, _ = _make()
+        mover.start()
+        mover.handle_pad("select")
+        mover._restore_hints.assert_called_once()
+
+    def test_cancel_restores_screen_hints(self):
+        mover, _, _, _ = _make()
+        mover.start()
+        mover.cancel()
+        mover._restore_hints.assert_called_once()
 
 
 class TestCancel:

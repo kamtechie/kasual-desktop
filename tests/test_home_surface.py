@@ -211,7 +211,8 @@ class TestDispatch:
         assert all(it.action != NETWORK for it in actions.items)
 
     def test_up_from_actions_reaches_header(self, qapp):
-        # "Up" from the menu's top section must flow into the header (zone 0).
+        # "Up" from the menu's top section must flow into the header (zone 0),
+        # landing on its last button — Power.
         surface, spy = _surface(qapp)
         surface.expand()
         content = surface._content
@@ -222,10 +223,59 @@ class TestDispatch:
                 break
             content.handle_pad(Event.UP)
         assert content.zones[content.active].kind == SectionKind.HEADER
-        # The header navigates left/right, so its hint set advertises that (not the
-        # up/down of the Actions list).
+        # Landing on Power, whose hint set advertises Y/Options in addition to
+        # the header's left/right navigation.
         from domain.navigation import hints as nav_hints
+        assert spy.pushed_hints[-1] is nav_hints.OVERLAY_HEADER_POWER
+
+    def test_header_non_power_button_has_no_options_hint(self, qapp):
+        # Network / Notifications have no secondary action, so Y/Options must
+        # not be advertised while one of them holds focus.
+        surface, spy = _surface(qapp)
+        surface.expand()
+        content = surface._content
+        from domain.menu.home import SectionKind
+        from domain.navigation import hints as nav_hints
+        for _ in range(5):
+            if content.zones[content.active].kind == SectionKind.HEADER:
+                break
+            content.handle_pad(Event.UP)
+        zone = content.zones[content.active]
+        zone.index = 0   # Network — first of the header's nav items
+        content.sync_hints()
         assert spy.pushed_hints[-1] is nav_hints.OVERLAY_HEADER
+
+    def test_section_bumper_into_header_lands_on_power(self, qapp):
+        # LB from the default Actions focus steps Actions -> Quick -> Header;
+        # entering the header this way must land on Power, same as spatial
+        # "up" navigation does.
+        surface, spy = _surface(qapp)
+        surface.expand()
+        content = surface._content
+        from domain.menu.home import SectionKind
+        from domain.navigation import hints as nav_hints
+        content.handle_pad(Event.SECTION_PREV)
+        content.handle_pad(Event.SECTION_PREV)
+        zone = content.zones[content.active]
+        assert zone.kind == SectionKind.HEADER
+        assert zone.items[zone.index].action == POWER
+        assert spy.pushed_hints[-1] is nav_hints.OVERLAY_HEADER_POWER
+
+    def test_moving_within_header_updates_options_hint(self, qapp):
+        # Sliding focus across the header's own buttons (not just entering the
+        # zone) must keep the Y/Options hint in sync with whichever one is lit.
+        surface, spy = _surface(qapp)
+        surface.expand()
+        content = surface._content
+        from domain.menu.home import SectionKind
+        from domain.navigation import hints as nav_hints
+        content.handle_pad(Event.SECTION_PREV)
+        content.handle_pad(Event.SECTION_PREV)
+        assert content.zones[content.active].kind == SectionKind.HEADER
+        content.handle_pad(Event.LEFT)   # Power -> Notifications
+        assert spy.pushed_hints[-1] is nav_hints.OVERLAY_HEADER
+        content.handle_pad(Event.RIGHT)  # Notifications -> Power
+        assert spy.pushed_hints[-1] is nav_hints.OVERLAY_HEADER_POWER
 
     def test_actions_zone_uses_list_hints(self, qapp):
         # The Actions section is a vertical list: its hints navigate up/down only.

@@ -125,6 +125,10 @@ class Application:
         # on screen even over a running app). The bar is its own surface, so it
         # doesn't fade with the overlay — it just changes content.
         self._desktop.begin_overlay_hints()
+        # show_for_context already computed this zone's hints, but that ran
+        # before begin_overlay_hints granted the bar to the overlay — re-push
+        # them now that it will actually take.
+        self._overlay.refresh_hints()
 
     def _dispatch_home(self, item: MenuItem) -> None:
         """Perform the behaviour for an activated Home Overlay item."""

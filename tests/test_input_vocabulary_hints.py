@@ -64,13 +64,14 @@ class TestOverlayActionsHints:
     def test_bumpers_switch_sections(self):
         assert _buttons(hints.OVERLAY_ACTIONS, "bumpers") == [Button.LB, Button.RB]
 
-    def test_y_expands_dropdown(self):
-        # Y (ACTIONS) expands the Power split-button.
-        assert Button.Y in _buttons(hints.OVERLAY_ACTIONS, "actions")
-
     def test_grid_has_select_and_back(self):
         actions = _buttons(hints.OVERLAY_ACTIONS, "actions")
         assert Button.A in actions and Button.B in actions
+
+    def test_no_options_hint(self):
+        # The Actions grid never carries the Power card (it lives on the header),
+        # so there is nothing there for Y/Options to expand.
+        assert Button.Y not in _buttons(hints.OVERLAY_ACTIONS, "actions")
 
 
 class TestClassicHintsUnchanged:

@@ -144,6 +144,7 @@ def build_desktop(
 
     tile_mover = TileMover(
         view=widget._tilebar, store=order_store, gamepad=gamepad, feedback=feedback,
+        hint_bar=widget._hintbar, restore_hints=nav.render,
     )
 
     # Hides only once the launched app's window maps. Built by a factory since it

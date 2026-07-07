@@ -37,6 +37,10 @@ class SectionedHomeOverlay(Dismissable, Protocol):
     def on_closed(self, handler: Callable[[], None]) -> Unsubscribe: ...
     def dispose(self) -> None: ...
 
+    def refresh_hints(self) -> None:
+        """Re-push the overlay's own hint set for its current zone."""
+        ...
+
     def request_close(self) -> None:
         """A user dismiss (BTN_MODE while shown): close through the overlay's own
         cancel so it plays the close cue and returns to the app, like B does —
