@@ -56,7 +56,11 @@ class PowerPopoverController:
         self.open_header_chooser()
 
     def open_header_chooser(self) -> None:
-        """Open the chooser below the header's Power button."""
+        """Open the chooser floating over the bare header, not next to the cards."""
+        if self._home_surface.is_expanded():
+            self._home_surface.collapse()
+        # The expanded menu's own zone system never touches nav; seed it here too.
+        self._nav.focus_topbar_at(self._header.default_index)
         self._open(self._header.power_button(), parent=self._home_surface, gap=22)
 
     def _open(self, button, *, parent, gap: int = 12) -> None:

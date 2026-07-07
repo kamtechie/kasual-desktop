@@ -124,3 +124,8 @@ class FocusNavigator:
         """Return focus to the top bar and repaint (e.g. after closing a dialog)."""
         self._mode = _Mode.TOPBAR
         self.render()
+
+    def focus_topbar_at(self, idx: int) -> None:
+        """Land on a top-bar index without repaint/sound, for a later render()."""
+        self._mode = _Mode.TOPBAR
+        self._topbar_index = idx
