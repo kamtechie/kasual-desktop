@@ -261,6 +261,7 @@ class HomeSurface(QWidget):
         if self._expanded:
             return
         self._expanded = True
+        self._header.set_menu_open(True)
         self._content.configure(
             foreground=None, foreground_is_game=False, hud=_NullHud(),
             on_action=self._on_action, on_cancel=None,
@@ -292,6 +293,7 @@ class HomeSurface(QWidget):
         if not self._expanded:
             return
         self._expanded = False
+        self._header.set_menu_open(False)
         self._teardown_menu()
         self._morph(open_=False)
         self._end_hints()
@@ -308,6 +310,7 @@ class HomeSurface(QWidget):
             self._teardown_menu()
             self._expanded = False
             self._on_demand = False
+            self._header.set_menu_open(False)
         self._anim.stop()
         self._panel.setMaximumHeight(0)
         self._opacity.setOpacity(0.0)
@@ -351,6 +354,7 @@ class HomeSurface(QWidget):
         if self.is_open():
             return
         self._on_demand = True
+        self._header.set_menu_open(True)
         self._content.configure(
             foreground, foreground_is_game, hud,
             on_action=on_action, on_cancel=on_cancel, set_hints=set_hints,
@@ -374,6 +378,7 @@ class HomeSurface(QWidget):
         if not self._on_demand:
             return
         self._on_demand = False
+        self._header.set_menu_open(False)
         self._teardown_menu()
         self._anim.stop()
         self._panel.setMaximumHeight(0)

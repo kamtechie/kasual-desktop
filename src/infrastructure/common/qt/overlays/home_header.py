@@ -50,8 +50,9 @@ _FOCUS_BORDER = "#88c0d0"
 _HANDLE_W, _HANDLE_H         = 120, 16
 _HANDLE_BAR_W, _HANDLE_BAR_H = 88, 5
 _HANDLE_BOTTOM_INSET         = 5
-_HANDLE_IDLE  = QColor(255, 255, 255, 46)    # discreet at rest
-_HANDLE_HOVER = QColor(159, 214, 226, 230)   # accent while the header is hovered
+_HANDLE_IDLE    = QColor(255, 255, 255, 46)    # discreet at rest
+_HANDLE_HOVER   = QColor(159, 214, 226, 230)   # accent while the header is hovered
+_HANDLE_FOCUSED = QColor(_FOCUS_BORDER)        # accent while the Home menu it opens is visible
 
 
 class _GrabHandle(QWidget):
@@ -66,6 +67,7 @@ class _GrabHandle(QWidget):
         self.setFixedSize(_HANDLE_W, _HANDLE_H)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._prominent = False
+        self._focused = False
 
     def set_prominent(self, prominent: bool) -> None:
         if prominent == self._prominent:
@@ -73,11 +75,25 @@ class _GrabHandle(QWidget):
         self._prominent = prominent
         self.update()
 
+    def set_focused(self, focused: bool) -> None:
+        """Wears the accent look while the Home menu it toggles is visible,
+        independent of hover — it stays lit even once the pointer moves onto
+        the menu itself."""
+        if focused == self._focused:
+            return
+        self._focused = focused
+        self.update()
+
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(_HANDLE_HOVER if self._prominent else _HANDLE_IDLE)
+        if self._focused:
+            painter.setBrush(_HANDLE_FOCUSED)
+        elif self._prominent:
+            painter.setBrush(_HANDLE_HOVER)
+        else:
+            painter.setBrush(_HANDLE_IDLE)
         bar = QRectF((self.width() - _HANDLE_BAR_W) / 2,
                      (self.height() - _HANDLE_BAR_H) / 2,
                      _HANDLE_BAR_W, _HANDLE_BAR_H)
@@ -263,6 +279,12 @@ class HomeHeader(QWidget):
         btn.setIconSize(QSize(24, 24))
         btn.setStyleSheet(_btn_style(False))
         return btn
+
+    def set_menu_open(self, open_: bool) -> None:
+        """Lights the grab handle in the focused look while the Home menu it
+        toggles is showing, so the handle reads as "pressed" for as long as the
+        menu it opened stays up."""
+        self._handle.set_focused(open_)
 
     def power_button(self) -> QPushButton:
         """The Power button, so the host can anchor the chooser popover below it."""
