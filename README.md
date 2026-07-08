@@ -4,8 +4,10 @@ Kasual Desktop is an interactive, graphical "launcher/desktop" interface, design
 
 It runs on two platforms from a single shared core:
 
-- **Linux / KDE Plasma 6** — the original target, rendering its UI as
+- **Linux / Wayland (KDE Plasma 6, Sway, Hyprland)** — renders its UI as
   `wlr-layer-shell` overlays above applications (including fullscreen games).
+  KDE is the original target; Sway and Hyprland are driven through their native
+  IPC. See [Supported compositors](#-supported-compositors).
 - **Windows 10/11** — a newer port that runs the *same* UI as a desktop surface,
   currently a development build run from source.
 
@@ -22,7 +24,7 @@ in-game HUD, …) live behind platform adapters. See [Architecture](#-architectu
 - **Gamepad-First Interface**: Full controller navigation (Linux via `evdev`, Windows via `pygame`/XInput).
 - **Dynamic Launcher**: Manage applications with simple `.desktop` files in your per-user config directory.
 - **Overlay System**: Advanced support for system overlays (e.g., notifications, menus) that run on top of application windows.
-- **System Integration**: Window management (KWin/Wayland on Linux, Win32 on Windows), system notifications, network, audio and brightness controls.
+- **System Integration**: Window management (KWin / Sway / Hyprland on Linux, Win32 on Windows), system notifications, network, audio and brightness controls.
 - **First-Run Onboarding**: A provisioning picker seeds your catalog from installed apps (curated starter set on Linux; Start-Menu scan on Windows).
 - **In-Game HUD Toggle**: Show or hide the performance overlay for games straight from the controller menu — **[MangoHud](https://github.com/flightlessmango/MangoHud)** on Linux, **[RivaTuner Statistics Server](https://www.guru3d.com/page/rivatuner-rtss-overlay/)** (MSI Afterburner) on Windows. See [In-Game HUD](#-in-game-hud).
 - **Advanced Audio System**: System sounds and audio feedback.
@@ -35,33 +37,61 @@ adapters**:
 - `src/domain/` — pure problem-domain logic (no Qt, no I/O, no OS specifics).
 - `src/infrastructure/common/` — the shared Qt UI (Desktop, overlays, tray) and
   cross-platform config, reused on both platforms via a `DesktopSurface` seam.
-- `src/infrastructure/kde/` — Linux/KDE adapters (layer-shell, KWin, MangoHud, …).
+- `src/infrastructure/linux/` — DE-independent Linux adapters (audio, network,
+  brightness, freedesktop notifications, the generic `wayland/` layer-shell
+  surface, `/proc`, and compositor detection).
+- `src/infrastructure/kde/` — KDE Plasma adapters (KWin window management, Plasma
+  wallpaper).
+- `src/infrastructure/wlroots/` — Sway and Hyprland adapters (window management
+  and wallpaper via each compositor's native IPC).
 - `src/infrastructure/windows/` — Windows adapters (Win32 WM, Core Audio, WinRT
   notifications, RTSS HUD, …).
 - `src/main.py` — Linux entry point; `src/windows_main.py` — Windows entry point.
 
-The Windows adapters never import from `kde/` (and vice-versa); the core never
-imports either.
+The Windows adapters and the Linux adapters (`linux/`, `kde/`, `wlroots/`) never
+import from each other; the core never imports any of them. Within Linux, the
+compositor-specific packages (`kde/`, `wlroots/`) build on the DE-independent
+`linux/` package, and the backend is chosen at runtime from the session.
 
 ## 🛠️ Tech Stack
 
 - **Python 3.11+** (uses `enum.StrEnum`)
 - **PyQt6** + **qtawesome**, **PyQt6-WebEngine** (bundled YouTube app)
-- **Linux**: KDE Plasma / KWin, `wlr-layer-shell` (LayerShellQt), `evdev`, `python-xlib`
+- **Linux**: `wlr-layer-shell` (LayerShellQt) on KWin / Sway / Hyprland, `evdev`, `python-xlib`
 - **Windows**: `pywin32` (Win32 API), `comtypes` (Core Audio), `psutil`, Microsoft `winrt-*` (Action Center notifications), `pygame` (gamepad)
 
 ---
 
-# 🐧 Linux (KDE Plasma 6)
+# 🐧 Linux (Wayland)
+
+## 🖥️ Supported compositors
+
+Kasual Desktop needs a Wayland compositor that implements `wlr-layer-shell`; the
+backend is picked automatically from the session. Window management and wallpaper
+are the only DE-specific pieces — everything else (audio, network, brightness,
+notifications, gamepad, HUD) is DE-independent.
+
+| Compositor | Status | Window management | Wallpaper | Notes |
+|---|---|---|---|---|
+| **KDE Plasma 6 (KWin)** | Full | KWin D-Bus scripts | Plasma config | The original target. |
+| **Sway** | Full | `swaymsg` (i3-IPC) | `output … bg` from the Sway config | Minimize is emulated by moving windows to the scratchpad. |
+| **Hyprland** | Full | `hyprctl` | hyprpaper (`hyprctl hyprpaper`) | Minimize is emulated via a dedicated special workspace. |
+| Other wlroots (e.g. labwc) | Partial | none (no-op) | `<config>/wallpaper` static file | Starts and renders, but window switching is unavailable. |
+| **GNOME / Mutter** | Unsupported | — | — | Mutter does not implement `wlr-layer-shell`. |
+
+For a compositor without a wallpaper backend Kasual reads a static image at
+`<config>/wallpaper` (a file or a symlink into your own collection); the
+wallpaper is resolved on every launch, so a restart picks up a change.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- **KDE Plasma 6 on Wayland.** Kasual Desktop renders its UI as `wlr-layer-shell`
-  surfaces (overlays that sit above applications, including fullscreen games).
-  This requires a compositor that supports the protocol — **KWin (KDE) or another
-  wlroots-based compositor**. GNOME/Mutter does **not** support `wlr-layer-shell`.
+- **A Wayland compositor with `wlr-layer-shell`** (KDE Plasma 6 / KWin, Sway, or
+  Hyprland). Kasual Desktop renders its UI as `wlr-layer-shell` surfaces (overlays
+  that sit above applications, including fullscreen games), so the protocol is
+  required. GNOME/Mutter does **not** support it. See
+  [Supported compositors](#-supported-compositors).
 - **Python 3.11+** (the codebase uses `enum.StrEnum`).
 - **System Qt + PyQt6 (not pip's bundled PyQt6).** The layer-shell integration
   plugin is version-locked to the system Qt build, so Kasual Desktop must run against the
@@ -84,6 +114,9 @@ imports either.
   `QtMultimedia` and `QtWebEngine` modules), `python3-qtawesome`, `python3-evdev`,
   `python3-xlib`, `layer-shell-qt` (LayerShellQt) and `qt6-wayland`. `QtWebEngine`
   is required by the bundled YouTube app.
+- **(Optional) `brightnessctl`** — the DE-independent backlight control. On KDE
+  Kasual uses Plasma's power-management D-Bus service; on Sway/Hyprland that
+  service is absent, so without `brightnessctl` brightness control is a no-op.
 
 ### Gamepad permissions
 

@@ -8,20 +8,20 @@ set -euo pipefail
 DEB_DEPS=(
     python3 python3-pyqt6 python3-pyqt6.sip python3-pyqt6.qtmultimedia
     python3-pyqt6.qtwebengine python3-qtawesome python3-evdev python3-xlib
-    layer-shell-qt qt6-wayland
+    layer-shell-qt qt6-wayland brightnessctl
 )
 # Dev-only (not shipped in the package): the test stack.
 DEB_DEV_DEPS=(python3-pytest python3-pytestqt python3-pytest-subtests)
 
 RPM_DEPS=(
     python3 python3-pyqt6 python3-pyqt6-webengine python3-qtawesome
-    python3-evdev python3-xlib layer-shell-qt qt6-qtwayland
+    python3-evdev python3-xlib layer-shell-qt qt6-qtwayland brightnessctl
 )
 RPM_DEV_DEPS=(python3-pytest python3-pytest-qt python3-pytest-subtests)
 
 ARCH_DEPS=(
     python python-pyqt6 python-pyqt6-webengine python-qtawesome
-    python-evdev python-xlib layer-shell-qt qt6-wayland
+    python-evdev python-xlib layer-shell-qt qt6-wayland brightnessctl
 )
 ARCH_DEV_DEPS=(python-pytest python-pytest-qt python-pytest-subtests)
 

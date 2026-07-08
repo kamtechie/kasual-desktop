@@ -163,7 +163,7 @@ def parse_notify_blocks(text: str) -> tuple[list[_NotifyArgs], str]:
     return results, leftover
 
 
-class KdeNotificationMonitor(QObject, NotificationSource, metaclass=ProtocolQtMeta):
+class FreedesktopNotificationMonitor(QObject, NotificationSource, metaclass=ProtocolQtMeta):
     """Observes freedesktop notifications via ``dbus-monitor`` and republishes
     them as domain :class:`Notification`s through the `NotificationSource` port.
 

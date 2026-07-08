@@ -6,7 +6,9 @@ instead of real /proc reads; uses_graphics_api has open() mocked out.
 
 from unittest.mock import mock_open, patch
 
-from infrastructure.linux.proc import descends_from_launcher, uses_graphics_api
+from infrastructure.linux.proc import (
+    descends_from_launcher, expand_pid_tree, uses_graphics_api,
+)
 
 
 class TestDescendsFromLauncher:
@@ -88,3 +90,38 @@ class TestUsesGraphicsApi:
     def test_missing_proc_returns_false(self):
         with patch("builtins.open", side_effect=OSError):
             assert uses_graphics_api(99999) is False
+
+
+def _children_opener(children: dict[int, str]):
+    """Fake ``open`` for /proc/<pid>/task/<pid>/children reads: a PID present in
+    *children* yields its space-separated child list; an absent one raises (an
+    already-exited process)."""
+    def _open(path, *args, **kwargs):
+        pid = int(path.split("/")[2])
+        if pid not in children:
+            raise FileNotFoundError
+        return mock_open(read_data=children[pid])(path)
+    return _open
+
+
+class TestExpandPidTree:
+    def test_single_pid_without_children(self):
+        with patch("builtins.open", _children_opener({100: ""})):
+            assert expand_pid_tree({100}) == {100}
+
+    def test_expands_full_subtree(self):
+        tree = {100: "101 102", 101: "103", 102: "", 103: ""}
+        with patch("builtins.open", _children_opener(tree)):
+            assert expand_pid_tree({100}) == {100, 101, 102, 103}
+
+    def test_exited_child_is_skipped_not_fatal(self):
+        # 100 lists child 101, but 101 has already exited (no children file).
+        with patch("builtins.open", _children_opener({100: "101"})):
+            assert expand_pid_tree({100}) == {100, 101}
+
+    def test_multiple_roots_are_deduped(self):
+        with patch("builtins.open", _children_opener({100: "101", 101: ""})):
+            assert expand_pid_tree({100, 101}) == {100, 101}
+
+    def test_empty_input(self):
+        assert expand_pid_tree(set()) == set()

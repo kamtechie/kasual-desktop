@@ -43,7 +43,7 @@ from infrastructure.linux.display.brightness import select_brightness_control
 from infrastructure.common.qt.scheduler import QtScheduler
 from infrastructure.linux.hud.mangohud import MangoHudControl
 from infrastructure.linux.compositor import build_system_wallpaper, build_window_manager
-from infrastructure.linux.notifications.notifications import KdeNotificationMonitor
+from infrastructure.linux.notifications.notifications import FreedesktopNotificationMonitor
 from infrastructure.linux.network.network_manager import NMNetworkControl, NMNetworkMonitor
 from domain.notifications.center import NotificationCenter
 from infrastructure.common.catalog.preferences import DesktopPowerPreference
@@ -112,14 +112,14 @@ def main() -> None:
         # single Power button.
         power_preference = DesktopPowerPreference()
 
-        # Recent-notifications feature: the KDE monitor (source port) feeds the
-        # platform-agnostic NotificationCenter, which the Desktop's overlay reads.
+        # Recent-notifications feature: the freedesktop monitor (source port) feeds
+        # the platform-agnostic NotificationCenter, which the Desktop's overlay reads.
         notification_center = NotificationCenter()
         # Parented to the QApplication so Qt owns it for the app's lifetime: as a
         # local it would otherwise be garbage-collected after start_session()
         # returns — before the deferred QTimer.singleShot(0, …start) below fires —
         # and the monitor would silently never start.
-        notification_monitor = KdeNotificationMonitor(parent=app)
+        notification_monitor = FreedesktopNotificationMonitor(parent=app)
         notification_monitor.on_notification(notification_center.record)
 
         volume = PactlVolumeControl()

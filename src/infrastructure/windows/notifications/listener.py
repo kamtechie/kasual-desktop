@@ -1,7 +1,7 @@
 """Windows notification source — observes Action Center toasts via WinRT.
 
 Implements the domain `NotificationSource` port on Windows, the counterpart of
-KDE's `KdeNotificationMonitor`. There is no passive "new notification" signal a
+the Linux `FreedesktopNotificationMonitor`. There is no passive "new notification" signal a
 plain Win32 process can rely on (the `UserNotificationListener.NotificationChanged`
 event is unreliable for unpackaged apps), so we *poll* the listener: every few
 seconds we read the current toast notifications and emit the ones we have not

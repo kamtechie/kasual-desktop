@@ -13,8 +13,8 @@ section: games
 priority: optional
 maintainer: xis <xis@schowek.net>
 description: |
-  Gamepad-first launcher/desktop for KDE Plasma 6 on Wayland.
-  Bundles the File Browser and YouTube couch apps.
+  Gamepad-first launcher/desktop for Wayland compositors with wlr-layer-shell
+  (KDE Plasma 6, Sway, Hyprland). Bundles the File Browser and YouTube couch apps.
 vendor: Kasual Desktop
 homepage: https://github.com/thanek/kasual-desktop
 license: GPL-3.0-or-later
@@ -46,9 +46,12 @@ overrides:
       - layer-shell-qt
       - qt6-wayland
     recommends:
-      # Runtime helpers Kasual shells out to (KDE Plasma 6 is assumed present).
+      # Runtime helpers Kasual shells out to. brightnessctl is the DE-independent
+      # backlight path — without KDE's Solid.PowerManagement D-Bus service (Sway,
+      # Hyprland) it is the only way brightness control works.
       - pipewire-pulse | pulseaudio-utils
       - network-manager
+      - brightnessctl
     suggests:
       - mangohud
   rpm:
@@ -66,6 +69,7 @@ overrides:
     recommends:
       - pipewire-pulseaudio
       - NetworkManager
+      - brightnessctl
     suggests:
       - mangohud
   archlinux:
