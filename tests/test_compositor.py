@@ -69,13 +69,27 @@ class TestFactories:
         from infrastructure.wlroots.wm.hyprland import HyprlandWindowManager
         assert isinstance(build_window_manager(), HyprlandWindowManager)
 
-    def test_wallpaper_falls_back_to_null_returning_none(self, clean_env):
-        assert build_system_wallpaper().current() is None
+    def test_wallpaper_falls_back_to_static_file(self, clean_env, tmp_path):
+        clean_env.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        from infrastructure.linux.display.wallpaper import StaticFileWallpaper
+        wallpaper = build_system_wallpaper()
+        assert isinstance(wallpaper, StaticFileWallpaper)
+        assert wallpaper.current() is None   # no <config>/wallpaper present
 
     def test_wallpaper_is_kde_adapter_on_kde(self, clean_env):
         clean_env.setenv("KDE_FULL_SESSION", "true")
         from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
         assert isinstance(build_system_wallpaper(), KdeSystemWallpaper)
+
+    def test_wallpaper_is_sway_adapter(self, clean_env):
+        clean_env.setenv("SWAYSOCK", "/run/user/1000/sway-ipc.sock")
+        from infrastructure.wlroots.display.wallpaper import SwayWallpaper
+        assert isinstance(build_system_wallpaper(), SwayWallpaper)
+
+    def test_wallpaper_is_hyprland_adapter(self, clean_env):
+        clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
+        from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
+        assert isinstance(build_system_wallpaper(), HyprlandWallpaper)
 
 
 class TestNullWindowManager:

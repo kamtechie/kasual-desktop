@@ -15,7 +15,7 @@ from collections.abc import Callable
 
 from domain.catalog.window import Window
 from domain.lifecycle.window_manager import WindowManager
-from domain.shell.wallpaper import SystemWallpaper, Wallpaper
+from domain.shell.wallpaper import SystemWallpaper
 
 logger = logging.getLogger(__name__)
 
@@ -93,14 +93,6 @@ class NullWindowManager(WindowManager):
         pass
 
 
-class _NullWallpaper(SystemWallpaper):
-    """No wallpaper source; the Desktop renders its own background when this
-    returns None."""
-
-    def current(self) -> Wallpaper | None:
-        return None
-
-
 def build_window_manager() -> WindowManager:
     """Construct the WindowManager adapter for the detected compositor."""
     compositor = detect_compositor()
@@ -122,7 +114,15 @@ def build_window_manager() -> WindowManager:
 
 def build_system_wallpaper() -> SystemWallpaper:
     """Construct the SystemWallpaper adapter for the detected compositor."""
-    if detect_compositor() is Compositor.KDE:
+    compositor = detect_compositor()
+    if compositor is Compositor.KDE:
         from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
         return KdeSystemWallpaper()
-    return _NullWallpaper()
+    if compositor is Compositor.SWAY:
+        from infrastructure.wlroots.display.wallpaper import SwayWallpaper
+        return SwayWallpaper()
+    if compositor is Compositor.HYPRLAND:
+        from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
+        return HyprlandWallpaper()
+    from infrastructure.linux.display.wallpaper import StaticFileWallpaper
+    return StaticFileWallpaper()
