@@ -11,7 +11,7 @@ from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.window_manager import WindowManager
 from domain.shared.event_emitter import Unsubscribe
 from infrastructure.common.qt._meta import ProtocolQtMeta
-from infrastructure.kde.wm.window_manager import expand_pid_tree
+from infrastructure.linux.proc import expand_pid_tree
 from domain.lifecycle.launch_hide import LaunchHide
 
 _POLL_INTERVAL_MS = 150
@@ -22,8 +22,8 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
     """Hide the Desktop only once a launched app actually has a mapped window.
 
     Hiding at launch would flash the DE desktop before the app draws, so the
-    Desktop stays up until KWin reports the app's window, polling meanwhile; a
-    safety guard hides anyway if that never happens.
+    Desktop stays up until the window manager reports the app's window, polling
+    meanwhile; a safety guard hides anyway if that never happens.
 
     Lifecycle: ``arm(app)`` after a successful launch, ``cancel()`` if the launch
     fails or the app exits before its window ever maps.

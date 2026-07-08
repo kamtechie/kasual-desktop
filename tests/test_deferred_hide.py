@@ -1,7 +1,7 @@
 """Tests for DeferredHide — the launch→hide state machine extracted from Desktop.
 
 The window-detection and arm/cancel/guard logic was previously untested inside
-the Desktop God Object. The KWinWindowManager and AppManager are mocked; QTimers
+the Desktop God Object. The WindowManager and AppManager are mocked; QTimers
 are created but never fire (no event loop) — methods are driven directly.
 """
 
@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from infrastructure.kde.qt.desktop.deferred_hide import DeferredHide
+from infrastructure.linux.qt.desktop.deferred_hide import DeferredHide
 from domain.catalog.app import App
 from domain.catalog.window import Window
 
@@ -31,7 +31,7 @@ def _win(pid=0, rc="", df=""):
 class TestAppWindowPresent:
     def test_matches_by_pid_subtree(self, qapp):
         dh, _, _, _, app = _make(running_pid=1000)
-        with patch("infrastructure.kde.qt.desktop.deferred_hide.expand_pid_tree", return_value={1000, 1001}):
+        with patch("infrastructure.linux.qt.desktop.deferred_hide.expand_pid_tree", return_value={1000, 1001}):
             assert dh._app_window_present(app, [_win(pid=1001)]) is True
 
     def test_matches_by_resource_class(self, qapp):

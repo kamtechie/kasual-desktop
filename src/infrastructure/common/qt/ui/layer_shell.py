@@ -2,8 +2,8 @@
 
 These are pure data (no Wayland/KDE dependency) shared by the platform-neutral UI
 (overlays, the overlay/desktop surface dispatchers) as parameters. The actual
-LayerShellQt binding that consumes them lives in the KDE adapter
-(``infrastructure.kde.qt.ui.layer_shell``); keeping the vocabulary here lets the
+LayerShellQt binding that consumes them lives in the Wayland adapter
+(``infrastructure.linux.wayland.layer_shell``); keeping the vocabulary here lets the
 shared UI name a layer/anchor/keyboard mode without importing that adapter.
 """
 

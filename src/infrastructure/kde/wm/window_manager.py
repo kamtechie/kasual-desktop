@@ -22,6 +22,7 @@ from domain.catalog.window import Window
 from domain.lifecycle.window_manager import WindowManager
 from domain.shared.event_emitter import EventEmitter, Unsubscribe
 from infrastructure.common.qt._meta import ProtocolQtMeta
+from infrastructure.linux.proc import expand_pid_tree
 
 logger = logging.getLogger(__name__)
 
@@ -146,30 +147,6 @@ _RAISE_BY_PIDS_SCRIPT = """\
 """
 
 _SCRIPT_TIMEOUT_MS = 5_000
-
-
-def expand_pid_tree(root_pids: set[int]) -> set[int]:
-    """Return *root_pids* expanded with all their descendant PIDs.
-
-    Uses /proc/<pid>/task/<pid>/children (Linux-specific, available on all
-    modern kernels with CONFIG_PROC_CHILDREN=y). Silently skips processes that
-    have already exited.
-    """
-    result: set[int] = set()
-    queue = list(root_pids)
-    while queue:
-        pid = queue.pop()
-        if pid in result:
-            continue
-        result.add(pid)
-        try:
-            with open(f'/proc/{pid}/task/{pid}/children') as f:
-                for child in f.read().split():
-                    if child.strip():
-                        queue.append(int(child))
-        except (OSError, ValueError):
-            pass
-    return result
 
 
 class _WindowListHost(QObject):

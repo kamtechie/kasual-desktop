@@ -71,6 +71,30 @@ def process_name(pid: int) -> str | None:
         return None
 
 
+def expand_pid_tree(root_pids: set[int]) -> set[int]:
+    """Return *root_pids* expanded with all their descendant PIDs.
+
+    Uses /proc/<pid>/task/<pid>/children (Linux-specific, available on all
+    modern kernels with CONFIG_PROC_CHILDREN=y). Silently skips processes that
+    have already exited.
+    """
+    result: set[int] = set()
+    queue = list(root_pids)
+    while queue:
+        pid = queue.pop()
+        if pid in result:
+            continue
+        result.add(pid)
+        try:
+            with open(f'/proc/{pid}/task/{pid}/children') as f:
+                for child in f.read().split():
+                    if child.strip():
+                        queue.append(int(child))
+        except (OSError, ValueError):
+            pass
+    return result
+
+
 def uses_graphics_api(pid: int) -> bool:
     """True if *pid* has mapped a 3D graphics library.
 

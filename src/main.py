@@ -22,8 +22,8 @@ from infrastructure.common.audio.feedback import SoundFeedback
 from infrastructure.common.single_instance import SingleInstanceGuard
 from infrastructure.linux.input.gamepad_watcher import GamepadWatcher
 from infrastructure.common.qt.desktop import build_desktop
-from infrastructure.kde.qt.desktop.deferred_hide import DeferredHide
-from infrastructure.kde.qt.desktop.surface import LayerShellSurface
+from infrastructure.linux.qt.desktop.deferred_hide import DeferredHide
+from infrastructure.linux.wayland.surface import LayerShellSurface
 from infrastructure.common.qt.icons import install_fontawesome5
 from infrastructure.common.catalog.app_config import (
     DesktopAppProvisioning, DesktopTileSettingsStore, DesktopTileOrderStore,

@@ -36,10 +36,10 @@ def promote_overlay_surface(
     the widget is shown."""
     platform = QGuiApplication.platformName()
     if platform == "wayland":
-        # The LayerShellQt binding is the KDE adapter; imported lazily so this
+        # The LayerShellQt binding is the Wayland adapter; imported lazily so this
         # shared dispatcher carries no eager dependency on it (the enums above are
         # the platform-neutral vocabulary).
-        from infrastructure.kde.qt.ui.layer_shell import make_layer_surface
+        from infrastructure.linux.wayland.layer_shell import make_layer_surface
         make_layer_surface(
             widget, layer=layer, anchors=anchors,
             exclusive_zone=exclusive_zone, keyboard=keyboard,

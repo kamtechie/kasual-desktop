@@ -1,8 +1,8 @@
-"""KDE/Wayland Desktop surface — promote the Desktop widget to a layer-shell
+"""Wayland Desktop surface — promote the Desktop widget to a wlr-layer-shell
 TOP-layer surface so it sits above normal and fullscreen windows.
 
 The platform-neutral port (:class:`DesktopSurface`) and the plain fallback live in
-``infrastructure.common.qt.desktop.surface``; this is the KDE adapter the Linux
+``infrastructure.common.qt.desktop.surface``; this is the Wayland adapter the Linux
 composition root injects.
 """
 
@@ -11,7 +11,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget
 
-from infrastructure.kde.qt.ui.layer_shell import (
+from infrastructure.linux.wayland.layer_shell import (
     Anchor, Keyboard, Layer, make_layer_surface,
 )
 

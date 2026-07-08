@@ -4,8 +4,8 @@ surface is established and driven, per windowing system.
 The Desktop QWidget itself is platform-neutral; the *only* part that differs by
 OS is how it becomes (and is driven as) a fullscreen, stay-on-top surface:
 
-  - Wayland/KWin → the widget is promoted to a wlr-layer-shell TOP-layer surface
-    (``infrastructure.kde.qt.desktop.surface.LayerShellSurface``);
+  - Wayland → the widget is promoted to a wlr-layer-shell TOP-layer surface
+    (``infrastructure.linux.wayland.surface.LayerShellSurface``);
   - Windows → there is no layer-shell, so the widget is made its own frameless
     WS_EX_TOPMOST top-level window (the Windows infra's ``WindowsDesktopSurface``).
 
@@ -48,7 +48,7 @@ class PlainSurface:
 
     Used when the composition root injects no platform surface (e.g. offscreen
     tests, or an unknown windowing system). The real platforms inject their own:
-    Linux ``LayerShellSurface`` (KDE), Windows ``WindowsDesktopSurface``.
+    Linux ``LayerShellSurface`` (Wayland), Windows ``WindowsDesktopSurface``.
     """
 
     def __init__(self) -> None:
