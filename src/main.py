@@ -23,7 +23,6 @@ from infrastructure.common.single_instance import SingleInstanceGuard
 from infrastructure.linux.input.gamepad_watcher import GamepadWatcher
 from infrastructure.common.qt.desktop import build_desktop
 from infrastructure.linux.qt.desktop.deferred_hide import DeferredHide
-from infrastructure.linux.wayland.surface import LayerShellSurface
 from infrastructure.common.qt.icons import install_fontawesome5
 from infrastructure.common.catalog.app_config import (
     DesktopAppProvisioning, DesktopTileSettingsStore, DesktopTileOrderStore,
@@ -42,7 +41,9 @@ from infrastructure.linux.audio.volume import PactlVolumeControl
 from infrastructure.linux.display.brightness import select_brightness_control
 from infrastructure.common.qt.scheduler import QtScheduler
 from infrastructure.linux.hud.mangohud import MangoHudControl
-from infrastructure.linux.compositor import build_system_wallpaper, build_window_manager
+from infrastructure.linux.compositor import (
+    build_desktop_surface, build_system_wallpaper, build_window_manager,
+)
 from infrastructure.linux.notifications.notifications import FreedesktopNotificationMonitor
 from infrastructure.linux.network.network_manager import NMNetworkControl, NMNetworkMonitor
 from domain.notifications.center import NotificationCenter
@@ -64,6 +65,9 @@ def main() -> None:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Kasual Desktop")
+    # Deterministic Wayland app_id: the wm_class the GNOME Helper extension pins by,
+    # and the .desktop the compositor associates the window with.
+    app.setDesktopFileName("kasual-desktop")
     app.setApplicationVersion(version)
     app.setQuitOnLastWindowClosed(False)
 
@@ -134,7 +138,7 @@ def main() -> None:
             order_store=DesktopTileOrderStore(),
             settings_store=DesktopTileSettingsStore(),
             app_pinning=DesktopAppPinning(),
-            surface=LayerShellSurface(),
+            surface=build_desktop_surface(),
             parent_of=parent_pid,
             is_game_pid=is_game_pid,
             app_adder=app_adder,

@@ -1,0 +1,208 @@
+"""Tests for the GNOME adapters (window manager, surface, wallpaper).
+
+The D-Bus helper and the OS layer are mocked: the window manager is fed canned
+``ListWindows`` JSON and its ``helper.call`` is captured; the wallpaper's
+``gsettings`` reads are stubbed. No GNOME Shell or session bus is contacted.
+"""
+
+import json
+import subprocess
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from domain.catalog.window import Window
+from domain.shell.wallpaper import Wallpaper
+from infrastructure.gnome.display.wallpaper import GnomeSystemWallpaper
+from infrastructure.gnome.qt.surface import GnomeSurface
+from infrastructure.gnome.wm.window_manager import GnomeWindowManager
+
+_WM = "infrastructure.gnome.wm.window_manager"
+
+
+# ── GnomeWindowManager ───────────────────────────────────────────────────────
+
+def _win(id, pid, wm_class, title="", active=False):
+    return {"id": id, "pid": pid, "wm_class": wm_class, "title": title,
+            "active": active, "fullscreen": False}
+
+
+class TestEnumWindows:
+    def test_maps_and_marks_active(self, qapp):
+        wm = GnomeWindowManager()
+        raw = json.dumps([_win("100", 1000, "firefox", "Firefox", active=True),
+                          _win("101", 2000, "mpv", "Video")])
+        with patch(f"{_WM}.helper.list_windows_json", return_value=raw):
+            result = wm._enum_windows()
+        by_id = {w.id: w for w in result}
+        assert by_id["100"].active is True and by_id["100"].resource_class == "firefox"
+        assert by_id["101"].active is False and by_id["101"].pid == 2000
+
+    def test_skips_classless_and_own_pid(self, qapp):
+        wm = GnomeWindowManager()
+        wm._our_pid = 4242
+        raw = json.dumps([_win("1", 2000, ""), _win("2", 4242, "kasual-desktop")])
+        with patch(f"{_WM}.helper.list_windows_json", return_value=raw):
+            assert wm._enum_windows() == []
+
+    def test_empty_on_helper_failure(self, qapp):
+        wm = GnomeWindowManager()
+        with patch(f"{_WM}.helper.list_windows_json", return_value=None):
+            assert wm._enum_windows() == []
+
+    def test_empty_on_bad_json(self, qapp):
+        wm = GnomeWindowManager()
+        with patch(f"{_WM}.helper.list_windows_json", return_value="not json"):
+            assert wm._enum_windows() == []
+
+
+class TestOps:
+    def _seed(self, wm, entries):
+        wm._cache = {i: Window(id=i, title="", pid=p, resource_class="x")
+                     for i, p in entries}
+
+    def test_activate_and_close(self, qapp):
+        wm = GnomeWindowManager()
+        with patch(f"{_WM}.helper.call") as call:
+            wm.activate_window("100")
+            wm.close_window("100")
+        call.assert_any_call("ActivateWindow", "100")
+        call.assert_any_call("CloseWindow", "100")
+
+    def test_minimize_expands_pids_and_passes_json(self, qapp):
+        wm = GnomeWindowManager()
+        with patch(f"{_WM}.expand_pid_tree", return_value={1000, 1001}), \
+             patch(f"{_WM}.helper.call") as call:
+            wm.minimize_windows_for_pids({1000})
+        call.assert_called_once_with("MinimizeWindowsForPids", json.dumps([1000, 1001]))
+
+    def test_minimize_noop_when_no_pids(self, qapp):
+        wm = GnomeWindowManager()
+        with patch(f"{_WM}.expand_pid_tree", return_value=set()), \
+             patch(f"{_WM}.helper.call") as call:
+            wm.minimize_windows_for_pids(set())
+        call.assert_not_called()
+
+    def test_activate_for_pids_matches_expanded(self, qapp):
+        wm = GnomeWindowManager()
+        self._seed(wm, [("100", 1000), ("101", 2000)])
+        with patch(f"{_WM}.expand_pid_tree", return_value={1000}), \
+             patch(f"{_WM}.helper.call") as call:
+            wm.activate_windows_for_pids({1000})
+        call.assert_called_once_with("ActivateWindow", "100")
+
+    def test_raise_for_pid_exact_no_expansion(self, qapp):
+        wm = GnomeWindowManager()
+        self._seed(wm, [("100", 1000), ("101", 1000), ("102", 2000)])
+        with patch(f"{_WM}.helper.call") as call:
+            wm.raise_windows_for_pid_exact(1000)
+        activated = {c.args[1] for c in call.call_args_list}
+        assert activated == {"100", "101"}
+
+    def test_raise_self_is_noop(self, qapp):
+        wm = GnomeWindowManager()
+        with patch(f"{_WM}.helper.call") as call:
+            wm.raise_self()
+        call.assert_not_called()
+
+
+class TestBaseMachinery:
+    def test_do_refresh_updates_cache_and_emits(self, qapp):
+        wm = GnomeWindowManager()
+        received = []
+        wm.on_windows_updated(received.append)
+        wins = [Window(id="1", title="A", pid=100, active=True, resource_class="a")]
+        with patch.object(wm, "_enum_windows", return_value=wins):
+            wm._do_refresh()
+        assert wm.get_active_window_id() == "1"
+        assert wm.get_cached_title("1") == "A"
+        assert wm.window_exists("1") and not wm.window_exists("2")
+        assert received == [wins]
+
+    def test_refresh_dedup(self, qapp):
+        wm = GnomeWindowManager()
+        wm._refresh_pending = True
+        with patch(f"{_WM}.QTimer") as qtimer:
+            wm._request_list_refresh()
+        qtimer.singleShot.assert_not_called()
+
+    def test_close_stops_refresh(self, qapp):
+        wm = GnomeWindowManager()
+        with patch.object(wm, "stop_refresh") as stop:
+            wm.close()
+        stop.assert_called_once()
+
+
+# ── GnomeSurface ─────────────────────────────────────────────────────────────
+
+class TestGnomeSurface:
+    def test_show_fullscreen_pins_overlay(self):
+        surface = GnomeSurface()
+        widget = MagicMock()
+        surface.install(widget)
+        with patch("infrastructure.gnome.qt.surface.helper.show_overlay") as show:
+            surface.show_fullscreen()
+        widget.showFullScreen.assert_called_once()
+        show.assert_called_once()
+
+    def test_hide_releases_pin_then_hides_widget(self):
+        surface = GnomeSurface()
+        widget = MagicMock()
+        surface.install(widget)
+        with patch("infrastructure.gnome.qt.surface.helper.hide_overlay") as hide:
+            surface.hide()
+        hide.assert_called_once()
+        widget.hide.assert_called_once()
+
+
+# ── GnomeSystemWallpaper ─────────────────────────────────────────────────────
+
+class TestGnomeWallpaper:
+    def _gsettings(self, values):
+        def run(args, **kwargs):
+            _, _, schema, key = args
+            result = MagicMock()
+            result.stdout = values.get((schema, key), "''")
+            return result
+        return run
+
+    def test_reads_picture_uri(self, tmp_path):
+        img = tmp_path / "w.png"
+        img.write_bytes(b"x")
+        values = {
+            ("org.gnome.desktop.interface", "color-scheme"): "'default'",
+            ("org.gnome.desktop.background", "picture-uri"): f"'file://{img}'",
+        }
+        with patch("infrastructure.gnome.display.wallpaper.subprocess.run",
+                   side_effect=self._gsettings(values)):
+            assert GnomeSystemWallpaper().current() == Wallpaper(image_path=str(img))
+
+    def test_uses_dark_variant_when_prefer_dark(self, tmp_path):
+        dark = tmp_path / "dark.png"
+        dark.write_bytes(b"x")
+        values = {
+            ("org.gnome.desktop.interface", "color-scheme"): "'prefer-dark'",
+            ("org.gnome.desktop.background", "picture-uri-dark"): f"'file://{dark}'",
+        }
+        with patch("infrastructure.gnome.display.wallpaper.subprocess.run",
+                   side_effect=self._gsettings(values)):
+            assert GnomeSystemWallpaper().current().image_path == str(dark)
+
+    def test_none_when_unset(self):
+        with patch("infrastructure.gnome.display.wallpaper.subprocess.run",
+                   side_effect=self._gsettings({})):
+            assert GnomeSystemWallpaper().current() is None
+
+    def test_none_when_file_missing(self):
+        values = {
+            ("org.gnome.desktop.interface", "color-scheme"): "'default'",
+            ("org.gnome.desktop.background", "picture-uri"): "'file:///nope/x.png'",
+        }
+        with patch("infrastructure.gnome.display.wallpaper.subprocess.run",
+                   side_effect=self._gsettings(values)):
+            assert GnomeSystemWallpaper().current() is None
+
+    def test_none_on_gsettings_error(self):
+        with patch("infrastructure.gnome.display.wallpaper.subprocess.run",
+                   side_effect=FileNotFoundError):
+            assert GnomeSystemWallpaper().current() is None

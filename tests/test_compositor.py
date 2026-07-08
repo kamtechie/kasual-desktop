@@ -1,10 +1,13 @@
 """Tests for compositor detection and the backend factory seam."""
 
+from unittest.mock import patch
+
 import pytest
 
 from infrastructure.linux.compositor import (
     Compositor,
     NullWindowManager,
+    build_desktop_surface,
     build_system_wallpaper,
     build_window_manager,
     detect_compositor,
@@ -37,6 +40,14 @@ class TestDetectCompositor:
     def test_kde_current_desktop_case_insensitive(self, clean_env):
         clean_env.setenv("XDG_CURRENT_DESKTOP", "plasma:kde")
         assert detect_compositor() is Compositor.KDE
+
+    def test_gnome_from_current_desktop(self, clean_env):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        assert detect_compositor() is Compositor.GNOME
+
+    def test_gnome_ubuntu_variant(self, clean_env):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "ubuntu:GNOME")
+        assert detect_compositor() is Compositor.GNOME
 
     def test_sway(self, clean_env):
         clean_env.setenv("SWAYSOCK", "/run/user/1000/sway-ipc.sock")
@@ -90,6 +101,39 @@ class TestFactories:
         clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
         from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
         assert isinstance(build_system_wallpaper(), HyprlandWallpaper)
+
+    def test_wallpaper_is_gnome_adapter(self, clean_env):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        from infrastructure.gnome.display.wallpaper import GnomeSystemWallpaper
+        assert isinstance(build_system_wallpaper(), GnomeSystemWallpaper)
+
+    def test_window_manager_is_gnome_adapter_when_helper_present(self, clean_env, qapp):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        from infrastructure.gnome.wm.window_manager import GnomeWindowManager
+        with patch("infrastructure.gnome.helper.helper_present", return_value=True):
+            assert isinstance(build_window_manager(), GnomeWindowManager)
+
+    def test_window_manager_falls_back_to_null_without_helper(self, clean_env):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        with patch("infrastructure.gnome.helper.helper_present", return_value=False):
+            assert isinstance(build_window_manager(), NullWindowManager)
+
+    def test_desktop_surface_is_gnome_when_helper_present(self, clean_env):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        from infrastructure.gnome.qt.surface import GnomeSurface
+        with patch("infrastructure.gnome.helper.helper_present", return_value=True):
+            assert isinstance(build_desktop_surface(), GnomeSurface)
+
+    def test_desktop_surface_is_layer_shell_on_gnome_without_helper(self, clean_env):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        from infrastructure.linux.wayland.surface import LayerShellSurface
+        with patch("infrastructure.gnome.helper.helper_present", return_value=False):
+            assert isinstance(build_desktop_surface(), LayerShellSurface)
+
+    def test_desktop_surface_is_layer_shell_on_kde(self, clean_env):
+        clean_env.setenv("KDE_FULL_SESSION", "true")
+        from infrastructure.linux.wayland.surface import LayerShellSurface
+        assert isinstance(build_desktop_surface(), LayerShellSurface)
 
 
 class TestNullWindowManager:

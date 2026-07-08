@@ -12,16 +12,21 @@ import logging
 import os
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from domain.catalog.window import Window
 from domain.lifecycle.window_manager import WindowManager
 from domain.shell.wallpaper import SystemWallpaper
+
+if TYPE_CHECKING:
+    from infrastructure.common.qt.desktop.surface import DesktopSurface
 
 logger = logging.getLogger(__name__)
 
 
 class Compositor(enum.Enum):
     KDE = "kde"
+    GNOME = "gnome"
     SWAY = "sway"
     HYPRLAND = "hyprland"
     UNKNOWN = "unknown"
@@ -29,10 +34,11 @@ class Compositor(enum.Enum):
 
 def detect_compositor() -> Compositor:
     """Identify the running Wayland compositor from session env vars."""
-    if os.environ.get("KDE_FULL_SESSION") or "kde" in os.environ.get(
-        "XDG_CURRENT_DESKTOP", ""
-    ).lower():
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+    if os.environ.get("KDE_FULL_SESSION") or "kde" in desktop:
         return Compositor.KDE
+    if "gnome" in desktop:
+        return Compositor.GNOME
     if os.environ.get("SWAYSOCK"):
         return Compositor.SWAY
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
@@ -105,6 +111,14 @@ def build_window_manager() -> WindowManager:
     if compositor is Compositor.HYPRLAND:
         from infrastructure.wlroots.wm.hyprland import HyprlandWindowManager
         return HyprlandWindowManager()
+    if compositor is Compositor.GNOME:
+        from infrastructure.gnome.helper import helper_present
+        if helper_present():
+            from infrastructure.gnome.wm.window_manager import GnomeWindowManager
+            return GnomeWindowManager()
+        logger.warning(
+            "GNOME session without the Kasual Helper extension; window switching disabled")
+        return NullWindowManager()
     logger.warning(
         "No window-manager backend for compositor %s; window switching disabled",
         compositor.value,
@@ -124,5 +138,24 @@ def build_system_wallpaper() -> SystemWallpaper:
     if compositor is Compositor.HYPRLAND:
         from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
         return HyprlandWallpaper()
+    if compositor is Compositor.GNOME:
+        from infrastructure.gnome.display.wallpaper import GnomeSystemWallpaper
+        return GnomeSystemWallpaper()
     from infrastructure.linux.display.wallpaper import StaticFileWallpaper
     return StaticFileWallpaper()
+
+
+def build_desktop_surface() -> "DesktopSurface":
+    """Construct the DesktopSurface adapter for the detected compositor.
+
+    Layer-shell compositors (KWin, Sway, Hyprland) promote the Desktop to a
+    wlr-layer-shell surface; GNOME (no layer-shell) uses a frameless window that
+    the Kasual Helper extension pins above the foreground app.
+    """
+    if detect_compositor() is Compositor.GNOME:
+        from infrastructure.gnome.helper import helper_present
+        if helper_present():
+            from infrastructure.gnome.qt.surface import GnomeSurface
+            return GnomeSurface()
+    from infrastructure.linux.wayland.surface import LayerShellSurface
+    return LayerShellSurface()

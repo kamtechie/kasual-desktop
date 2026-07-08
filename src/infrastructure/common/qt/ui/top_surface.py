@@ -36,6 +36,14 @@ def promote_overlay_surface(
     the widget is shown."""
     platform = QGuiApplication.platformName()
     if platform == "wayland":
+        from infrastructure.linux.compositor import Compositor, detect_compositor
+        if detect_compositor() is Compositor.GNOME:
+            # Mutter has no layer-shell; the Kasual Helper extension pins Kasual's
+            # surfaces above the foreground app (a plain frameless top-level here).
+            from infrastructure.gnome.helper import helper_present, show_overlay
+            if helper_present():
+                show_overlay()
+            return
         # The LayerShellQt binding is the Wayland adapter; imported lazily so this
         # shared dispatcher carries no eager dependency on it (the enums above are
         # the platform-neutral vocabulary).
