@@ -42,12 +42,11 @@ from infrastructure.linux.audio.volume import PactlVolumeControl
 from infrastructure.linux.display.brightness import select_brightness_control
 from infrastructure.common.qt.scheduler import QtScheduler
 from infrastructure.linux.hud.mangohud import MangoHudControl
-from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
+from infrastructure.linux.compositor import build_system_wallpaper, build_window_manager
 from infrastructure.linux.notifications.notifications import KdeNotificationMonitor
 from infrastructure.linux.network.network_manager import NMNetworkControl, NMNetworkMonitor
 from domain.notifications.center import NotificationCenter
 from infrastructure.common.catalog.preferences import DesktopPowerPreference
-from infrastructure.kde.wm.window_manager import KWinWindowManager
 from infrastructure.common.qt.i18n import install_translations
 
 logger = logging.getLogger(__name__)
@@ -104,7 +103,7 @@ def main() -> None:
         apps = load_apps()
         logger.info("Loaded %d apps", len(apps))
 
-        wm = KWinWindowManager()
+        wm = build_window_manager()
         # One PowerControl shared by the Desktop's action runner and the Application.
         power = SystemdPowerControl()
 
@@ -127,7 +126,7 @@ def main() -> None:
         brightness = select_brightness_control()
         desktop = build_desktop(
             apps=apps, gamepad=gamepad, window_manager=wm,
-            wallpaper=KdeSystemWallpaper(), feedback=feedback,
+            wallpaper=build_system_wallpaper(), feedback=feedback,
             volume=volume, brightness=brightness,
             power=power, scheduler=QtScheduler(),
             process_manager=AppManager(), notifications=notification_center,

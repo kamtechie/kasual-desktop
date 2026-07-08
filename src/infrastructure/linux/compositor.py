@@ -1,0 +1,128 @@
+"""Compositor detection and the backend seam that picks DE-specific adapters.
+
+Kasual's only hard desktop-environment dependencies are window management and
+the wallpaper source. The rest of the stack talks to ports, so a single
+detection here decides which concrete adapters the composition root wires up.
+An unrecognised compositor degrades to no-op window management rather than
+crashing, so the app still starts (e.g. on labwc) with reduced functionality.
+"""
+
+import enum
+import logging
+import os
+
+from collections.abc import Callable
+
+from domain.catalog.window import Window
+from domain.lifecycle.window_manager import WindowManager
+from domain.shell.wallpaper import SystemWallpaper, Wallpaper
+
+logger = logging.getLogger(__name__)
+
+
+class Compositor(enum.Enum):
+    KDE = "kde"
+    SWAY = "sway"
+    HYPRLAND = "hyprland"
+    UNKNOWN = "unknown"
+
+
+def detect_compositor() -> Compositor:
+    """Identify the running Wayland compositor from session env vars."""
+    if os.environ.get("KDE_FULL_SESSION") or "kde" in os.environ.get(
+        "XDG_CURRENT_DESKTOP", ""
+    ).lower():
+        return Compositor.KDE
+    if os.environ.get("SWAYSOCK"):
+        return Compositor.SWAY
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return Compositor.HYPRLAND
+    return Compositor.UNKNOWN
+
+
+class NullWindowManager(WindowManager):
+    """No-op WindowManager for unrecognised compositors: an empty window list and
+    silently ignored operations, so the app runs (without window switching) instead
+    of crashing where no supported IPC backend exists."""
+
+    def start_periodic_refresh(self, interval_ms: int = 3000) -> None:
+        pass
+
+    def stop_refresh(self) -> None:
+        pass
+
+    def refresh_now(self) -> None:
+        pass
+
+    def get_active_window_id(self) -> str | None:
+        return None
+
+    def get_cached_title(self, window_id: str) -> str | None:
+        return None
+
+    def activate_window(self, window_id: str) -> None:
+        pass
+
+    def close_window(self, window_id: str) -> None:
+        pass
+
+    def minimize_windows_for_pids(self, pids: set[int]) -> None:
+        pass
+
+    def activate_windows_for_pids(self, pids: set[int]) -> None:
+        pass
+
+    def raise_self(self) -> None:
+        pass
+
+    def raise_windows_for_pid_exact(self, pid: int) -> None:
+        pass
+
+    def window_exists(self, window_id: str) -> bool:
+        return False
+
+    def cached_windows(self) -> list[Window]:
+        return []
+
+    def on_windows_updated(
+        self, handler: Callable[[list[Window]], None]
+    ) -> Callable[[], None]:
+        return lambda: None
+
+    def close(self) -> None:
+        pass
+
+
+class _NullWallpaper(SystemWallpaper):
+    """No wallpaper source; the Desktop renders its own background when this
+    returns None."""
+
+    def current(self) -> Wallpaper | None:
+        return None
+
+
+def build_window_manager() -> WindowManager:
+    """Construct the WindowManager adapter for the detected compositor."""
+    compositor = detect_compositor()
+    if compositor is Compositor.KDE:
+        from infrastructure.kde.wm.window_manager import KWinWindowManager
+        return KWinWindowManager()
+    if compositor is Compositor.SWAY:
+        from infrastructure.wlroots.wm.sway import SwayWindowManager
+        return SwayWindowManager()
+    if compositor is Compositor.HYPRLAND:
+        from infrastructure.wlroots.wm.hyprland import HyprlandWindowManager
+        return HyprlandWindowManager()
+    logger.warning(
+        "No window-manager backend for compositor %s; window switching disabled",
+        compositor.value,
+    )
+    return NullWindowManager()
+
+
+def build_system_wallpaper() -> SystemWallpaper:
+    """Construct the SystemWallpaper adapter for the detected compositor."""
+    if detect_compositor() is Compositor.KDE:
+        from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
+        return KdeSystemWallpaper()
+    return _NullWallpaper()
