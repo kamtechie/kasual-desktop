@@ -4,10 +4,10 @@ Kasual Desktop is an interactive, graphical "launcher/desktop" interface, design
 
 It runs on two platforms from a single shared core:
 
-- **Linux / Wayland (KDE Plasma 6, Sway, Hyprland)** — renders its UI as
-  `wlr-layer-shell` overlays above applications (including fullscreen games).
-  KDE is the original target; Sway and Hyprland are driven through their native
-  IPC. See [Supported compositors](#-supported-compositors).
+- **Linux / Wayland (KDE Plasma 6, Sway, Hyprland, GNOME)** — renders its UI as
+  overlays above applications (including fullscreen games). KDE is the original
+  target; Sway and Hyprland are driven through their native IPC; GNOME is served
+  by a bundled Shell extension. See [Supported compositors](#-supported-compositors).
 - **Windows 10/11** — a newer port that runs the *same* UI as a desktop surface,
   currently a development build run from source.
 
@@ -24,7 +24,7 @@ in-game HUD, …) live behind platform adapters. See [Architecture](#-architectu
 - **Gamepad-First Interface**: Full controller navigation (Linux via `evdev`, Windows via `pygame`/XInput).
 - **Dynamic Launcher**: Manage applications with simple `.desktop` files in your per-user config directory.
 - **Overlay System**: Advanced support for system overlays (e.g., notifications, menus) that run on top of application windows.
-- **System Integration**: Window management (KWin / Sway / Hyprland on Linux, Win32 on Windows), system notifications, network, audio and brightness controls.
+- **System Integration**: Window management (KWin / Sway / Hyprland / GNOME on Linux, Win32 on Windows), system notifications, network, audio and brightness controls.
 - **First-Run Onboarding**: A provisioning picker seeds your catalog from installed apps (curated starter set on Linux; Start-Menu scan on Windows).
 - **In-Game HUD Toggle**: Show or hide the performance overlay for games straight from the controller menu — **[MangoHud](https://github.com/flightlessmango/MangoHud)** on Linux, **[RivaTuner Statistics Server](https://www.guru3d.com/page/rivatuner-rtss-overlay/)** (MSI Afterburner) on Windows. See [In-Game HUD](#-in-game-hud).
 - **Advanced Audio System**: System sounds and audio feedback.
@@ -44,20 +44,23 @@ adapters**:
   wallpaper).
 - `src/infrastructure/wlroots/` — Sway and Hyprland adapters (window management
   and wallpaper via each compositor's native IPC).
+- `src/infrastructure/gnome/` — GNOME adapters (window management and overlay
+  stacking over D-Bus to the Kasual Helper Shell extension, gsettings wallpaper).
+- `packaging/gnome-extension/` — the Kasual Helper GNOME Shell extension itself.
 - `src/infrastructure/windows/` — Windows adapters (Win32 WM, Core Audio, WinRT
   notifications, RTSS HUD, …).
 - `src/main.py` — Linux entry point; `src/windows_main.py` — Windows entry point.
 
-The Windows adapters and the Linux adapters (`linux/`, `kde/`, `wlroots/`) never
-import from each other; the core never imports any of them. Within Linux, the
-compositor-specific packages (`kde/`, `wlroots/`) build on the DE-independent
+The Windows adapters and the Linux adapters (`linux/`, `kde/`, `wlroots/`,
+`gnome/`) never import from each other; the core never imports any of them.
+Within Linux, the compositor-specific packages build on the DE-independent
 `linux/` package, and the backend is chosen at runtime from the session.
 
 ## 🛠️ Tech Stack
 
 - **Python 3.11+** (uses `enum.StrEnum`)
 - **PyQt6** + **qtawesome**, **PyQt6-WebEngine** (bundled YouTube app)
-- **Linux**: `wlr-layer-shell` (LayerShellQt) on KWin / Sway / Hyprland, `evdev`, `python-xlib`
+- **Linux**: `wlr-layer-shell` (LayerShellQt) on KWin / Sway / Hyprland, a GJS Shell extension on GNOME, `evdev`, `python-xlib`
 - **Windows**: `pywin32` (Win32 API), `comtypes` (Core Audio), `psutil`, Microsoft `winrt-*` (Action Center notifications), `pygame` (gamepad)
 
 ---
@@ -66,31 +69,53 @@ compositor-specific packages (`kde/`, `wlroots/`) build on the DE-independent
 
 ## 🖥️ Supported compositors
 
-Kasual Desktop needs a Wayland compositor that implements `wlr-layer-shell`; the
-backend is picked automatically from the session. Window management and wallpaper
-are the only DE-specific pieces — everything else (audio, network, brightness,
-notifications, gamepad, HUD) is DE-independent.
+Kasual Desktop needs a Wayland compositor that can stack its UI above fullscreen
+applications — either through `wlr-layer-shell`, or through the bundled GNOME
+Shell extension. The backend is picked automatically from the session. Window
+management, overlay stacking and wallpaper are the only DE-specific pieces —
+everything else (audio, network, brightness, notifications, gamepad, HUD) is
+DE-independent.
 
 | Compositor | Status | Window management | Wallpaper | Notes |
 |---|---|---|---|---|
 | **KDE Plasma 6 (KWin)** | Full | KWin D-Bus scripts | Plasma config | The original target. |
 | **Sway** | Full | `swaymsg` (i3-IPC) | `output … bg` from the Sway config | Minimize is emulated by moving windows to the scratchpad. |
 | **Hyprland** | Full | `hyprctl` | hyprpaper (`hyprctl hyprpaper`) | Minimize is emulated via a dedicated special workspace. |
+| **GNOME 45+ (Mutter)** | Full | Kasual Helper extension (D-Bus) | `gsettings` background | Requires the [Kasual Helper extension](#gnome-the-kasual-helper-extension); Mutter has no `wlr-layer-shell`. |
 | Other wlroots (e.g. labwc) | Partial | none (no-op) | `<config>/wallpaper` static file | Starts and renders, but window switching is unavailable. |
-| **GNOME / Mutter** | Unsupported | — | — | Mutter does not implement `wlr-layer-shell`. |
 
 For a compositor without a wallpaper backend Kasual reads a static image at
 `<config>/wallpaper` (a file or a symlink into your own collection); the
 wallpaper is resolved on every launch, so a restart picks up a change.
 
+### GNOME: the Kasual Helper extension
+
+Mutter implements neither `wlr-layer-shell` nor any window-list protocol for
+clients, so on GNOME both jobs are done by a small Shell extension that Kasual
+talks to over D-Bus (`org.consoledesktop.GnomeHelper`). It reports the windows
+with their PIDs, activates/minimizes/closes them, and keeps Kasual's frameless
+surfaces stacked above a fullscreen game — including suppressing Mutter's direct
+scanout, which would otherwise hide any overlay drawn over the game.
+
+`./install.sh` installs and enables it for the current user; the packages ship it
+system-wide, where each user enables it once:
+
+```bash
+gnome-extensions enable kasual-helper@consoledesktop.org
+```
+
+GNOME Shell cannot be reloaded on Wayland, so **log out and back in** afterwards.
+Without the extension Kasual still starts on GNOME, but window switching and
+above-game overlays are unavailable.
+
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- **A Wayland compositor with `wlr-layer-shell`** (KDE Plasma 6 / KWin, Sway, or
-  Hyprland). Kasual Desktop renders its UI as `wlr-layer-shell` surfaces (overlays
-  that sit above applications, including fullscreen games), so the protocol is
-  required. GNOME/Mutter does **not** support it. See
+- **A supported Wayland compositor**: KDE Plasma 6 / KWin, Sway or Hyprland (via
+  `wlr-layer-shell`), or GNOME 45+ (via the bundled Kasual Helper Shell
+  extension). Kasual Desktop draws its UI as overlays that sit above
+  applications, including fullscreen games. See
   [Supported compositors](#-supported-compositors).
 - **Python 3.11+** (the codebase uses `enum.StrEnum`).
 - **System Qt + PyQt6 (not pip's bundled PyQt6).** The layer-shell integration
@@ -183,11 +208,12 @@ the bundled File Browser and YouTube apps ship inside the same package.
    ```bash
    ./kasual.sh
    ```
-   `kasual.sh` selects the Wayland platform and the layer-shell integration
-   (`QT_QPA_PLATFORM=wayland`, `QT_WAYLAND_SHELL_INTEGRATION=layer-shell`) and
+   `kasual.sh` selects the Wayland platform (`QT_QPA_PLATFORM=wayland`) and
    forces the system PyQt6 via `PYTHONNOUSERSITE=1` — a pip-installed PyQt6 in
    `~/.local` ships a newer Qt without the layer-shell plugin, which otherwise
-   fails with *"No shell integration named layer-shell found"*.
+   fails with *"No shell integration named layer-shell found"*. The shell
+   integration (`QT_WAYLAND_SHELL_INTEGRATION=layer-shell`) is requested by
+   `src/main.py` only on compositors that have it — never on GNOME.
 
 ### Building packages
 

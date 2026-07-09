@@ -58,6 +58,21 @@ def list_windows_json() -> str | None:
     return arguments[0] if arguments else "[]"
 
 
+def set_surface_role(title: str, layer: int, anchors: int) -> None:
+    """Declare what a Kasual window is, keyed by its window title.
+
+    Mutter lets no client size or place its own top-levels, and offers no layer
+    concept — so the layer-shell vocabulary is handed to the extension, which
+    applies it compositor-side: anchors become geometry, the layer becomes the
+    stacking order among Kasual's pinned surfaces."""
+    call("SetSurfaceRole", title, int(layer), int(anchors))
+
+
+def activate_surface(title: str) -> None:
+    """Focus and raise one of Kasual's own windows, by title."""
+    call("ActivateSurface", title)
+
+
 def show_overlay() -> None:
     """Pin Kasual's surfaces above everything (incl. fullscreen) and drop
     Mutter's unredirect so they actually paint over a scanned-out fullscreen app."""

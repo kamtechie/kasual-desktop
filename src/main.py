@@ -4,11 +4,18 @@ import signal
 import sys
 from pathlib import Path
 
-# Layer-shell requires the native Wayland platform plus KDE's layer-shell shell
-# integration; both must be selected before QApplication is created. setdefault
-# lets the environment override (e.g. tests force offscreen).
+from infrastructure.linux.compositor import (
+    Compositor, build_desktop_surface, build_system_wallpaper,
+    build_window_manager, detect_compositor,
+)
+
+# The platform and the shell integration must be selected before QApplication is
+# created; setdefault lets the environment override (e.g. tests force offscreen).
+# Mutter has no layer-shell, and naming the missing integration makes the wayland
+# plugin itself fail to load — there Kasual is a plain window the extension pins.
 os.environ.setdefault("QT_QPA_PLATFORM", "wayland")
-os.environ.setdefault("QT_WAYLAND_SHELL_INTEGRATION", "layer-shell")
+if detect_compositor() is not Compositor.GNOME:
+    os.environ.setdefault("QT_WAYLAND_SHELL_INTEGRATION", "layer-shell")
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
@@ -41,9 +48,6 @@ from infrastructure.linux.audio.volume import PactlVolumeControl
 from infrastructure.linux.display.brightness import select_brightness_control
 from infrastructure.common.qt.scheduler import QtScheduler
 from infrastructure.linux.hud.mangohud import MangoHudControl
-from infrastructure.linux.compositor import (
-    build_desktop_surface, build_system_wallpaper, build_window_manager,
-)
 from infrastructure.linux.notifications.notifications import FreedesktopNotificationMonitor
 from infrastructure.linux.network.network_manager import NMNetworkControl, NMNetworkMonitor
 from domain.notifications.center import NotificationCenter

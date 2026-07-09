@@ -2,9 +2,10 @@
 by the Kasual Helper extension (Mutter has no wlr-layer-shell).
 
 Mirrors :class:`LayerShellSurface`: the Desktop is its own frameless top-level
-window; showing it asks the extension to pin Kasual above the foreground app,
-hiding it releases the pin. The app returning to the foreground is driven by the
-domain (``activate_windows_for_pids``), exactly as on the layer-shell path.
+window; showing it asks the extension to pin Kasual's surfaces above the
+foreground app, and hiding it unmaps the window, which releases the pin. The app
+returning to the foreground is driven by the domain
+(``activate_windows_for_pids``), exactly as on the layer-shell path.
 """
 
 from collections.abc import Callable
@@ -12,7 +13,10 @@ from collections.abc import Callable
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget
 
+from infrastructure.common.qt.ui.layer_shell import Anchor, Layer
 from infrastructure.gnome import helper
+
+_TITLE = "Kasual Desktop"
 
 
 class GnomeSurface:
@@ -22,17 +26,27 @@ class GnomeSurface:
     def install(self, widget: QWidget) -> None:
         self._widget = widget
         widget.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        widget.setWindowTitle(_TITLE)
+        # Below the overlays, which register themselves in the OVERLAY layer.
+        helper.set_surface_role(_TITLE, Layer.TOP, Anchor.ALL)
 
     def show_fullscreen(self) -> None:
-        self._widget.showFullScreen()
+        # Ask first: Mutter decides to scan a fullscreen window straight out as it
+        # maps, and a scanned-out Desktop stops the compositor from drawing Kasual's
+        # other surfaces at all.
         helper.show_overlay()
+        self._widget.showFullScreen()
+        helper.activate_surface(_TITLE)
 
     def hide(self) -> None:
-        helper.hide_overlay()
+        # Unmap first: releasing the pin while the Desktop is still mapped would
+        # drop it behind the game for a frame.
         self._widget.hide()
+        helper.hide_overlay()
 
     def activate(self) -> None:
         self._widget.activateWindow()
+        helper.activate_surface(_TITLE)
 
     def is_visible(self) -> bool:
         return self._widget.isVisible()

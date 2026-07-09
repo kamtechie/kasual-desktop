@@ -4,13 +4,16 @@ import logging
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QWidget
 
 from domain.input.pad_control import PadControl
 from domain.shared.feedback import Cue, Feedback
 from infrastructure.common.qt.ui import styles
 from infrastructure.common.qt.ui.layer_shell import Layer, Anchor, Keyboard
-from infrastructure.common.qt.ui.top_surface import promote_overlay_surface
+from infrastructure.common.qt.ui.top_surface import (
+    fullscreen_loses_translucency, promote_overlay_surface,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +79,7 @@ class BaseOverlay(QWidget):
     def _show(self) -> None:
         """Register the gamepad handler and display the overlay."""
         self._gamepad.push_handler(self._handler)
-        self.showFullScreen()
+        self._cover_the_screen()
         self.raise_()
         # Grab Wayland activation only when this overlay opted into keyboard input
         # (see make_layer_surface above) — otherwise it would uncover the DE
@@ -84,6 +87,20 @@ class BaseOverlay(QWidget):
         if self._keyboard != Keyboard.NONE:
             self.activateWindow()
             self.setFocus()
+
+    def _cover_the_screen(self) -> None:
+        """Fill the screen, staying an ordinary window where fullscreen would cost
+        the dim backdrop its alpha."""
+        if not fullscreen_loses_translucency():
+            self.showFullScreen()
+            return
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is not None:
+            # Fixed, or Mutter maximizes a screen-filling window into the work area
+            # and a maximized window is denied the layer that keeps it above the
+            # fullscreen Desktop.
+            self.setFixedSize(screen.geometry().size())
+        self.show()
 
     def pause(self) -> None:
         """Temporarily hide the overlay (e.g. when the Desktop is minimized)."""

@@ -13,6 +13,7 @@ import pytest
 
 from domain.catalog.window import Window
 from domain.shell.wallpaper import Wallpaper
+from infrastructure.common.qt.ui.layer_shell import Anchor, Layer
 from infrastructure.gnome.display.wallpaper import GnomeSystemWallpaper
 from infrastructure.gnome.qt.surface import GnomeSurface
 from infrastructure.gnome.wm.window_manager import GnomeWindowManager
@@ -136,23 +137,53 @@ class TestBaseMachinery:
 # ── GnomeSurface ─────────────────────────────────────────────────────────────
 
 class TestGnomeSurface:
-    def test_show_fullscreen_pins_overlay(self):
-        surface = GnomeSurface()
+    def test_install_registers_desktop_below_the_overlays(self):
         widget = MagicMock()
-        surface.install(widget)
-        with patch("infrastructure.gnome.qt.surface.helper.show_overlay") as show:
-            surface.show_fullscreen()
-        widget.showFullScreen.assert_called_once()
-        show.assert_called_once()
+        with patch("infrastructure.gnome.qt.surface.helper.set_surface_role") as role:
+            GnomeSurface().install(widget)
+        widget.setWindowTitle.assert_called_once_with("Kasual Desktop")
+        title, layer, anchors = role.call_args.args
+        assert title == "Kasual Desktop"
+        assert layer == Layer.TOP < Layer.OVERLAY
+        assert anchors == Anchor.ALL
 
-    def test_hide_releases_pin_then_hides_widget(self):
+    def test_show_fullscreen_asks_for_the_screen_before_mapping(self, qapp):
+        """The pin must precede the map: Mutter scans a fullscreen window straight
+        out as it maps, and then composites nothing else."""
         surface = GnomeSurface()
         widget = MagicMock()
-        surface.install(widget)
-        with patch("infrastructure.gnome.qt.surface.helper.hide_overlay") as hide:
+        with patch("infrastructure.gnome.qt.surface.helper.set_surface_role"):
+            surface.install(widget)
+        order = MagicMock()
+        widget.showFullScreen.side_effect = lambda: order.mapped()
+        with patch("infrastructure.gnome.qt.surface.helper.show_overlay",
+                   side_effect=lambda: order.pinned()), \
+             patch("infrastructure.gnome.qt.surface.helper.activate_surface") as focus:
+            surface.show_fullscreen()
+        assert [c[0] for c in order.method_calls] == ["pinned", "mapped"]
+        focus.assert_called_once_with("Kasual Desktop")
+
+    def test_activate_focuses_the_desktop_surface(self):
+        surface = GnomeSurface()
+        widget = MagicMock()
+        with patch("infrastructure.gnome.qt.surface.helper.set_surface_role"):
+            surface.install(widget)
+        with patch("infrastructure.gnome.qt.surface.helper.activate_surface") as focus:
+            surface.activate()
+        widget.activateWindow.assert_called_once()
+        focus.assert_called_once_with("Kasual Desktop")
+
+    def test_hide_unmaps_widget_before_releasing_pin(self):
+        surface = GnomeSurface()
+        widget = MagicMock()
+        with patch("infrastructure.gnome.qt.surface.helper.set_surface_role"):
+            surface.install(widget)
+        order = MagicMock()
+        widget.hide.side_effect = lambda: order.widget_hidden()
+        with patch("infrastructure.gnome.qt.surface.helper.hide_overlay",
+                   side_effect=lambda: order.pin_released()):
             surface.hide()
-        hide.assert_called_once()
-        widget.hide.assert_called_once()
+        assert [c[0] for c in order.method_calls] == ["widget_hidden", "pin_released"]
 
 
 # ── GnomeSystemWallpaper ─────────────────────────────────────────────────────

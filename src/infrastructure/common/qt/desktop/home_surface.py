@@ -38,14 +38,19 @@ from domain.system.hud import HudControl
 from domain.system.power_menu import PowerMenu
 from domain.system.volume import VolumeControl
 from infrastructure.common.qt.ui import styles
+from infrastructure.common.qt.ui.deferred_unmap import DeferredUnmap
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
-from infrastructure.common.qt.ui.top_surface import promote_overlay_surface
+from infrastructure.common.qt.ui.top_surface import (
+    promote_overlay_surface, surface_sized_by_compositor,
+)
 from infrastructure.common.qt.overlays.home_header import HEADER_H, HomeHeader
 from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH, HomeMenuContent
 
 logger = logging.getLogger(__name__)
 
-TOP_MARGIN  = 10    # gap from the screen top to the header (mirrors the hint bar)
+# Clears the tallest DE panel we cannot stack under (GNOME's 29px top bar is
+# painted above every window).
+TOP_MARGIN  = 32
 # Caps the expanded panel; sized for the busiest context (a game with both a
 # brightness slider and the HUD toggle, ~526px) — tighter clips row content.
 CONTENT_H   = 550
@@ -108,6 +113,7 @@ class HomeSurface(QWidget):
         # Mouse input is scoped by mask, not WA_TransparentForMouseEvents (which
         # would empty the Wayland input region entirely) — see _refresh_input_region.
         self._input_open_hold = False
+        self._deferred_unmap = DeferredUnmap(self)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(16, TOP_MARGIN, 16, TOP_MARGIN)
@@ -238,17 +244,21 @@ class HomeSurface(QWidget):
         )
 
     def position_at_top(self) -> None:
-        """Place the surface along the top strip of the primary screen (Windows /
-        X11). On Wayland the compositor positions it via the layer-shell anchors,
-        so this is a no-op there."""
-        if QGuiApplication.platformName() == "wayland":
+        """Size the surface to the top strip of the primary screen. Skipped where
+        layer-shell anchors already do it; on GNOME the position is ignored (Mutter
+        places top-levels) but the width must be ours, set before the first map."""
+        if surface_sized_by_compositor():
             return
         screen = QGuiApplication.primaryScreen()
         if screen is not None:
             g = screen.geometry()
             self.setGeometry(g.x(), g.y(), g.width(), SURFACE_H)
 
+    def hide(self) -> None:
+        self._deferred_unmap.hide()
+
     def show_collapsed(self) -> None:
+        self._deferred_unmap.cancel()
         self.position_at_top()
         self.show()
         self.raise_()
@@ -361,6 +371,7 @@ class HomeSurface(QWidget):
             request_hide=self.dismiss, desktop_minimized=desktop_minimized,
             header=self._header, on_power_chooser=self._on_power_chooser,
         )
+        self._deferred_unmap.cancel()
         self.position_at_top()
         self.show()
         self.raise_()

@@ -41,4 +41,17 @@ else
     exit 1
 fi
 
+EXT_UUID=kasual-helper@consoledesktop.org
+if [[ "${XDG_CURRENT_DESKTOP:-}" == *[Gg][Nn][Oo][Mm][Ee]* ]]; then
+    # Mutter has no wlr-layer-shell and no window-list protocol; without this
+    # extension Kasual starts on GNOME but cannot switch or overlay windows.
+    EXT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$EXT_UUID"
+    echo "==> Installing the GNOME Shell helper extension into $EXT_DIR"
+    mkdir -p "$EXT_DIR"
+    cp "$(dirname "$0")/packaging/gnome-extension/$EXT_UUID"/* "$EXT_DIR/"
+    gnome-extensions enable "$EXT_UUID" 2>/dev/null ||
+        echo "    Enable it after the next login: gnome-extensions enable $EXT_UUID"
+    echo "    Log out and back in (Wayland cannot reload the Shell) to activate it."
+fi
+
 echo "==> Done. Run: ./kasual.sh"

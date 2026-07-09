@@ -15,7 +15,7 @@ fi
 # Force the SYSTEM PyQt6 (Qt 6.9, locked to the layer-shell plugin) by hiding
 # ~/.local — a pip-installed PyQt6 there (newer Qt) ships no layer-shell
 # integration and makes the wayland platform plugin fail to load.
+# The shell integration itself is chosen per compositor by src/main.py.
 export PYTHONNOUSERSITE=1
 export QT_QPA_PLATFORM=wayland
-export QT_WAYLAND_SHELL_INTEGRATION=layer-shell
 exec python3 src/main.py

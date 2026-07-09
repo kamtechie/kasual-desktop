@@ -13,8 +13,7 @@ fi
 # Force the SYSTEM PyQt6 (locked to the layer-shell plugin) by hiding ~/.local —
 # a pip-installed PyQt6 there ships no layer-shell integration and breaks the
 # wayland platform plugin. All of Kasual's deps are system packages, so dropping
-# the user site is safe.
+# the user site is safe. The shell integration is chosen per compositor by main.py.
 export PYTHONNOUSERSITE=1
 export QT_QPA_PLATFORM=wayland
-export QT_WAYLAND_SHELL_INTEGRATION=layer-shell
 exec python3 "$INSTALL_ROOT/src/main.py"

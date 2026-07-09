@@ -136,6 +136,50 @@ class TestFactories:
         assert isinstance(build_desktop_surface(), LayerShellSurface)
 
 
+class TestSurfaceSizing:
+    """Only wlr-layer-shell sizes an anchored overlay before it maps; everywhere
+    else the widget must, or Mutter's after-the-fact resize blanks its buffer."""
+
+    def _sized_by_compositor(self, platform: str) -> bool:
+        from infrastructure.common.qt.ui import top_surface
+        with patch.object(top_surface.QGuiApplication, "platformName",
+                          return_value=platform):
+            return top_surface.surface_sized_by_compositor()
+
+    def test_layer_shell_compositor_sizes_the_surface(self, clean_env):
+        clean_env.setenv("KDE_FULL_SESSION", "true")
+        assert self._sized_by_compositor("wayland") is True
+
+    def test_gnome_leaves_sizing_to_the_widget(self, clean_env):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        assert self._sized_by_compositor("wayland") is False
+
+    def test_non_wayland_leaves_sizing_to_the_widget(self, clean_env):
+        assert self._sized_by_compositor("offscreen") is False
+
+
+class TestFullscreenTranslucency:
+    """Mutter blends a fullscreen surface onto opaque black and drops its alpha, so
+    a dimmed overlay backdrop must stay an ordinary screen-sized window there."""
+
+    def _loses_alpha(self, platform: str) -> bool:
+        from infrastructure.common.qt.ui import top_surface
+        with patch.object(top_surface.QGuiApplication, "platformName",
+                          return_value=platform):
+            return top_surface.fullscreen_loses_translucency()
+
+    def test_gnome_flattens_a_fullscreen_surface(self, clean_env):
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        assert self._loses_alpha("wayland") is True
+
+    def test_layer_shell_compositors_keep_the_alpha(self, clean_env):
+        clean_env.setenv("KDE_FULL_SESSION", "true")
+        assert self._loses_alpha("wayland") is False
+
+    def test_non_wayland_keeps_the_alpha(self, clean_env):
+        assert self._loses_alpha("offscreen") is False
+
+
 class TestNullWindowManager:
     def test_empty_window_list(self):
         assert NullWindowManager().cached_windows() == []
