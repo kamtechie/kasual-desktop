@@ -1,5 +1,5 @@
 """Unit tests for TilePopoverMenu (presentation): the Y-toggle close and the
-separator handling of the unified menu (§7.3).
+separator handling of the unified menu.
 
 The popover pushes a handler on the gamepad stack and installs an app event
 filter; both are torn down on dismiss. Offscreen Qt (conftest) means no real
@@ -69,3 +69,30 @@ class TestSeparatorNavigation:
         pop._handle_pad(Event.DOWN)            # → Move (index 2)
         pop._handle_pad(Event.SELECT)
         assert on_select.call_args[0][0].action == MOVE
+
+
+class TestWrapAround:
+    def test_down_from_last_wraps_to_first(self, mock_gamepad):
+        pop = _popover(mock_gamepad)
+        pop._handle_pad(Event.DOWN)            # → Move (last)
+        pop._handle_pad(Event.DOWN)
+        assert pop._cursor.index == 0          # Launch
+
+    def test_up_from_first_wraps_to_last(self, mock_gamepad):
+        pop = _popover(mock_gamepad)
+        assert pop._cursor.index == 0          # Launch
+        pop._handle_pad(Event.UP)
+        assert pop._cursor.index == 2          # Move
+
+    def test_wrapping_steps_over_a_trailing_separator(self, mock_gamepad):
+        parent = QWidget()
+        pop = TilePopoverMenu(
+            items=[MenuItem("Launch", LAUNCH), MenuItem("", SEPARATOR)],
+            on_select=MagicMock(),
+            gamepad=mock_gamepad,
+            feedback=MagicMock(),
+            parent=parent,
+        )
+        pop._test_parent = parent
+        pop._handle_pad(Event.DOWN)            # only Launch is selectable
+        assert pop._cursor.index == 0
