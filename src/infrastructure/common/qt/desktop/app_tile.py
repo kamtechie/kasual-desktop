@@ -8,6 +8,7 @@ from PyQt6.QtCore import (Qt, QSize, QPoint, QEasingCurve,
 from PyQt6.QtGui import QCursor, QFont, QFontMetrics
 from PyQt6.QtWidgets import QWidget, QToolButton, QLabel
 
+from infrastructure.common.qt.icons import fitted_icon
 from infrastructure.common.qt.ui import styles
 
 TILE_W        = 180
@@ -40,7 +41,7 @@ class AppTile(QWidget):
         self._btn = QToolButton(self)
         self._btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         if qicon is not None and not qicon.isNull():
-            self._btn.setIcon(qicon)
+            self._btn.setIcon(fitted_icon(qicon, ICON_SIZE_SEL))
         else:
             try:
                 self._btn.setIcon(qta.icon(icon_name, color="white"))

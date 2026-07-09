@@ -14,6 +14,7 @@ Must be called after a ``QApplication`` exists and before any icon is created.
 import logging
 
 import qtawesome
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QIcon
 
 from infrastructure.common.bundled import bundled_dir
@@ -21,6 +22,30 @@ from infrastructure.common.bundled import bundled_dir
 logger = logging.getLogger(__name__)
 
 _icon_provider = None
+
+
+def fitted_icon(icon: QIcon | None, size: int) -> QIcon | None:
+    """*icon* enlarged to *size* when it only ships smaller pixmaps.
+
+    QIcon never upscales: an app whose only themed icon is 32px (Steam's per-game
+    icons, for one) hands back a 32px pixmap however large the request, and the
+    widget centres that stamp inside the tile."""
+    if icon is None or icon.isNull():
+        return icon
+    pixmap = icon.pixmap(QSize(size, size))
+    if pixmap.isNull():
+        return icon
+    ratio = pixmap.devicePixelRatio()
+    if max(pixmap.width(), pixmap.height()) / ratio >= size:
+        return icon
+    target = QSize(round(size * ratio), round(size * ratio))
+    scaled = pixmap.scaled(
+        target,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    scaled.setDevicePixelRatio(ratio)
+    return QIcon(scaled)
 
 
 def shell_icon(path: str) -> QIcon | None:
