@@ -41,14 +41,14 @@ class TilePopoverMenu(QWidget):
         self._feedback = feedback
         self._closed = False
         # Vertical menu navigation lives in the domain; this widget owns only
-        # presentation. wrap=False — the popover clamps at its ends.
+        # presentation.
         self._cursor = MenuCursor(
             count=lambda: len(self._items),
             render=self._render_selection,
             on_activate=self._on_btn_clicked,
             on_dismiss=self._dismiss,
             feedback=feedback,
-            wrap=False,
+            wrap=True,
             is_selectable=lambda i: self._items[i].action != SEPARATOR,
         )
 
