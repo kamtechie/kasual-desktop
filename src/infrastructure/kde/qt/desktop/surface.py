@@ -48,6 +48,9 @@ class LayerShellSurface:
         )
 
     def show_fullscreen(self) -> None:
+        import logging as _lg
+        _lg.getLogger(__name__).error(
+            "DBG show_fullscreen: layered=%s isVisible=%s", self._layered, self._widget.isVisible())
         if self._layered:
             set_layer(self._widget, Layer.TOP)
             set_keyboard(self._widget, Keyboard.ON_DEMAND)
@@ -58,18 +61,25 @@ class LayerShellSurface:
         self._in_front = True
 
     def hide(self) -> None:
+        import logging as _lg, traceback as _tb
+        _lg.getLogger(__name__).error("DBG surface.hide() from:\n%s", "".join(_tb.format_stack()[-6:]))
         self._in_front = False
         self._widget.hide()
 
     def drop_below(self) -> None:
         self._in_front = False
+        import logging as _lg
+        _lg.getLogger(__name__).error(
+            "DBG drop_below: layered=%s isVisible=%s", self._layered, self._widget.isVisible())
         if (self._layered and self._widget.isVisible()
                 and set_layer(self._widget, Layer.BOTTOM)):
             # No keyboard while parked under a running app — a stray key press
             # must not reach the invisible Desktop.
             set_keyboard(self._widget, Keyboard.NONE)
             self._widget.update()
+            _lg.getLogger(__name__).error("DBG drop_below: -> BOTTOM")
         else:
+            _lg.getLogger(__name__).error("DBG drop_below: -> hide() FALLBACK")
             self._widget.hide()
 
     def activate(self) -> None:

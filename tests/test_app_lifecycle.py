@@ -86,7 +86,7 @@ def _steam_game_app(appid="292030", trigger=Trigger.CLICK, id="witcher3"):
                args=(f"steam://rungameid/{appid}",), recall_menu_trigger=trigger)
 
 
-def _make(apps=None, visible=False, is_game_pid=None):
+def _make(apps=None, visible=False, is_game_pid=None, paused=False):
     view = FakeView(visible=visible)
     gamepad = MagicMock()
     gamepad.top_handler.return_value = None
@@ -95,6 +95,7 @@ def _make(apps=None, visible=False, is_game_pid=None):
     apps = apps if apps is not None else [_app()]
     foreground = ForegroundState()
     deferred_hide = MagicMock()
+    deferred_show = MagicMock()
     tilebar = MagicMock()
     tilebar.is_closing.return_value = False
     pad = object()  # sentinel pad-handler identity
@@ -119,16 +120,19 @@ def _make(apps=None, visible=False, is_game_pid=None):
         apps=apps,
         foreground=foreground,
         deferred_hide=deferred_hide,
+        deferred_show=deferred_show,
         tilebar=tilebar,
         pad_handler=pad,
         scheduler=scheduler,
         feedback=feedback,
         prompts=prompts,
         inspector=inspector,
+        is_paused=lambda: paused,
     )
     return SimpleNamespace(
         lc=lc, view=view, gamepad=gamepad, wm=wm, am=app_manager,
-        apps=apps, fg=foreground, dh=deferred_hide, tilebar=tilebar, pad=pad,
+        apps=apps, fg=foreground, dh=deferred_hide, ds=deferred_show,
+        tilebar=tilebar, pad=pad,
         scheduler=scheduler, feedback=feedback, prompts=prompts,
     )
 
@@ -238,6 +242,7 @@ class TestOnTileActivated:
         c.gamepad.set_app_btn_mode_trigger.assert_called_with(Trigger.HOLD_1S)
         c.gamepad.pop_handler.assert_called_once_with(c.pad)
         c.dh.arm.assert_called_once_with(app)
+        c.ds.arm.assert_called_once_with(app)
 
     def test_failed_launch_does_not_arm_hide(self):
         c = _make()
@@ -245,6 +250,7 @@ class TestOnTileActivated:
         c.am.launch.return_value = False
         c.lc.on_tile_activated(AppTarget(index=0, app_id="app0", name="App"))
         c.dh.arm.assert_not_called()
+        c.ds.arm.assert_not_called()
 
     def test_closing_app_activation_is_ignored(self):
         """Activating an app tile mid-shutdown is a no-op (the relocated guard)."""
@@ -621,3 +627,35 @@ class TestForegroundIsGame:
         c = _make(is_game_pid={500: True}.get)
         c.fg.set(WindowTarget(window_id="g1", name="Witcher 3", pid=500))
         assert c.lc.foreground_is_game() is True
+
+
+class TestDeferredShow:
+    def test_restore_arms_show_watcher(self):
+        c = _make()
+        c.lc.restore_app(AppTarget(index=0, app_id="app0", name="App"))
+        c.ds.arm.assert_called_once_with(c.apps[0])
+
+    def test_restoring_dynamic_window_does_not_arm(self):
+        c = _make()
+        c.lc.restore_app(WindowTarget(window_id="w1", name="Win", trigger=Trigger.CLICK))
+        c.ds.arm.assert_not_called()
+
+    def test_windows_gone_reactivates_desktop(self):
+        c = _make(visible=False)
+        c.lc.on_app_windows_gone()
+        assert c.view.is_visible() is True
+
+    def test_windows_gone_while_paused_keeps_desktop_down(self):
+        c = _make(visible=False, paused=True)
+        c.lc.on_app_windows_gone()
+        assert c.view.is_visible() is False
+
+    def test_reactivate_cancels_show_watcher(self):
+        c = _make()
+        c.lc.reactivate_desktop()
+        c.ds.cancel.assert_called_once()
+
+    def test_app_finished_cancels_show_watcher(self):
+        c = _make()
+        c.lc.on_app_finished("app0")
+        c.ds.cancel.assert_called()

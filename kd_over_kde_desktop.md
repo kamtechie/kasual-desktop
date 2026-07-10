@@ -90,18 +90,48 @@ zamknięciu okna dynamicznego).
 - osobny, stale zmapowany surface "kurtyna" na warstwie BOTTOM (czarny lub z
   tapetą KD), a główne okno KD chowane jak dotąd.
 
-## Pomysł na później: deferred show (nieimplementowane)
+## Deferred show (zaimplementowane)
 
-Symetrycznie do `DeferredHide`: gdy okna pilnowanej aplikacji znikną z listy,
-a proces wciąż żyje, po krótkim potwierdzeniu (2 puste odświeżenia ~500 ms)
-podnieść KD na TOP i odzyskać input — zamiast czekać na exit procesu.
+Sama warstwa BOTTOM nie wystarczyła. Punkt 3 wyżej okazał się w praktyce
+dotkliwy: przez 1–5 s (Steam żyje po zamknięciu okna BPM) nad obniżonym KD widać
+było nie tylko panele Plasmy, ale i **zwykłe okna** — warstwa BOTTOM leży pod
+NormalLayer. Efekt: kafle KD wymieszane z taskbarem i oknem terminala.
 
-Ryzyko: gra odtwarzająca okno w locie (zmiana rozdzielczości/trybu) wywoła
-fałszywy powrót KD nad działającą grę. Po wdrożeniu warstwy BOTTOM problem
-wizualny już nie istnieje, więc zysk (input + przykrycie paneli 1–5 s
-wcześniej) może nie być wart tego ryzyka. Jeśli wracać do tematu — tylko jako
-opt-in per aplikacja (np. klucz `X-Kasual-ShowOnWindowsGone` dla kafelka
-Steama, który okien w locie nie odtwarza).
+Powrót KD wyzwala więc teraz **zniknięcie ostatniego okna aplikacji**, nie exit
+procesu. `DeferredShow` (lustro `DeferredHide`) obserwuje listę okien i po
+`_CONFIRM_MS` = 500 ms ciszy woła `AppLifecycle.on_app_windows_gone()` →
+`reactivate_desktop()` → TOP + `ON_DEMAND` + input. Wraz ze skryptem
+`windowRemoved` (reakcja ~150 ms) KD wraca w ~650 ms zamiast po 1–5 s.
+
+Potwierdzenie 500 ms chroni przed grą, która odtwarza okno w locie (zmiana
+trybu wideo): unmap→map w tym oknie czasowym nie liczy się jako zniknięcie.
+
+### Zmienione pliki (deferred show)
+
+- `src/domain/lifecycle/launch_show.py` — nowy port `LaunchShow`.
+- `src/infrastructure/kde/qt/desktop/deferred_show.py` — maszyna stanu.
+- `src/infrastructure/kde/qt/desktop/app_windows.py` — `has_mapped_window()`,
+  wyciągnięte z `DeferredHide._app_window_present` (używane przez obie strony).
+- `src/domain/lifecycle/app_lifecycle.py` — `arm()` przy launch i restore,
+  `cancel()` przy `reactivate_desktop` / `on_app_finished`; nowe
+  `on_app_windows_gone()` (respektuje pauzę).
+- `src/infrastructure/common/qt/desktop/desktop_builder.py` — fabryka +
+  `_NoDeferredShow` dla platform bez adaptera.
+
+### Ryzyko rezydualne
+
+Jeśli aplikacja zostanie bez okien na dłużej niż 500 ms, ale nie umiera, KD
+wjedzie na wierzch. Po fałszywym podniesieniu watcher jest już rozbrojony —
+ponowne pojawienie się okna nie zepchnie KD z powrotem.
+
+**Otwarte pytanie:** czy aktywne okno pełnoekranowe (KWin `ActiveLayer`)
+zasłania surface layer-shell na TOP. Jeśli tak, fałszywe podniesienie nad grą
+jest niewidoczne i ryzyko jest czysto teoretyczne. Do sprawdzenia spikem albo
+obserwacją przy grze zmieniającej rozdzielczość.
+
+Nieuzbrojone przypadki: gdy okno aplikacji nigdy się nie zmapuje, `DeferredHide`
+chowa KD po 5 s guardem, a `DeferredShow` nie ma czego pilnować (`_seen_window`
+zostaje `False`) — zachowanie jak przed zmianą.
 
 ## Przenośność na Hyprland / Sway / GNOME (vs branch `kde_independence`)
 
@@ -138,3 +168,8 @@ D-Bus). Odpowiedniki wymagają osobnych adapterów: Sway — IPC `subscribe` na
 zdarzenia okien, Hyprland — socket2 (`closewindow`), GNOME — sygnał z
 rozszerzenia. Na branchu adaptery wlroots pollują co 3 s, więc bez tego powrót
 po zamknięciu okna dynamicznego reaguje tam wolniej niż na KDE.
+
+To samo dotyczy `DeferredShow`: działa wszędzie, gdzie `WindowManager` publikuje
+listę okien, ale na pollingu 3 s KD wróci nawet ~3,5 s po zniknięciu okna. Sam
+komponent nie zależy od KWin — tylko `has_mapped_window()` sięga po
+`expand_pid_tree` z adaptera KWin i przy przenosinach trafia do `linux/`.

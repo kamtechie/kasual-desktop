@@ -14,6 +14,7 @@ from domain.input.pad_control import PadControl
 from domain.lifecycle.app_control import AppControl
 from domain.lifecycle.foreground_inspector import ForegroundInspector
 from domain.lifecycle.launch_hide import LaunchHide
+from domain.lifecycle.launch_show import LaunchShow
 from domain.menu.entry import CLOSE, LAUNCH, RESTORE
 from domain.menu.item import MenuItem
 from domain.lifecycle.process_manager import ProcessManager
@@ -40,6 +41,7 @@ class AppLifecycle(AppControl):
         apps: LiveCatalog,
         foreground: ForegroundState,
         deferred_hide: LaunchHide,
+        deferred_show: LaunchShow,
         tilebar: TileBarView,
         pad_handler: Callable[[str], None],
         scheduler: Scheduler,
@@ -56,6 +58,7 @@ class AppLifecycle(AppControl):
         self._apps          = apps
         self._foreground    = foreground
         self._deferred_hide = deferred_hide
+        self._deferred_show = deferred_show
         self._tilebar       = tilebar
         self._pad_handler   = pad_handler
         self._scheduler     = scheduler
@@ -109,6 +112,7 @@ class AppLifecycle(AppControl):
             if self._app_manager.launch(app.id, app.command, app.args, app.env):
                 # Defer the hide until the window maps, so no DE-desktop flash.
                 self._deferred_hide.arm(app)
+                self._deferred_show.arm(app)
 
     def dispatch_tile_action(self, item: MenuItem) -> None:
         if item.action in (LAUNCH, RESTORE):
@@ -122,6 +126,7 @@ class AppLifecycle(AppControl):
             app = self._apps[target.index]
             self._gamepad.set_app_btn_mode_trigger(app.recall_menu_trigger)
             self._arranger.raise_app(app)
+            self._deferred_show.arm(app)
         else:
             self._gamepad.set_app_btn_mode_trigger(target.trigger)
             self._wm.activate_window(target.window_id)
@@ -195,6 +200,7 @@ class AppLifecycle(AppControl):
         logger.info("Application %s finished – returning to desktop", app_id)
         # Don't hide onto a closed app.
         self._deferred_hide.cancel()
+        self._deferred_show.cancel()
         self._view.close_active_dialog()
         self._tilebar.refresh_status()
         self._wm.refresh_now()
@@ -219,6 +225,14 @@ class AppLifecycle(AppControl):
                 # Dyn apps skip on_app_finished, so force the same Steam rebind.
                 self._scheduler.call_later(1000, self._gamepad.refresh)
 
+    def on_app_windows_gone(self) -> None:
+        """Take the screen back once the launched app has unmapped its last
+        window, without waiting out its process teardown. A paused Desktop stays
+        down: the user asked for the DE, not for us."""
+        if self._is_paused():
+            return
+        self.reactivate_desktop()
+
     # ── Focus / Reactivation ────────────────────────────────────────────────
 
     def on_focus_gained(self) -> None:
@@ -233,6 +247,7 @@ class AppLifecycle(AppControl):
     def reactivate_desktop(self) -> None:
         """Restore Desktop input control and surface it. Idempotent. Resets the
         BTN_MODE trigger so no app-specific HOLD_1S lingers."""
+        self._deferred_show.cancel()
         self._gamepad.set_app_btn_mode_trigger(Trigger.CLICK)
         self._gamepad.push_handler(self._pad_handler)
         if not self._view.is_visible():

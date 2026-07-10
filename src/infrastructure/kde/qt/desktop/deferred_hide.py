@@ -6,12 +6,11 @@ from PyQt6.QtCore import QObject, QTimer
 
 from domain.catalog.app import App
 from domain.catalog.window import Window
-from domain.catalog.window_rules import app_window_present
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.window_manager import WindowManager
 from domain.shared.event_emitter import Unsubscribe
 from infrastructure.common.qt._meta import ProtocolQtMeta
-from infrastructure.kde.wm.window_manager import expand_pid_tree
+from infrastructure.kde.qt.desktop.app_windows import has_mapped_window
 from domain.lifecycle.launch_hide import LaunchHide
 
 _POLL_INTERVAL_MS = 150
@@ -85,23 +84,13 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
 
     def _on_windows(self, windows: list[Window]) -> None:
         app = self._app
-        if app is None or not self._app_window_present(app, windows):
+        if app is None or not has_mapped_window(app, windows, self._app_manager):
             return
         self._stop_watch()
         if self._grace_ms > 0:
             self._grace.start(self._grace_ms)
         else:
             self._hide_now()
-
-    def _app_window_present(self, app: App, windows: list[Window]) -> bool:
-        """True if `windows` contains a window belonging to launched *app*.
-
-        The presence rule (PID subtree or app-identity match) lives in the
-        domain; this supplies its one infrastructure input — the launch's PID
-        subtree (/proc)."""
-        pid   = self._app_manager.running_pid(app.id)
-        owned = expand_pid_tree({pid}) if pid else set()
-        return app_window_present(windows, app, owned)
 
     def _force(self) -> None:
         """Safety-timeout path: hide even if no window was detected."""

@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from infrastructure.kde.qt.desktop.app_windows import has_mapped_window
 from infrastructure.kde.qt.desktop.deferred_hide import DeferredHide
 from domain.catalog.app import App
 from domain.catalog.window import Window
@@ -28,23 +29,23 @@ def _win(pid=0, rc="", df=""):
     return Window(id="w", title="", pid=pid, resource_class=rc, desktop_file=df)
 
 
-class TestAppWindowPresent:
+class TestHasMappedWindow:
     def test_matches_by_pid_subtree(self, qapp):
-        dh, _, _, _, app = _make(running_pid=1000)
-        with patch("infrastructure.kde.qt.desktop.deferred_hide.expand_pid_tree", return_value={1000, 1001}):
-            assert dh._app_window_present(app, [_win(pid=1001)]) is True
+        _, _, am, _, app = _make(running_pid=1000)
+        with patch("infrastructure.kde.qt.desktop.app_windows.expand_pid_tree", return_value={1000, 1001}):
+            assert has_mapped_window(app, [_win(pid=1001)], am) is True
 
     def test_matches_by_resource_class(self, qapp):
-        dh, _, _, _, app = _make(app=App(name="Foo", command="/usr/bin/foo", id="foo"))
-        assert dh._app_window_present(app, [_win(pid=9, rc="foo")]) is True
+        _, _, am, _, app = _make(app=App(name="Foo", command="/usr/bin/foo", id="foo"))
+        assert has_mapped_window(app, [_win(pid=9, rc="foo")], am) is True
 
     def test_matches_by_desktop_file(self, qapp):
-        dh, _, _, _, app = _make(app=App(name="Foo", command="foo", id="foo"))
-        assert dh._app_window_present(app, [_win(pid=9, df="foo.desktop")]) is True
+        _, _, am, _, app = _make(app=App(name="Foo", command="foo", id="foo"))
+        assert has_mapped_window(app, [_win(pid=9, df="foo.desktop")], am) is True
 
     def test_no_match(self, qapp):
-        dh, _, _, _, app = _make(app=App(name="Foo", command="foo", id="foo"))
-        assert dh._app_window_present(app, [_win(pid=9, rc="bar", df="baz.desktop")]) is False
+        _, _, am, _, app = _make(app=App(name="Foo", command="foo", id="foo"))
+        assert has_mapped_window(app, [_win(pid=9, rc="bar", df="baz.desktop")], am) is False
 
 
 class TestArmCancel:
