@@ -47,6 +47,9 @@ const IFACE = `
     <method name="ShowOverlay">
       <arg type="s" direction="in" name="wmClass"/>
     </method>
+    <method name="CedeOverlay">
+      <arg type="s" direction="in" name="wmClass"/>
+    </method>
     <method name="HideOverlay">
       <arg type="s" direction="in" name="wmClass"/>
     </method>
@@ -89,6 +92,12 @@ function mappedWindows() {
         .filter(w => w);
 }
 
+// XWayland reports its X11 WM_CLASS ("Bitwarden"), not the flatpak app id the
+// tile matches on; the window→app id resolves it.
+function appIdOf(win) {
+    return Shell.WindowTracker.get_default().get_window_app(win)?.get_id() || '';
+}
+
 // get_window_actors() documents no order; this one is defined as ascending, so
 // the first window is the lowest. Stacking decisions must not guess.
 function stackedBottomToTop(windows) {
@@ -104,6 +113,7 @@ class Helper {
 
         this._appClass = null;
         this._showRequested = false;
+        this._ceded = false;
         this._virtualPointer = null;
         this._roles = new Map();
         this._pinned = new Set();
@@ -168,6 +178,8 @@ class Helper {
                 this._scheduleSync();
             }),
             win.connect('notify::title', syncIfOurs),
+            // Fullscreen toggles change what must sit over a ceded Desktop.
+            win.connect('notify::fullscreen', () => this._scheduleSync()),
             // Qt resizes the Home surface when its menu expands; re-anchor it.
             win.connect('size-changed', () => this._scheduleAnchor(win)),
             win.connect('position-changed', () => this._scheduleAnchor(win)),
@@ -303,6 +315,25 @@ class Helper {
 
         for (const w of wanted)
             this._applyAnchor(w);
+
+        // Desktop above ordinary windows, below every fullscreen app. make_above
+        // would lift the fullscreen Desktop to the TOP layer over the app (Mutter
+        // keeps plain fullscreen windows in NORMAL), so drop ABOVE and re-raise
+        // the apps instead; the last app unmapping leaves the Desktop topmost.
+        if (this._ceded) {
+            for (const w of wanted) {
+                w.unmake_above();
+                raiseWindow(w);
+            }
+            const apps = stackedBottomToTop(mappedWindows())
+                .filter(w => !this._isOurs(w) && w.is_fullscreen());
+            for (const a of apps)
+                raiseWindow(a);
+            this._setUnredirectSuppressed(false);
+            this._setRestackGuard(false);
+            return;
+        }
+
         this._focusPending();
         this._reassertStacking();
 
@@ -463,6 +494,7 @@ class Helper {
             title: w.get_title() || '',
             pid: w.get_pid(),
             wm_class: w.get_wm_class() || '',
+            desktop_file: appIdOf(w),
             active: w.has_focus(),
             fullscreen: w.is_fullscreen(),
         }));
@@ -526,8 +558,19 @@ class Helper {
     ShowOverlay(wmClass) {
         this._appClass = wmClass;
         this._showRequested = true;
+        this._ceded = false;
         this._setUnredirectSuppressed(true);   // before the first window maps
         this._sync();
+    }
+
+    // Yield the screen to the app without unmapping, so closing it reveals the
+    // still-drawn Desktop with no DE flash.
+    CedeOverlay(wmClass) {
+        if (this._appClass === wmClass) {
+            this._pendingFocus = null;
+            this._ceded = true;
+            this._sync();
+        }
     }
 
     // Gamepad input never reaches Mutter (libinput ignores joysticks), so Kasual
@@ -548,6 +591,7 @@ class Helper {
         if (this._appClass === wmClass) {
             this._pendingFocus = null;
             this._showRequested = false;
+            this._ceded = false;
             this._sync();
         }
     }

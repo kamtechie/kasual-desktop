@@ -23,9 +23,11 @@ _WM = "infrastructure.gnome.wm.window_manager"
 
 # ── GnomeWindowManager ───────────────────────────────────────────────────────
 
-def _win(id, pid, wm_class, title="", active=False):
+def _win(id, pid, wm_class, title="", active=False, desktop_file="",
+         fullscreen=False):
     return {"id": id, "pid": pid, "wm_class": wm_class, "title": title,
-            "active": active, "fullscreen": False}
+            "active": active, "desktop_file": desktop_file,
+            "fullscreen": fullscreen}
 
 
 class TestEnumWindows:
@@ -38,6 +40,18 @@ class TestEnumWindows:
         by_id = {w.id: w for w in result}
         assert by_id["100"].active is True and by_id["100"].resource_class == "firefox"
         assert by_id["101"].active is False and by_id["101"].pid == 2000
+
+    def test_carries_desktop_file_and_fullscreen(self, qapp):
+        """An XWayland window's wm_class ("Bitwarden") differs from the .desktop id
+        the tile matches on; the extension resolves the app id so attribution works."""
+        wm = GnomeWindowManager()
+        raw = json.dumps([_win("1", 1000, "Bitwarden",
+                               desktop_file="com.bitwarden.desktop.desktop",
+                               fullscreen=True)])
+        with patch(f"{_WM}.helper.list_windows_json", return_value=raw):
+            w = wm._enum_windows()[0]
+        assert w.desktop_file == "com.bitwarden.desktop.desktop"
+        assert w.fullscreen is True
 
     def test_skips_classless_and_own_pid(self, qapp):
         wm = GnomeWindowManager()
@@ -184,6 +198,35 @@ class TestGnomeSurface:
                    side_effect=lambda: order.pin_released()):
             surface.hide()
         assert [c[0] for c in order.method_calls] == ["widget_hidden", "pin_released"]
+
+    def test_drop_below_cedes_without_unmapping(self):
+        """Ceding keeps the window mapped so closing the app reveals it with no
+        remap; it only tells the extension to stop pinning it over the app."""
+        surface = GnomeSurface()
+        widget = MagicMock()
+        with patch("infrastructure.gnome.qt.surface.helper.set_surface_role"):
+            surface.install(widget)
+        with patch("infrastructure.gnome.qt.surface.helper.cede_overlay") as cede, \
+             patch("infrastructure.gnome.qt.surface.helper.hide_overlay") as unpin:
+            surface.drop_below()
+        cede.assert_called_once()
+        unpin.assert_not_called()
+        widget.hide.assert_not_called()
+
+    def test_is_visible_is_logical_not_mapped_state(self, qapp):
+        """After ceding, the widget stays mapped but the Desktop is not in front."""
+        surface = GnomeSurface()
+        widget = MagicMock()
+        widget.isVisible.return_value = True
+        with patch("infrastructure.gnome.qt.surface.helper.set_surface_role"):
+            surface.install(widget)
+        for fn in ("show_overlay", "activate_surface", "cede_overlay"):
+            patch(f"infrastructure.gnome.qt.surface.helper.{fn}").start()
+        surface.show_fullscreen()
+        assert surface.is_visible() is True
+        surface.drop_below()
+        assert surface.is_visible() is False   # mapped, but not in front
+        patch.stopall()
 
 
 # ── GnomeSystemWallpaper ─────────────────────────────────────────────────────

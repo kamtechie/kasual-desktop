@@ -83,6 +83,8 @@ class GnomeWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
                 pid=pid,
                 active=bool(entry.get("active")),
                 resource_class=wm_class,
+                desktop_file=entry.get("desktop_file") or "",
+                fullscreen=bool(entry.get("fullscreen")),
             ))
         return windows
 

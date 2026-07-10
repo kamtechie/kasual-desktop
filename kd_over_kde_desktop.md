@@ -163,15 +163,65 @@ to przez skrypt `virtualScreenSize`; Sway/Hyprland mają IPC do geometrii). Bez
 tego fallback to `hide()` — aplikacje nie-ustawiające `fullscreen` w protokole
 (jak Steam BPM) wracają do zachowania z mignięciem.
 
-**GNOME — potrzebna dodatkowa implementacja.**
+**GNOME — zaimplementowane (cede w rozszerzeniu).**
 
-1. *Minimum:* `GnomeSurface` musi dostać `drop_below()` — port
-   `DesktopSurface` jest strukturalny (Protocol), więc domyślne ciało z portu
-   nie jest dziedziczone; fallback `drop_below() → hide()` przywraca stare
-   zachowanie (mignięcie pulpitu GNOME zostaje).
-2. *Pełny efekt:* odpowiednik cede (zostać zmapowanym pod grą) trzeba dodać
-   w rozszerzeniu Kasual Helper — zamiast unmapować okno: zwolnić pin
-   i zepchnąć okno na dół stosu Muttera, a przy powrocie przypiąć ponownie.
+Mutter nie ma layer-shell. Zmierzone zachowanie stackingu (przez `Debug`
+rozszerzenia): okno pełnoekranowe siedzi w warstwie NORMAL (2), a `make_above`
+wypycha okno (nawet pełnoekranowe) do warstwy TOP (4). KD jest pokazywane przez
+`showFullScreen()`, więc gdyby przy cede zostało `make_above`, wylądowałoby
+w warstwie 4 — **nad** grą (warstwa 2) i by ją zasłoniło (dokładnie ten błąd:
+KD bez chrome nad Steamem).
+
+Niezmiennik cede (`GnomeSurface.drop_below` → `CedeOverlay` → `_ceded`) w
+`_sync()`: **KD nad zwykłymi oknami, pod każdym oknem pełnoekranowym**. Zdejmuje
+z okien KD flagę above (`unmake_above` → spadają do warstwy 2), podnosi KD nad
+zwykłe okna, a potem podnosi **wszystkie** nie-nasze okna pełnoekranowe z powrotem
+nad KD, w kolejności stosu (gra zostaje nad launcherem). Do tego
+`_setRestackGuard(false)` i `_setUnredirectSuppressed(false)` (najwyższa apka
+dostaje direct scanout). Gdy znika ostatnie okno pełnoekranowe, nic nie jest
+podnoszone nad KD → KD staje się najwyżej → Mutter od razu je odsłania, bez
+remapu i bez pollingu. Powrót przez `deferred_show` → `ShowOverlay` zeruje `_ceded`
+i przypina KD z powrotem (przez `make_above`).
+
+Podnoszenie robi `raiseWindow()` (`raise_and_make_recent()`) — czysta operacja
+stackingu z wnętrza Shella, nie podlega ochronie przed kradzieżą fokusu (inaczej
+niż klienckie `activate()`). `notify::fullscreen` na każdym oknie wyzwala `_sync`,
+żeby gra wchodząca w fullscreen po splashu launchera trafiła nad KD.
+
+Iteracje, które doprowadziły do reguły „zbiór okien fullscreen" (zmierzone przez
+`Debug`): (1) `make_above` na KD → warstwa 4 nad grą → KD zasłaniało Steama;
+(2) podnoszenie okna z fokusem per-sync → po zamknięciu gry fokus szedł na
+terminal i to on lądował nad KD (sekunda pulpitu, bo dopiero `deferred_show`
+przypinał KD); (3) zapamiętane pojedyncze okno → przy Steam+gra `_sync` podnosił
+Steama nad KCD (waiting screen zamiast gry). Reguła „pod wszystkimi fullscreen"
+obsługuje wszystkie trzy: powrót (brak fullscreen → KD na wierzchu), Steam sam
+(Steam nad KD) i Steam+gra (gra nad Steamem nad KD).
+
+Wykrywanie fullscreen: rozszerzenie zwracało `is_fullscreen()` w `ListWindows`
+od początku, ale adapter to gubił — teraz `GnomeWindowManager` parsuje
+`fullscreen` (i `desktop_file`), więc `DeferredHide` poprawnie wybiera cede
+dla apki pełnoekranowej, a `hide()` (realny unmap) dla okienkowej.
+
+*Ograniczenie:* reguła bazuje na `is_fullscreen()`. Gra w trybie borderless
+(pełny rozmiar wyjścia bez stanu fullscreen) nie zostanie podniesiona nad KD.
+Steam BPM i KCD w trybie fullscreen działają; `covers_screen` bez fullscreen
+jest otwarty (tak jak na KDE).
+
+*Atrybucja okno → aplikacja:* okno XWayland zgłasza X11 WM_CLASS (np.
+`Bitwarden`), nie flatpakowe app-id kafelka (`com.bitwarden.desktop`). KWin
+dokłada `desktopFile`; GNOME nie miał odpowiednika, więc okno lądowało jako
+"zewnętrzne" (osobny kafel dynamiczny, kafel Apps "not running", `DeferredHide`
+bez dopasowania). Rozszerzenie raportuje teraz app-id przez
+`Shell.WindowTracker.get_window_app(w).get_id()` (dla flatpaka rozwiązywane po
+sandboxed-app-id, więc niezależne od WM_CLASS), adapter mapuje je na
+`desktop_file`. Parytet z KWin.
+
+*Forwarder / single-instance (np. flatpak):* proces uruchamiający kończy się,
+gdy tylko przekaże żądanie, a prawdziwe okno żyje pod innym PID-em. `on_app_finished`
+sprawdza więc `_still_windowed(app_id)`: jeśli aplikacja wciąż ma okno, nie
+wracamy na KD — powrót zostawiamy `DeferredShow` (window-gone). Bez tego KD
+"odbijało" nad świeżo pokazanym oknem (Bitwarden). Fix jest w domenie, wspólny
+dla wszystkich kompozytorów.
 
 **Szybki refresh po `windowRemoved` jest KWin-only** (skrypty KWin przez
 D-Bus). Odpowiedniki wymagają osobnych adapterów: Sway — IPC `subscribe` na

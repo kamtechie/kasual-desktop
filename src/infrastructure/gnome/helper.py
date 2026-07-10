@@ -87,6 +87,13 @@ def show_overlay() -> None:
     call("ShowOverlay", app_id())
 
 
+def cede_overlay() -> None:
+    """Yield the screen to the launched app while keeping Kasual's surfaces
+    mapped just below it — so closing the app reveals the Desktop with no remap.
+    The Qt side keeps the window shown."""
+    call("CedeOverlay", app_id())
+
+
 def hide_overlay() -> None:
     """Release the pin; hiding the surfaces themselves is the Qt side's job."""
     call("HideOverlay", app_id())

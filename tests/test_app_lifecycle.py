@@ -429,6 +429,19 @@ class TestOnAppFinished:
         c.lc.on_app_finished("app0")      # a different app exited
         assert c.fg.current == AppTarget(index=2, app_id="other", name="Other")
 
+    def test_defers_when_forwarder_exits_but_window_lives(self):
+        """A flatpak/single-instance launcher exits while the app's window stays
+        up: don't bounce the Desktop back — leave the return to deferred_show."""
+        c = _make(visible=False)
+        c.fg.set(AppTarget(index=0, app_id="app0", name="App"))
+        c.wm.cached_windows.return_value = [
+            Window(id="w1", title="App", pid=999, resource_class="prog"),
+        ]
+        c.lc.on_app_finished("app0")
+        assert c.view.shown == 0           # KD not bounced over the app
+        c.ds.cancel.assert_not_called()    # window-gone watcher stays armed
+        assert c.fg.current == AppTarget(index=0, app_id="app0", name="App")
+
 
 # ── on_app_launch_failed ────────────────────────────────────────────────────
 
@@ -652,6 +665,12 @@ class TestDeferredShow:
         c = _make(visible=False)
         c.lc.on_app_windows_gone()
         assert c.view.is_visible() is True
+
+    def test_windows_gone_clears_stale_foreground(self):
+        c = _make(visible=False)
+        c.fg.set(AppTarget(index=0, app_id="app0", name="App"))
+        c.lc.on_app_windows_gone()
+        assert c.fg.is_idle()
 
     def test_windows_gone_while_paused_keeps_desktop_down(self):
         c = _make(visible=False, paused=True)

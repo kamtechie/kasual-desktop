@@ -220,16 +220,27 @@ class AppLifecycle(AppControl):
         logger.info("Application %s finished – returning to desktop", app_id)
         # Don't hide onto a closed app.
         self._deferred_hide.cancel()
-        self._deferred_show.cancel()
         self._view.close_active_dialog()
         self._tilebar.refresh_status()
         self._wm.refresh_now()
+        if self._still_windowed(app_id):
+            # Forwarder launch (flatpak/single-instance): the process handed off
+            # and exited, but its window lives on under another pid — not closed.
+            logger.info("%s still has a window; deferring return to window-gone", app_id)
+            return
+        self._deferred_show.cancel()
         self._foreground.clear_if_app(app_id)
         if not self._view.is_visible():
             self.reactivate_desktop()
         # Steam re-enumerates the gamepad on exit, leaving our evdev fd dead;
         # delay long enough for the kernel to surface the replacement.
         self._scheduler.call_later(1000, self._gamepad.refresh)
+
+    def _still_windowed(self, app_id: str) -> bool:
+        app = next((a for a in self._apps if a.id == app_id), None)
+        if app is None:
+            return False
+        return any(w.matches_app(app) for w in self._wm.cached_windows())
 
     def check_active_dyn_gone(self) -> None:
         """Show the Desktop if the active dynamic window was closed by its app."""
@@ -251,6 +262,9 @@ class AppLifecycle(AppControl):
         down: the user asked for the DE, not for us."""
         if self._is_paused():
             return
+        # A forwarder's on_app_finished already fired without clearing this, so
+        # drop the stale foreground as we take the screen back.
+        self._foreground.clear()
         self.reactivate_desktop()
 
     # ── Focus / Reactivation ────────────────────────────────────────────────
