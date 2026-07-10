@@ -24,6 +24,7 @@ from infrastructure.linux.input.gamepad_watcher import GamepadWatcher
 from infrastructure.common.qt.desktop import build_desktop
 from infrastructure.kde.qt.desktop.deferred_hide import DeferredHide
 from infrastructure.kde.qt.desktop.surface import LayerShellSurface
+from infrastructure.common.qt.cursor_auto_hide import CursorAutoHide
 from infrastructure.common.qt.icons import install_fontawesome5
 from infrastructure.common.catalog.app_config import (
     DesktopAppProvisioning, DesktopTileSettingsStore, DesktopTileOrderStore,
@@ -67,6 +68,8 @@ def main() -> None:
     app.setApplicationName("Kasual Desktop")
     app.setApplicationVersion(version)
     app.setQuitOnLastWindowClosed(False)
+
+    CursorAutoHide(app)
 
     guard = SingleInstanceGuard(log_file.parent)
     if not guard.try_lock():
