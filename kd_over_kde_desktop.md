@@ -1,10 +1,10 @@
-# KD nad pulpitem KDE — likwidacja "obnażenia" Plasmy przy powrocie ze Steama
+# KD nad pulpitem KDE — likwidacja "obnażenia" Plasmy przy powrocie z aplikacji
 
-Notatka robocza do weryfikacji na maszynie z KDE (Plasma 6 / Wayland).
+Notatka robocza. Zweryfikowano na maszynie z KDE (Plasma 6 / Wayland / KWin 6.5).
 
 ## Problem
 
-Po zamknięciu Steama (np. wyjście z Big Picture) pulpit KDE (Plasma) jest przez
+Po zamknięciu Steama (np. wyjście z Big Picture) pulpit KDE (Plasma) był przez
 chwilę widoczny, zanim KD wróci na ekran. Sekwencja przed zmianą:
 
 1. Przy starcie aplikacji KD **unmapował** swoje okno (`hide_view()` →
@@ -16,92 +16,108 @@ chwilę widoczny, zanim KD wróci na ekran. Sekwencja przed zmianą:
    pokazuje jedyne co ma: Plasmę. Do tego ~100–300 ms na remap i pierwszą
    klatkę KD.
 
-Dominującą częścią przerwy jest okno czasowe "okno Steama zniknęło, ale proces
+Dominującą częścią przerwy było okno czasowe "okno Steama zniknęło, ale proces
 jeszcze żyje", nie latencja mapowania.
 
 ## Rozwiązanie (zaimplementowane)
 
-**Nie unmapować — obniżyć warstwę.** KD jest surfacem wlr-layer-shell (warstwa
-TOP). Gdy aplikacja przejmuje ekran, zamiast `hide()`:
+**Nie unmapować — zostać na TOP, oddać klawiaturę.** KD jest surfacem
+wlr-layer-shell na warstwie TOP. Gdy aplikacja przejmuje ekran, zamiast `hide()`:
 
-- `setLayer(BOTTOM)` + `setKeyboardInteractivity(NONE)` — KD zostaje zmapowane
-  i narysowane, ale pod normalnymi/fullscreenowymi oknami; klawiatura nie może
-  do niego trafić w trakcie grania.
-- Powrót: `setLayer(TOP)` + `ON_DEMAND` — bez remapowania i bez czekania na
-  pierwszą klatkę.
+- `setKeyboardInteractivity(NONE)` — KD zostaje zmapowane na TOP, ale bez
+  klawiatury; w trakcie grania klawiatura trafia do gry, nie do KD.
+- Powrót: `setKeyboardInteractivity(ON_DEMAND)` — bez remapowania, bez czekania
+  na pierwszą klatkę.
 
-Gdy okno Steama znika, KWin od razu odsłania **gotowy, narysowany pulpit KD**
-zamiast Plasmy. Koszt w trakcie grania ~zero: całkowicie zasłonięty surface nie
-dostaje frame callbacków (Qt nic nie renderuje); direct scanout gry nie cierpi
-(liczy się najwyższy pełnoekranowy surface).
+KWin stackuje **pełnoekranowe** okna xdg-toplevel **ponad** warstwą layer-shell
+TOP — potwierdzone spikem (`tools/spike_topcover.py`). Gdy okno aplikacji
+znika (unmap), KWin od razu odsłania **gotowy, narysowany pulpit KD** zamiast
+Plasmy. Koszt w trakcie grania ~zero: całkowicie zasłonięty surface nie dostaje
+frame callbacków (Qt nic nie renderuje); direct scanout gry nie cierpi.
+
+### Dlaczego nie BOTTOM (pierwotny plan)
+
+Pierwotnie planowano obniżyć warstwę do BOTTOM. Spike
+(`tools/spike_layerswitch.py`) potwierdził, że `set_layer` na żywym oknie
+działa (LayerShellQt wysyła `zwlr_layer_surface_v1.set_layer` na wire), ale
+okazało się, że warstwa BOTTOM w KWin leży **poniżej** normalnych okien
+i pulpitu Plasmy — zielony surface na BOTTOM zachowywał się jak tapeta:
+okno Konsole i taskbar KDE były nad nim. BOTTOM nie ukrywa KD pod aplikacją —
+odsłania KDE ponad KD.
+
+### Pełny ekran vs zwykłe okno
+
+Nie każda aplikacja przykrywa cały ekran:
+
+- **Pełnoekranowa** (Steam BPM, File Browser) — okno pokrywa całe workspace;
+  cede (zostań na TOP + `Keyboard.NONE`) wystarcza, gra przykrywa KD.
+- **Okienkowa** (Konsole, Brave, Bitwarden) — okno nie pokrywa TOP; KD musi
+  zostać naprawdę schowane (`hide()` / `withdraw`), inaczej zasłoni aplikację.
+
+`DeferredHide` rozróżnia te przypadki po właściwościach okna aplikacji:
+`fullscreen` (protokół KWin) lub `covers_screen` (geometria >= workspace —
+wyłapuje Steam BPM, który nie ustawia `fullscreen` w KWin).
+
+`restore_app` robi to samo synchronicznie przez `_target_is_fullscreen()`,
+bo okno przywracanej aplikacji już istnieje na liście okien.
 
 Dodatkowo: trwały skrypt KWin podpięty pod `workspace.windowRemoved` wywołuje
-(z debounce) odświeżenie listy okien — reakcja na zniknięcie okna w ~150 ms
-zamiast pollingu co 3 s. Przyspiesza m.in. `check_active_dyn_gone` (powrót po
-zamknięciu okna dynamicznego).
+(z debounce 150 ms) odświeżenie listy okien — reakcja na zniknięcie okna
+w ~150 ms zamiast pollingu co 3 s. Przyspiesza m.in. `check_active_dyn_gone`
+(powrót po zamknięciu okna dynamicznego).
 
 ### Zmienione pliki
 
-- `src/infrastructure/kde/qt/ui/layer_shell.py` — helpery `set_layer()` /
-  `set_keyboard()` (zmiana właściwości na zmapowanym oknie).
+- `src/infrastructure/kde/qt/ui/layer_shell.py` — helper `set_keyboard()`
+  (zmiana `KeyboardInteractivity` na zmapowanym oknie). `set_layer()` usunięty
+  (nie używany po odrzuceniu BOTTOM).
 - `src/infrastructure/kde/qt/desktop/surface.py` — `LayerShellSurface`:
-  `drop_below()` (BOTTOM zamiast hide), logiczna widoczność `_in_front`
-  (`is_visible()` = "KD jest na wierzchu", nie "widget zmapowany").
+  `drop_below()` (zostań na TOP + `Keyboard.NONE`), logiczna widoczność
+  `_in_front` (`is_visible()` = "KD ma klawiaturę", nie "widget zmapowany").
 - `src/infrastructure/common/qt/desktop/surface.py` — port `DesktopSurface`
   zyskał `drop_below()`; `PlainSurface` robi fallback do `hide()`.
 - `src/infrastructure/windows/qt/desktop_surface.py` — `drop_below()` →
   `hide()` (zachowanie Windows bez zmian).
 - `src/infrastructure/common/qt/desktop/desktop.py` — `hide_view()` →
-  `surface.drop_below()`; nowy `withdraw_view()` → `surface.hide()` (prawdziwe
-  schowanie do traya); `show_fullscreen()` tłumi hover kafelków (powrót bez
-  remapu nie wywoła już `showEvent`).
+  `surface.drop_below()` (cede); nowy `withdraw_view()` → `surface.hide()`
+  (prawdziwe schowanie do traya / oddanie ekranu okienkowej aplikacji);
+  `show_fullscreen()` tłumi hover kafelków (powrót bez remapu nie wywoła
+  `showEvent`).
 - `src/domain/shell/desktop_view.py` — port: nowa metoda `withdraw_view()`.
 - `src/domain/shell/desktop.py` — `pause()` używa `withdraw_view()` (pauza do
-  traya nadal naprawdę chowa okno — obniżone KD zasłaniałoby pulpit Plasmy,
-  którego użytkownik wtedy właśnie potrzebuje).
-- `src/infrastructure/kde/wm/window_manager.py` — trwały skrypt zdarzeń
-  (`workspace.windowRemoved` → D-Bus → debounce 150 ms → `refresh_now()`).
+  traya nadal naprawdę chowa okno).
+- `src/domain/lifecycle/app_lifecycle.py` — `restore_app()` rozróżnia cede
+  vs withdraw przez `_target_is_fullscreen()`; `DeferredHide` rozbrojony
+  przy restore (okno już istnieje).
+- `src/infrastructure/kde/qt/desktop/deferred_hide.py` — przyjmuje `on_cede`
+  i `on_hide`; wybiera na podstawie `fullscreen || covers_screen` okna.
+- `src/infrastructure/kde/qt/desktop/app_windows.py` — `app_window_fullscreen()`
+  (fullscreen lub covers_screen).
+- `src/domain/catalog/window.py` — pola `fullscreen`, `covers_screen`.
+- `src/infrastructure/kde/wm/window_manager.py` — skrypt KWin pobiera
+  `fullscreen` i `coversScreen` (geometria >= `virtualScreenSize`); trwały
+  skrypt zdarzeń (`windowRemoved` → D-Bus → debounce 150 ms → `refresh_now()`).
+- `tools/spike_layerswitch.py`, `tools/spike_topcover.py` — spiki
+  weryfikujące warstwy na żywym KWin.
 
-## Do zweryfikowania na maszynie z KDE
+## Odrzucone warianty
 
-1. **`setLayer` na żywo**: czy LayerShellQt propaguje zmianę warstwy na już
-   zmapowanym oknie (KWin wspiera `zwlr_layer_surface_v1.set_layer` od v2;
-   LayerShellQt powinien wysyłać żądanie po `layerChanged`). Po `set_layer`
-   wywołujemy `widget.update()`, żeby wymusić commit — sprawdzić, czy to
-   wystarcza. Szybki test: rozszerzyć `tools/spike_layershell.py` o timer
-   przełączający TOP↔BOTTOM co 2 s nad otwartym oknem innej aplikacji.
-2. **Scenariusz Steam**: uruchomić Steam z kafelka → wyjść z BPM → w momencie
-   zniknięcia okna Steama powinno być widać KD (tapeta + kafelki), nie Plasmę.
-   Przez 1–5 s (do śmierci procesu) KD może być jeszcze nieinteraktywne — to
-   oczekiwane.
-3. **Panele Plasmy**: warstwa BOTTOM leży pod dokami — jeśli w sesji są panele,
-   mogą być widoczne nad KD do czasu podniesienia na TOP. Ocenić, czy to
-   przeszkadza.
-4. **Pauza (odłączenie pada / tray)**: KD ma naprawdę zniknąć — pulpit Plasmy
-   ma być normalnie dostępny.
-5. **Klawiatura w trakcie grania**: wpisywanie tekstu w grze nie może trafiać
-   do KD (obniżone KD ma `Keyboard.NONE`).
-6. **X11/offscreen**: bez layer-shell `drop_below()` degraduje do `hide()` —
-   zachowanie jak przed zmianą.
-
-### Plan B (gdyby `set_layer` na żywo nie działał)
-
-- hide + natychmiastowy re-show z warstwą ustawioną przed mapowaniem, albo
-- osobny, stale zmapowany surface "kurtyna" na warstwie BOTTOM (czarny lub z
-  tapetą KD), a główne okno KD chowane jak dotąd.
+- **BOTTOM layer** — KWin stackuje BOTTOM pod NormalLayer; pulpit Plasmy,
+  panele i okna przebijają ponad surfacem na BOTTOM.
+- **Plan B (hide + natychmiastowy re-show)** — niepotrzebny; cede na TOP działa.
+- **Kurtyna (osobny surface na BOTTOM)** — niepotrzebny.
 
 ## Deferred show (zaimplementowane)
 
-Sama warstwa BOTTOM nie wystarczyła. Punkt 3 wyżej okazał się w praktyce
-dotkliwy: przez 1–5 s (Steam żyje po zamknięciu okna BPM) nad obniżonym KD widać
-było nie tylko panele Plasmy, ale i **zwykłe okna** — warstwa BOTTOM leży pod
-NormalLayer. Efekt: kafle KD wymieszane z taskbarem i oknem terminala.
+Dla aplikacji okienkowych (withdraw), powrót KD wyzwala **zniknięcie ostatniego
+okna aplikacji**, nie exit procesu. `DeferredShow` (lustro `DeferredHide`)
+obserwuje listę okien i po `_CONFIRM_MS` = 500 ms ciszy woła
+`AppLifecycle.on_app_windows_gone()` → `reactivate_desktop()` → TOP +
+`ON_DEMAND` + input. Wraz ze skryptem `windowRemoved` (reakcja ~150 ms) KD
+wraca w ~650 ms zamiast po 1–5 s.
 
-Powrót KD wyzwala więc teraz **zniknięcie ostatniego okna aplikacji**, nie exit
-procesu. `DeferredShow` (lustro `DeferredHide`) obserwuje listę okien i po
-`_CONFIRM_MS` = 500 ms ciszy woła `AppLifecycle.on_app_windows_gone()` →
-`reactivate_desktop()` → TOP + `ON_DEMAND` + input. Wraz ze skryptem
-`windowRemoved` (reakcja ~150 ms) KD wraca w ~650 ms zamiast po 1–5 s.
+Dla aplikacji pełnoekranowych (cede) `DeferredShow` jest uzbrojone dla
+spójności, ale zniknięcie okna odsłania KD natychmiast bez jego pomocy.
 
 Potwierdzenie 500 ms chroni przed grą, która odtwarza okno w locie (zmiana
 trybu wideo): unmap→map w tym oknie czasowym nie liczy się jako zniknięcie.
@@ -122,12 +138,9 @@ trybu wideo): unmap→map w tym oknie czasowym nie liczy się jako zniknięcie.
 
 Jeśli aplikacja zostanie bez okien na dłużej niż 500 ms, ale nie umiera, KD
 wjedzie na wierzch. Po fałszywym podniesieniu watcher jest już rozbrojony —
-ponowne pojawienie się okna nie zepchnie KD z powrotem.
-
-**Otwarte pytanie:** czy aktywne okno pełnoekranowe (KWin `ActiveLayer`)
-zasłania surface layer-shell na TOP. Jeśli tak, fałszywe podniesienie nad grą
-jest niewidoczne i ryzyko jest czysto teoretyczne. Do sprawdzenia spikem albo
-obserwacją przy grze zmieniającej rozdzielczość.
+ponowne pojawienie się okna nie zepchnie KD z powrotem. Dla aplikacji
+pełnoekranowych (cede) ryzyko jest czysto teoretyczne — okno gry przykrywa
+TOP, więc fałszywe podniesienie jest niewidoczne.
 
 Nieuzbrojone przypadki: gdy okno aplikacji nigdy się nie zmapuje, `DeferredHide`
 chowa KD po 5 s guardem, a `DeferredShow` nie ma czego pilnować (`_seen_window`
@@ -135,41 +148,38 @@ zostaje `False`) — zachowanie jak przed zmianą.
 
 ## Przenośność na Hyprland / Sway / GNOME (vs branch `kde_independence`)
 
-Branch przenosi `LayerShellSurface` + bridge `layer_shell.py` do
-`infrastructure/linux/wayland/` i współdzieli je między KWin, Sway i Hyprlandem
-(wszystkie mówią zwlr-layer-shell); GNOME dostaje osobny `GnomeSurface` oparty
-o rozszerzenie "Kasual Helper" (Mutter nie ma layer-shell).
+Branch `kde_independence` przenosi `LayerShellSurface` + bridge `layer_shell.py`
+do `infrastructure/linux/wayland/` i współdzieli je między KWin, Sway i
+Hyprlandem (wszystkie mówią zwlr-layer-shell); GNOME dostaje osobny
+`GnomeSurface` oparty o rozszerzenie "Kasual Helper" (Mutter nie ma layer-shell).
 
-**Hyprland / Sway — działa bez dodatkowej implementacji.** Zmiana żyje w całości
-w `LayerShellSurface` i używa standardowego żądania `zwlr_layer_surface_v1
-.set_layer` (protokół ≥ v2; Sway i Hyprland wspierają). LayerShellQt mówi
-czystym protokołem, więc działa też poza KDE (branch już instaluje tę bibliotekę
-dla tych kompozytorów). Do weryfikacji na urządzeniu tak samo jak na KWin
-(punkt 1 wyżej). Uwaga porządkowa: merge z masterem będzie konfliktował przez
-przeniesienie plików — zmiany z `infrastructure/kde/qt/desktop/surface.py` i
-`infrastructure/kde/qt/ui/layer_shell.py` trzeba przenieść 1:1 do
-`infrastructure/linux/wayland/{surface,layer_shell}.py`.
+**Hyprland / Sway — cede działa bez dodatkowej implementacji.** Zmiana żyje
+w całości w `LayerShellSurface` i używa standardowego `set_keyboard_interactivity`
+(protokół >= v2). Pełnoekranowe okna w wlroots kompozytorach również stackowane
+są ponad layer-shell TOP (zwlr-layer-shell spec: "surfaces are rendered above
+... always below regular windows" dla TOP) — zachowanie analogiczne do KWin.
+`covers_screen` wymaga jednak adaptera, który pobiera geometrię okien (KWin robi
+to przez skrypt `virtualScreenSize`; Sway/Hyprland mają IPC do geometrii). Bez
+tego fallback to `hide()` — aplikacje nie-ustawiające `fullscreen` w protokole
+(jak Steam BPM) wracają do zachowania z mignięciem.
 
 **GNOME — potrzebna dodatkowa implementacja.**
 
-1. *Minimum (bez tego merge się wysypie w runtime):* `GnomeSurface` musi dostać
-   `drop_below()` — port `DesktopSurface` jest strukturalny (Protocol), więc
-   domyślne ciało z portu nie jest dziedziczone; bez metody `hide_view()` rzuci
-   `AttributeError`. Fallback `drop_below() → hide()` przywraca stare
+1. *Minimum:* `GnomeSurface` musi dostać `drop_below()` — port
+   `DesktopSurface` jest strukturalny (Protocol), więc domyślne ciało z portu
+   nie jest dziedziczone; fallback `drop_below() → hide()` przywraca stare
    zachowanie (mignięcie pulpitu GNOME zostaje).
-2. *Pełny efekt:* odpowiednik obniżenia warstwy trzeba dodać w rozszerzeniu
-   Kasual Helper — zamiast unmapować okno: zwolnić pin i zepchnąć okno na dół
-   stosu Muttera (okno zostaje zmapowane pod grą), a przy powrocie z powrotem
-   je przypiąć. Bonus: pozostawienie okna zmapowanym omija wyścig
-   frame-callbacków Muttera, który branch obchodzi przez `DeferredUnmap`.
+2. *Pełny efekt:* odpowiednik cede (zostać zmapowanym pod grą) trzeba dodać
+   w rozszerzeniu Kasual Helper — zamiast unmapować okno: zwolnić pin
+   i zepchnąć okno na dół stosu Muttera, a przy powrocie przypiąć ponownie.
 
 **Szybki refresh po `windowRemoved` jest KWin-only** (skrypty KWin przez
 D-Bus). Odpowiedniki wymagają osobnych adapterów: Sway — IPC `subscribe` na
 zdarzenia okien, Hyprland — socket2 (`closewindow`), GNOME — sygnał z
-rozszerzenia. Na branchu adaptery wlroots pollują co 3 s, więc bez tego powrót
-po zamknięciu okna dynamicznego reaguje tam wolniej niż na KDE.
+rozszerzenia. Na branchu adaptery wlroots pollują co 3 s, więc bez tego
+powrót po zamknięciu okna dynamicznego reaguje tam wolniej niż na KDE.
 
-To samo dotyczy `DeferredShow`: działa wszędzie, gdzie `WindowManager` publikuje
-listę okien, ale na pollingu 3 s KD wróci nawet ~3,5 s po zniknięciu okna. Sam
-komponent nie zależy od KWin — tylko `has_mapped_window()` sięga po
-`expand_pid_tree` z adaptera KWin i przy przenosinach trafia do `linux/`.
+`DeferredShow` działa wszędzie, gdzie `WindowManager` publikuje listę okien,
+ale na pollingu 3 s KD wróci nawet ~3,5 s po zniknięciu okna. Sam komponent
+nie zależy od KWin — tylko `has_mapped_window()` sięga po `expand_pid_tree`
+z adaptera KWin i przy przenosinach trafia do `linux/`.
