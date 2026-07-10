@@ -42,7 +42,9 @@ class Desktop:
         self._state.pause()
         self._overlays.pause()
         self._view.release_input()
-        self._view.hide_view()
+        # A real unmap, not drop_below(): a paused (tray) Desktop parked under
+        # the DE would obscure the very desktop the user switched to.
+        self._view.withdraw_view()
 
     def resume(self) -> None:
         """Come back after the controller reconnects, without resetting foreground."""

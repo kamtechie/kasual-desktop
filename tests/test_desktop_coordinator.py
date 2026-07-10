@@ -60,7 +60,7 @@ class TestPause:
     def test_sequence(self):
         coord, state, view, feedback, overlays = _make()
         coord.pause()
-        assert view.calls == ["release_input", "hide_view"]
+        assert view.calls == ["release_input", "withdraw_view"]
         overlays.pause.assert_called_once_with()
         assert state.paused is True
         assert state.visible is False

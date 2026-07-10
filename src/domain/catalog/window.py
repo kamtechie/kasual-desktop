@@ -13,6 +13,8 @@ class Window:
     title:          str
     pid:            int  = 0
     active:         bool = False
+    fullscreen:     bool = False
+    covers_screen:  bool = False
     desktop_file:   str  = ""   # freedesktop desktopFileName (may include ".desktop")
     resource_class: str  = ""   # X11/Wayland app id
 

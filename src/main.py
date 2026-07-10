@@ -30,6 +30,7 @@ from infrastructure.common.single_instance import SingleInstanceGuard
 from infrastructure.linux.input.gamepad_watcher import GamepadWatcher
 from infrastructure.common.qt.desktop import build_desktop
 from infrastructure.linux.qt.desktop.deferred_hide import DeferredHide
+from infrastructure.linux.qt.desktop.deferred_show import DeferredShow
 from infrastructure.common.qt.icons import install_fontawesome5
 from infrastructure.common.catalog.app_config import (
     DesktopAppProvisioning, DesktopTileSettingsStore, DesktopTileOrderStore,
@@ -152,8 +153,10 @@ def main() -> None:
             is_game_pid=is_game_pid,
             app_adder=app_adder,
             power_preference=power_preference,
-            deferred_hide_factory=lambda wm_, pm_, on_hide:
-                DeferredHide(wm_, pm_, on_hide=on_hide),
+            deferred_hide_factory=lambda wm_, pm_, on_cede, on_hide:
+                DeferredHide(wm_, pm_, on_cede=on_cede, on_hide=on_hide),
+            deferred_show_factory=lambda wm_, pm_, on_show:
+                DeferredShow(wm_, pm_, on_show=on_show),
         )
         # Subscribed after `record` above, so the count is already updated when
         # this runs; delivered on the GUI thread by the monitor's signal hop.

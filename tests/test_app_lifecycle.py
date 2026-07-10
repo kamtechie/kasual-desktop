@@ -47,6 +47,7 @@ class FakeView:
         self.shown = 0
         self.activated = 0
         self.hidden = 0
+        self.withdrawn = 0
         self.dialog_closed = 0
         self.errors: list[str] = []
         self.confirm: tuple | None = None
@@ -64,6 +65,10 @@ class FakeView:
     def hide_view(self) -> None:
         self._visible = False
         self.hidden += 1
+
+    def withdraw_view(self) -> None:
+        self._visible = False
+        self.withdrawn += 1
 
     def close_active_dialog(self) -> None:
         self.dialog_closed += 1
@@ -86,7 +91,7 @@ def _steam_game_app(appid="292030", trigger=Trigger.CLICK, id="witcher3"):
                args=(f"steam://rungameid/{appid}",), recall_menu_trigger=trigger)
 
 
-def _make(apps=None, visible=False, is_game_pid=None):
+def _make(apps=None, visible=False, is_game_pid=None, paused=False):
     view = FakeView(visible=visible)
     gamepad = MagicMock()
     gamepad.top_handler.return_value = None
@@ -95,6 +100,7 @@ def _make(apps=None, visible=False, is_game_pid=None):
     apps = apps if apps is not None else [_app()]
     foreground = ForegroundState()
     deferred_hide = MagicMock()
+    deferred_show = MagicMock()
     tilebar = MagicMock()
     tilebar.is_closing.return_value = False
     pad = object()  # sentinel pad-handler identity
@@ -119,16 +125,19 @@ def _make(apps=None, visible=False, is_game_pid=None):
         apps=apps,
         foreground=foreground,
         deferred_hide=deferred_hide,
+        deferred_show=deferred_show,
         tilebar=tilebar,
         pad_handler=pad,
         scheduler=scheduler,
         feedback=feedback,
         prompts=prompts,
         inspector=inspector,
+        is_paused=lambda: paused,
     )
     return SimpleNamespace(
         lc=lc, view=view, gamepad=gamepad, wm=wm, am=app_manager,
-        apps=apps, fg=foreground, dh=deferred_hide, tilebar=tilebar, pad=pad,
+        apps=apps, fg=foreground, dh=deferred_hide, ds=deferred_show,
+        tilebar=tilebar, pad=pad,
         scheduler=scheduler, feedback=feedback, prompts=prompts,
     )
 
@@ -200,11 +209,11 @@ class TestOnTileActivated:
         c = _make()
         target = WindowTarget(window_id="w1", name="Win", trigger=Trigger.CLICK)
         c.lc.on_tile_activated(target)
-        # restore path: foreground set, window activated, handler popped, view hidden
+        # restore path: foreground set, window activated, handler popped
         assert c.fg.current == target
         c.wm.activate_window.assert_called_once_with("w1")
         c.gamepad.pop_handler.assert_called_once_with(c.pad)
-        assert c.view.hidden == 1
+        assert c.view.withdrawn == 1  # non-fullscreen → truly hidden
         c.dh.arm.assert_not_called()
 
     def test_running_app_restores_not_launches(self):
@@ -212,7 +221,7 @@ class TestOnTileActivated:
         c.am.is_running.return_value = True
         c.lc.on_tile_activated(AppTarget(index=0, app_id="app0", name="App"))
         c.am.launch.assert_not_called()
-        assert c.view.hidden == 1  # restore hides the desktop
+        assert c.view.withdrawn == 1  # non-fullscreen → truly hidden
 
     def test_steam_game_restores_via_window_when_forwarder_exited(self):
         # The `steam steam://...` forwarder has exited (AppManager: not running),
@@ -221,12 +230,13 @@ class TestOnTileActivated:
         c = _make(apps=[_steam_game_app()])
         c.am.is_running.return_value = False
         c.wm.cached_windows.return_value = [
-            Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030"),
+            Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030",
+                   fullscreen=True),
         ]
         c.lc.on_tile_activated(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
         c.am.launch.assert_not_called()
         c.wm.activate_window.assert_called_once_with("g1")
-        assert c.view.hidden == 1
+        assert c.view.hidden == 1  # fullscreen → cede (stay on TOP)
 
     def test_idle_app_launches_and_arms_hide(self):
         c = _make(apps=[_app(trigger=Trigger.HOLD_1S)])
@@ -238,6 +248,7 @@ class TestOnTileActivated:
         c.gamepad.set_app_btn_mode_trigger.assert_called_with(Trigger.HOLD_1S)
         c.gamepad.pop_handler.assert_called_once_with(c.pad)
         c.dh.arm.assert_called_once_with(app)
+        c.ds.arm.assert_called_once_with(app)
 
     def test_failed_launch_does_not_arm_hide(self):
         c = _make()
@@ -245,6 +256,7 @@ class TestOnTileActivated:
         c.am.launch.return_value = False
         c.lc.on_tile_activated(AppTarget(index=0, app_id="app0", name="App"))
         c.dh.arm.assert_not_called()
+        c.ds.arm.assert_not_called()
 
     def test_closing_app_activation_is_ignored(self):
         """Activating an app tile mid-shutdown is a no-op (the relocated guard)."""
@@ -278,7 +290,7 @@ class TestDispatchTileAction:
         c.am.is_running.return_value = True
         target = AppTarget(index=0, app_id="app0", name="App")
         c.lc.dispatch_tile_action(MenuItem("Restore", RESTORE, target=target))
-        assert c.view.hidden == 1          # restore hides the desktop
+        assert c.view.withdrawn == 1          # non-fullscreen → truly hidden
 
     def test_close_requests_close(self):
         from domain.menu.entry import CLOSE
@@ -299,7 +311,7 @@ class TestRestoreApp:
         c.gamepad.set_app_btn_mode_trigger.assert_called_once_with(Trigger.HOLD_1S)
         c.wm.activate_windows_for_pids.assert_called_once_with({4321})
         c.gamepad.pop_handler.assert_called_once_with(c.pad)
-        assert c.view.hidden == 1
+        assert c.view.withdrawn == 1  # non-fullscreen → truly hidden
 
     def test_window_target_uses_own_trigger(self):
         c = _make()
@@ -307,7 +319,7 @@ class TestRestoreApp:
         c.lc.restore_app(target)
         c.gamepad.set_app_btn_mode_trigger.assert_called_once_with(Trigger.HOLD_1S)
         c.wm.activate_window.assert_called_once_with("w9")
-        assert c.view.hidden == 1
+        assert c.view.withdrawn == 1  # non-fullscreen → truly hidden
 
     def test_steam_game_raised_by_window_identity_not_process(self):
         # The shared Steam process must not be activated — its steam_app_<id>
@@ -316,13 +328,14 @@ class TestRestoreApp:
         c.am.running_pid.return_value = None      # forwarder already exited
         c.am.all_running_pids.return_value = []
         c.wm.cached_windows.return_value = [
-            Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030"),
+            Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030",
+                   fullscreen=True),
             Window(id="s1", title="Steam",     pid=100, resource_class="steam"),
         ]
         c.lc.restore_app(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
         c.wm.activate_window.assert_called_once_with("g1")
         c.wm.activate_windows_for_pids.assert_not_called()
-        assert c.view.hidden == 1
+        assert c.view.hidden == 1  # fullscreen → cede (stay on TOP)
 
     def test_steam_game_minimizes_others_but_spares_the_steam_tree(self):
         # The game is a descendant of the Steam process tree, so the tracked
@@ -332,7 +345,8 @@ class TestRestoreApp:
         c.am.running_pid.return_value = 100       # the shared Steam client pid
         c.am.all_running_pids.return_value = [100, 555]
         c.wm.cached_windows.return_value = [
-            Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030"),
+            Window(id="g1", title="Witcher 3", pid=200, resource_class="steam_app_292030",
+                   fullscreen=True),
         ]
         c.lc.restore_app(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
         c.wm.activate_window.assert_called_once_with("g1")
@@ -362,7 +376,7 @@ class TestRestoreApp:
         c.lc.restore_app(AppTarget(index=0, app_id="konsole", name="Konsole"))
         c.wm.activate_window.assert_called_once_with("k1")
         c.wm.activate_windows_for_pids.assert_not_called()
-        assert c.view.hidden == 1
+        assert c.view.withdrawn == 1  # non-fullscreen → truly hidden
 
 
 # ── arrange_windows ─────────────────────────────────────────────────────────
@@ -537,7 +551,7 @@ class TestRequestCloseApp:
         c.lc.request_close_app(AppTarget(index=0, app_id="app0", name="App"))
         _, _, on_cancelled = c.view.confirm
         on_cancelled()
-        assert c.view.hidden == 1          # restore_app hides the desktop again
+        assert c.view.withdrawn == 1          # restore_app hides the desktop again
 
 
 # ── foreground_is_game (gates the in-game HUD toggle) ────────────────────────
@@ -621,3 +635,35 @@ class TestForegroundIsGame:
         c = _make(is_game_pid={500: True}.get)
         c.fg.set(WindowTarget(window_id="g1", name="Witcher 3", pid=500))
         assert c.lc.foreground_is_game() is True
+
+
+class TestDeferredShow:
+    def test_restore_arms_show_watcher(self):
+        c = _make()
+        c.lc.restore_app(AppTarget(index=0, app_id="app0", name="App"))
+        c.ds.arm.assert_called_once_with(c.apps[0])
+
+    def test_restoring_dynamic_window_does_not_arm(self):
+        c = _make()
+        c.lc.restore_app(WindowTarget(window_id="w1", name="Win", trigger=Trigger.CLICK))
+        c.ds.arm.assert_not_called()
+
+    def test_windows_gone_reactivates_desktop(self):
+        c = _make(visible=False)
+        c.lc.on_app_windows_gone()
+        assert c.view.is_visible() is True
+
+    def test_windows_gone_while_paused_keeps_desktop_down(self):
+        c = _make(visible=False, paused=True)
+        c.lc.on_app_windows_gone()
+        assert c.view.is_visible() is False
+
+    def test_reactivate_cancels_show_watcher(self):
+        c = _make()
+        c.lc.reactivate_desktop()
+        c.ds.cancel.assert_called_once()
+
+    def test_app_finished_cancels_show_watcher(self):
+        c = _make()
+        c.lc.on_app_finished("app0")
+        c.ds.cancel.assert_called()

@@ -275,12 +275,20 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def show_fullscreen(self) -> None:
         self._surface.show_fullscreen()
         self._chrome.sync()
+        # Coming back from drop_below() re-raises without remapping, so
+        # showEvent never fires — apply its cursor guard here as well.
+        self._tilebar.suppress_hover_until_move()
+        QTimer.singleShot(0, self._tilebar.center_current)
 
     def activate(self) -> None:
         self._surface.activate()
         self._chrome.on_desktop_activated()
 
     def hide_view(self) -> None:
+        self._surface.drop_below()
+        self._chrome.sync()
+
+    def withdraw_view(self) -> None:
         self._surface.hide()
         self._chrome.sync()
 

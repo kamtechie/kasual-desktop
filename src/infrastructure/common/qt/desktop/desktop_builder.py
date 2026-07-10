@@ -18,6 +18,7 @@ from domain.input.pad_control import PadControl
 from domain.lifecycle.app_lifecycle import AppLifecycle
 from domain.lifecycle.foreground_inspector import ForegroundInspector
 from domain.lifecycle.launch_hide import LaunchHide
+from domain.lifecycle.launch_show import LaunchShow
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.prompts import LocalizedPrompts
 from domain.lifecycle.window_manager import WindowManager
@@ -72,6 +73,21 @@ class _ImmediateHide:
         pass
 
 
+class _NoDeferredShow:
+    """Fallback ``LaunchShow``: never returns early — the Desktop comes back when
+    the app's process exits, as it did before window-driven return existed."""
+
+    @property
+    def is_armed(self) -> bool:
+        return False
+
+    def arm(self, app) -> None:
+        pass
+
+    def cancel(self) -> None:
+        pass
+
+
 def build_desktop(
     *,
     apps: AppCatalog,
@@ -91,6 +107,7 @@ def build_desktop(
     app_pinning: AppPinning,
     surface: DesktopSurface | None = None,
     deferred_hide_factory: 'Callable[[WindowManager, ProcessManager, Callable[[], None]], LaunchHide] | None' = None,
+    deferred_show_factory: 'Callable[[WindowManager, ProcessManager, Callable[[], None]], LaunchShow] | None' = None,
     parent_of: Callable[[int], int | None] | None = None,
     is_game_pid: Callable[[int], bool] = lambda _: False,
     app_adder: AppAdder | None = None,
@@ -152,10 +169,20 @@ def build_desktop(
     # hide keeps this shared builder free of any platform import.
     if deferred_hide_factory is not None:
         deferred_hide = deferred_hide_factory(
-            window_manager, process_manager, widget.hide_view,
+            window_manager, process_manager,
+            widget.hide_view,     # cede: stay on TOP, Keyboard.NONE
+            widget.withdraw_view,  # hide: truly unmap
         )
     else:
         deferred_hide = _ImmediateHide(widget.hide_view)
+    # Returns the Desktop the moment the app's last window unmaps. Its callback
+    # fires long after ``lifecycle`` below is bound.
+    if deferred_show_factory is not None:
+        deferred_show = deferred_show_factory(
+            window_manager, process_manager, lambda: lifecycle.on_app_windows_gone(),
+        )
+    else:
+        deferred_show = _NoDeferredShow()
     # Read-only foreground/game introspection, split off the coordinator.
     inspector = ForegroundInspector(
         foreground=widget._foreground,
@@ -174,6 +201,7 @@ def build_desktop(
         apps=live_apps,
         foreground=widget._foreground,
         deferred_hide=deferred_hide,
+        deferred_show=deferred_show,
         tilebar=widget._tilebar,
         pad_handler=widget._handle_pad,
         scheduler=scheduler,

@@ -32,8 +32,18 @@ class DesktopSurface(Protocol):
 
     def show_fullscreen(self) -> None: ...
     def hide(self) -> None: ...
+
+    def drop_below(self) -> None:
+        """Cede the screen to a launched app. Where the windowing system allows
+        it (Wayland layer-shell) the surface stays mapped on a bottom layer, so
+        the moment the app's window unmaps the compositor reveals the Desktop —
+        never the bare DE. Elsewhere this degrades to ``hide()``."""
+
     def activate(self) -> None: ...
-    def is_visible(self) -> bool: ...
+    def is_visible(self) -> bool:
+        """Logical visibility: is the Desktop the surface in front? A surface
+        parked below a running app reports False even though it stays mapped."""
+        ...
 
     def on_reactivate(self, callback: Callable[[], None]) -> None:
         """Register the callback the surface invokes when the platform decides the
@@ -62,6 +72,9 @@ class PlainSurface:
         self._widget.showFullScreen()
 
     def hide(self) -> None:
+        self._widget.hide()
+
+    def drop_below(self) -> None:
         self._widget.hide()
 
     def activate(self) -> None:

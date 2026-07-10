@@ -58,6 +58,11 @@ class WindowsDesktopSurface:
         # Plain hide (session disconnect / minimize): stays hidden, no auto-return.
         self._widget.hide()
 
+    def drop_below(self) -> None:
+        # No layer-shell on Windows — ceding the screen is a plain hide; the
+        # launch path starts the foreground monitor via hide_for_launch().
+        self._widget.hide()
+
     def activate(self) -> None:
         self._widget.activateWindow()
 

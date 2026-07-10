@@ -66,6 +66,26 @@ def is_available() -> bool:
     return _load() is not None
 
 
+def _ls_handle(widget: QWidget) -> "tuple[ctypes.CDLL, int] | None":
+    """The (lib, LayerShellQt::Window*) pair for `widget`, or None off Wayland /
+    without the lib / before the native QWindow exists."""
+    if QGuiApplication.platformName() != "wayland":
+        return None
+    lib = _load()
+    if lib is None:
+        return None
+    widget.winId()  # create the native QWindow (shell surface comes at show())
+    qwin = widget.windowHandle()
+    if qwin is None:
+        logger.error("DBG layer_shell: windowHandle() is None after winId()")
+        return None
+    ls_window = lib._ls_get(sip.unwrapinstance(qwin))
+    if not ls_window:
+        logger.error("DBG layer_shell: LayerShellQt::Window::get() returned null")
+        return None
+    return lib, ls_window
+
+
 def make_layer_surface(
     widget: QWidget,
     *,
@@ -79,27 +99,22 @@ def make_layer_surface(
     Must be called before widget.show(). Returns True on success, False if
     not on Wayland, LayerShellQt is unavailable, or the handle creation failed.
     """
-    if QGuiApplication.platformName() != "wayland":
-        # offscreen (tests), xcb, etc. — leave the widget as an ordinary window.
+    got = _ls_handle(widget)
+    if got is None:
         return False
-
-    lib = _load()
-    if lib is None:
-        return False
-
-    widget.winId()  # create the native QWindow (shell surface comes at show())
-    qwin = widget.windowHandle()
-    if qwin is None:
-        logger.error("DBG layer_shell: windowHandle() is None after winId()")
-        return False
-
-    ls_window = lib._ls_get(sip.unwrapinstance(qwin))
-    if not ls_window:
-        logger.error("DBG layer_shell: LayerShellQt::Window::get() returned null")
-        return False
-
+    lib, ls_window = got
     lib._ls_layer(ls_window, int(layer))
     lib._ls_anchors(ls_window, int(anchors))
     lib._ls_excl(ls_window, exclusive_zone)
+    lib._ls_kbd(ls_window, int(keyboard))
+    return True
+
+
+def set_keyboard(widget: QWidget, keyboard: Keyboard) -> bool:
+    """Change keyboard interactivity of an already-promoted surface."""
+    got = _ls_handle(widget)
+    if got is None:
+        return False
+    lib, ls_window = got
     lib._ls_kbd(ls_window, int(keyboard))
     return True

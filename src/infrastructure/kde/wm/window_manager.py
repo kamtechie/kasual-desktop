@@ -35,6 +35,8 @@ def to_window(d: dict) -> Window:
         title=str(d.get('title', '')),
         pid=int(d.get('pid', 0) or 0),
         active=bool(d.get('active', False)),
+        fullscreen=bool(d.get('fullscreen', False)),
+        covers_screen=bool(d.get('coversScreen', False)),
         desktop_file=d.get('desktopFile', '') or '',
         resource_class=d.get('resourceClass', '') or '',
     )
@@ -56,15 +58,20 @@ _LIST_SCRIPT = """\
     var aw = workspace.activeWindow;
     var awId = aw ? String(aw.internalId) : '';
     var ws = workspace.windowList();
+    var area = workspace.virtualScreenSize;
     var out = [];
     for (var i = 0; i < ws.length; i++) {
         var w = ws[i];
         if (!w.skipTaskbar && w.normalWindow && !w.desktopWindow && !w.dock) {
+            var geo = w.frameGeometry;
+            var covers = geo.width >= area.width && geo.height >= area.height;
             out.push({
                 id:            String(w.internalId),
                 title:         String(w.caption),
                 pid:           parseInt(w.pid) || 0,
                 active:        String(w.internalId) === awId,
+                fullscreen:    Boolean(w.fullscreen),
+                coversScreen:  covers,
                 desktopFile:   String(w.desktopFileName || ''),
                 resourceClass: String(w.resourceClass   || '')
             });
@@ -146,7 +153,22 @@ _RAISE_BY_PIDS_SCRIPT = """\
 }})();
 """
 
+# Persistent event hook: poke us over D-Bus whenever a window unmaps, so the
+# window list refreshes in ~150 ms instead of waiting for the 3 s poll (e.g.
+# returning to the Desktop right as an app's window disappears).
+_EVENTS_SCRIPT = """\
+(function () {
+    workspace.windowRemoved.connect(function (w) {
+        callDBus('org.consoledesktop.WindowList', '/WindowList',
+                 '', 'windowRemoved', String(w ? w.pid : 0));
+    });
+})();
+"""
+
+_EVENTS_PLUGIN = 'consoled_window_events'
+
 _SCRIPT_TIMEOUT_MS = 5_000
+_REMOVED_DEBOUNCE_MS = 150
 
 
 class _WindowListHost(QObject):
@@ -160,6 +182,7 @@ class _WindowListHost(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._callbacks: list = []
+        self._removed_cb: Callable[[str], None] | None = None
 
         bus = QDBusConnection.sessionBus()
         ok_obj = bus.registerObject(
@@ -181,6 +204,14 @@ class _WindowListHost(QObject):
             logger.warning('WindowList JSON error: %s', exc)
             data = []
         self._on_receive(data)
+
+    @pyqtSlot(str)
+    def windowRemoved(self, pid: str) -> None:
+        if self._removed_cb is not None:
+            self._removed_cb(pid)
+
+    def set_removed_callback(self, cb: Callable[[str], None]) -> None:
+        self._removed_cb = cb
 
     def add_callback(self, cb) -> None:
         self._callbacks.append(cb)
@@ -230,10 +261,18 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         self._timeout_guard.setSingleShot(True)
         self._timeout_guard.timeout.connect(self._on_script_timeout)
 
+        # Coalesces windowRemoved bursts (a closing app drops several windows).
+        self._removed_debounce = QTimer(self)
+        self._removed_debounce.setSingleShot(True)
+        self._removed_debounce.setInterval(_REMOVED_DEBOUNCE_MS)
+        self._removed_debounce.timeout.connect(self._request_list_refresh)
+        self._events_path: str | None = None
+
     # ── Public API ─────────────────────────────────────────────────────────
 
     def start_periodic_refresh(self, interval_ms: int = 3000) -> None:
         self._ensure_host()
+        self._install_event_script()
         self._request_list_refresh()
         self._timer.start(interval_ms)
 
@@ -305,6 +344,9 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
 
     def close(self) -> None:
         self.stop_refresh()
+        if self._events_path is not None:
+            self._cleanup_script(self._events_path, _EVENTS_PLUGIN)
+            self._events_path = None
         if self._host:
             self._host.cleanup()
             self._host = None
@@ -314,6 +356,27 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
     def _ensure_host(self) -> None:
         if self._host is None:
             self._host = _WindowListHost()
+
+    def _install_event_script(self) -> None:
+        """Load the persistent windowRemoved hook (idempotent). A fixed plugin
+        name plus unload-before-load clears any copy left by a crashed run."""
+        if self._events_path is not None:
+            return
+        self._scripting.call('unloadScript', _EVENTS_PLUGIN)
+        path = self._write_script(_EVENTS_SCRIPT)
+        if path is None:
+            return
+        self._host.set_removed_callback(self._on_window_removed)
+        if self._load_script(path, _EVENTS_PLUGIN):
+            self._events_path = path
+        else:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+
+    def _on_window_removed(self, _pid: str) -> None:
+        self._removed_debounce.start()
 
     def _request_list_refresh(self) -> None:
         if self._loading:
