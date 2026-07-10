@@ -1,3 +1,4 @@
+import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
@@ -49,6 +50,7 @@ const IFACE = `
     <method name="HideOverlay">
       <arg type="s" direction="in" name="wmClass"/>
     </method>
+    <method name="SimulateUserActivity"/>
   </interface>
 </node>`;
 
@@ -102,6 +104,7 @@ class Helper {
 
         this._appClass = null;
         this._showRequested = false;
+        this._virtualPointer = null;
         this._roles = new Map();
         this._pinned = new Set();
         this._unredirectApi = null;
@@ -138,6 +141,7 @@ class Helper {
                 win.disconnect(id);
         this._windowSignals.clear();
         this._showFromAppLists();
+        this._virtualPointer = null;
         this._appClass = null;
         this._sync();
         this._dbus.unexport();
@@ -524,6 +528,19 @@ class Helper {
         this._showRequested = true;
         this._setUnredirectSuppressed(true);   // before the first window maps
         this._sync();
+    }
+
+    // Gamepad input never reaches Mutter (libinput ignores joysticks), so Kasual
+    // reports pad activity here. A zero-delta virtual pointer event resets the
+    // session idle time and fires user-active watches (screen wake, unblank)
+    // without moving the cursor — see mutter's handle_idletime_for_event().
+    SimulateUserActivity() {
+        if (!this._virtualPointer) {
+            const seat = Clutter.get_default_backend().get_default_seat();
+            this._virtualPointer = seat.create_virtual_device(
+                Clutter.InputDeviceType.POINTER_DEVICE);
+        }
+        this._virtualPointer.notify_relative_motion(Clutter.CURRENT_TIME, 0, 0);
     }
 
     // The class stays registered: an OSD mapped later, over a game, must pin too.

@@ -420,3 +420,46 @@ class TestConnectionStateReplay:
         mock_gamepad.on_connected(lambda evt: got.append(evt))
         mock_gamepad._on_connected_hop()   # normalna ścieżka (po subskrypcji)
         assert len(got) == 1
+
+
+# ── on_activity: sygnał obecności użytkownika ─────────────────────────────────
+
+class TestActivity:
+    def test_nav_event_emits_activity(self, mock_gamepad):
+        fired = []
+        mock_gamepad.on_activity(lambda: fired.append(True))
+        mock_gamepad._dispatch("select")
+        assert fired == [True]
+
+    def test_activity_fires_even_without_nav_handler(self, mock_gamepad):
+        """Gra na pierwszym planie: stos nie konsumuje eventu, aktywność i tak jest."""
+        fired = []
+        mock_gamepad.on_activity(lambda: fired.append(True))
+        assert mock_gamepad.top_handler() is None
+        mock_gamepad._dispatch("up")
+        assert fired == [True]
+
+    def test_btn_mode_emits_activity(self, mock_gamepad):
+        fired = []
+        mock_gamepad.on_activity(lambda: fired.append(True))
+        mock_gamepad._on_btn_mode_hop()
+        assert fired == [True]
+
+    def test_connect_emits_activity(self, mock_gamepad):
+        fired = []
+        mock_gamepad.on_activity(lambda: fired.append(True))
+        mock_gamepad._on_connected_hop()
+        assert fired == [True]
+
+    def test_disconnect_does_not_emit_activity(self, mock_gamepad):
+        fired = []
+        mock_gamepad.on_activity(lambda: fired.append(True))
+        mock_gamepad._on_disconnected_hop()
+        assert fired == []
+
+    def test_unsubscribe_stops_activity(self, mock_gamepad):
+        fired = []
+        unsubscribe = mock_gamepad.on_activity(lambda: fired.append(True))
+        unsubscribe()
+        mock_gamepad._dispatch("select")
+        assert fired == []

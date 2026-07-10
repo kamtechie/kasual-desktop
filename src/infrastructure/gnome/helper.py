@@ -58,6 +58,14 @@ def list_windows_json() -> str | None:
     return arguments[0] if arguments else "[]"
 
 
+def simulate_user_activity() -> None:
+    """Reset GNOME's idle time (unblanks the screen; a locked shield stays locked).
+    Fire-and-forget: without the extension the message is a harmless no-op."""
+    msg = QDBusMessage.createMethodCall(
+        SERVICE, OBJECT_PATH, INTERFACE, "SimulateUserActivity")
+    QDBusConnection.sessionBus().asyncCall(msg)
+
+
 def set_surface_role(title: str, layer: int, anchors: int) -> None:
     """Declare what a Kasual window is, keyed by its window title.
 

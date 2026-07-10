@@ -20,6 +20,7 @@ from domain.shell.wallpaper import SystemWallpaper
 
 if TYPE_CHECKING:
     from infrastructure.common.qt.desktop.surface import DesktopSurface
+    from infrastructure.linux.display.screensaver import ScreenSaverWaker
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,21 @@ def build_system_wallpaper() -> SystemWallpaper:
         return GnomeSystemWallpaper()
     from infrastructure.linux.display.wallpaper import StaticFileWallpaper
     return StaticFileWallpaper()
+
+
+def build_screensaver_waker() -> "ScreenSaverWaker":
+    """Construct the gamepad-activity → screensaver wake for the detected compositor.
+
+    GNOME's freedesktop ScreenSaver proxy only handles Inhibit, so the poke goes
+    through the Kasual Helper extension there; everywhere else the standard
+    ``SimulateUserActivity`` is used (a harmless no-op where unimplemented)."""
+    from infrastructure.linux.display.screensaver import (
+        ScreenSaverWaker, simulate_freedesktop_activity,
+    )
+    if detect_compositor() is Compositor.GNOME:
+        from infrastructure.gnome.helper import simulate_user_activity
+        return ScreenSaverWaker(simulate_user_activity)
+    return ScreenSaverWaker(simulate_freedesktop_activity)
 
 
 def build_desktop_surface() -> "DesktopSurface":

@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 from infrastructure.linux.compositor import (
-    Compositor, build_desktop_surface, build_system_wallpaper,
-    build_window_manager, detect_compositor,
+    Compositor, build_desktop_surface, build_screensaver_waker,
+    build_system_wallpaper, build_window_manager, detect_compositor,
 )
 
 # The platform and the shell integration must be selected before QApplication is
@@ -46,6 +46,9 @@ from infrastructure.linux.log.log_viewer_launcher import LogViewerLauncher
 from infrastructure.linux.power.power import SystemdPowerControl
 from infrastructure.linux.audio.volume import PactlVolumeControl
 from infrastructure.linux.display.brightness import select_brightness_control
+from infrastructure.linux.display.screensaver import (
+    ScreenSaverInhibitor, VisibilityInhibitor,
+)
 from infrastructure.common.qt.scheduler import QtScheduler
 from infrastructure.linux.hud.mangohud import MangoHudControl
 from infrastructure.linux.notifications.notifications import FreedesktopNotificationMonitor
@@ -87,6 +90,8 @@ def main() -> None:
     install_translations(app, str(Path(__file__).parent.parent / "locale"))
 
     gamepad = GamepadWatcher()
+    screensaver_waker = build_screensaver_waker()
+    gamepad.on_activity(screensaver_waker.poke)
     feedback = SoundFeedback()
 
     # Provisioning: a fresh install has no apps. We detect that via an explicit
@@ -153,6 +158,12 @@ def main() -> None:
         # Subscribed after `record` above, so the count is already updated when
         # this runs; delivered on the GUI thread by the monitor's signal hop.
         wire_notification_badge(notification_monitor, desktop)
+
+        # No screensaver while the Desktop is on screen; released when it hides,
+        # so an idle session with KD minimized still locks/blanks normally.
+        inhibitor = ScreenSaverInhibitor()
+        VisibilityInhibitor(inhibitor, parent=app).watch(desktop)
+        app.aboutToQuit.connect(inhibitor.release)
 
         # Parented to `app`, or this QObject would be GC'd once this method
         # returns, silently tearing down its D-Bus subscriptions.

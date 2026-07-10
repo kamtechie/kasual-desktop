@@ -12,6 +12,10 @@ class GamepadSignals(Protocol):
     """Connect/disconnect and BTN_MODE events the lifecycle subscribes to."""
 
     def on_btn_mode(self, handler: Callable[[], None]) -> Unsubscribe: ...
+
+    def on_activity(self, handler: Callable[[], None]) -> Unsubscribe:
+        """Any pad interaction (press, direction, connect) — a user-presence signal."""
+        ...
     def on_connected(
         self, handler: Callable[[GamepadConnected], None]
     ) -> Unsubscribe: ...

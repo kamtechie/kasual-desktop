@@ -75,6 +75,7 @@ class BaseGamepadWatcher(
         self._btn_mode_emitter     = EventEmitter[BtnModePressed]()
         self._connected_emitter    = EventEmitter[GamepadConnected]()
         self._disconnected_emitter = EventEmitter[GamepadDisconnected]()
+        self._activity_emitter     = EventEmitter[None]()
 
         # Bound-method slots (not lambdas) so each fan-out runs on the GUI thread
         # and is individually testable.
@@ -101,13 +102,16 @@ class BaseGamepadWatcher(
 
     def _dispatch(self, event: str) -> None:
         """Deliver a navigation event to the active handler (on the GUI thread)."""
+        self._activity_emitter.emit(None)
         self._stack.dispatch(event)
 
     def _on_btn_mode_hop(self) -> None:
+        self._activity_emitter.emit(None)
         self._btn_mode_emitter.emit(BtnModePressed())
 
     def _on_connected_hop(self) -> None:
         self._connected = True
+        self._activity_emitter.emit(None)
         self._connected_emitter.emit(GamepadConnected())
 
     def _on_disconnected_hop(self) -> None:
@@ -187,6 +191,9 @@ class BaseGamepadWatcher(
 
     def on_btn_mode(self, handler: Callable[[], None]) -> Unsubscribe:
         return self._btn_mode_emitter.subscribe(lambda _evt: handler())
+
+    def on_activity(self, handler: Callable[[], None]) -> Unsubscribe:
+        return self._activity_emitter.subscribe(lambda _evt: handler())
 
     def on_connected(
         self, handler: Callable[[GamepadConnected], None]
