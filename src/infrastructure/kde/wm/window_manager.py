@@ -34,6 +34,8 @@ def to_window(d: dict) -> Window:
         title=str(d.get('title', '')),
         pid=int(d.get('pid', 0) or 0),
         active=bool(d.get('active', False)),
+        fullscreen=bool(d.get('fullscreen', False)),
+        covers_screen=bool(d.get('coversScreen', False)),
         desktop_file=d.get('desktopFile', '') or '',
         resource_class=d.get('resourceClass', '') or '',
     )
@@ -55,15 +57,20 @@ _LIST_SCRIPT = """\
     var aw = workspace.activeWindow;
     var awId = aw ? String(aw.internalId) : '';
     var ws = workspace.windowList();
+    var area = workspace.virtualScreenSize;
     var out = [];
     for (var i = 0; i < ws.length; i++) {
         var w = ws[i];
         if (!w.skipTaskbar && w.normalWindow && !w.desktopWindow && !w.dock) {
+            var geo = w.frameGeometry;
+            var covers = geo.width >= area.width && geo.height >= area.height;
             out.push({
                 id:            String(w.internalId),
                 title:         String(w.caption),
                 pid:           parseInt(w.pid) || 0,
                 active:        String(w.internalId) === awId,
+                fullscreen:    Boolean(w.fullscreen),
+                coversScreen:  covers,
                 desktopFile:   String(w.desktopFileName || ''),
                 resourceClass: String(w.resourceClass   || '')
             });

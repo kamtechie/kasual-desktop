@@ -169,7 +169,9 @@ def build_desktop(
     # hide keeps this shared builder free of any platform import.
     if deferred_hide_factory is not None:
         deferred_hide = deferred_hide_factory(
-            window_manager, process_manager, widget.hide_view,
+            window_manager, process_manager,
+            widget.hide_view,     # cede: stay on TOP, Keyboard.NONE
+            widget.withdraw_view,  # hide: truly unmap
         )
     else:
         deferred_hide = _ImmediateHide(widget.hide_view)

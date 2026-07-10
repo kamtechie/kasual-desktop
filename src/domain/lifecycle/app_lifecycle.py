@@ -131,7 +131,27 @@ class AppLifecycle(AppControl):
             self._gamepad.set_app_btn_mode_trigger(target.trigger)
             self._wm.activate_window(target.window_id)
         self._gamepad.pop_handler(self._pad_handler)
-        self._view.hide_view()
+        if self._target_is_fullscreen(target):
+            self._view.hide_view()
+        else:
+            self._view.withdraw_view()
+
+    def _target_is_fullscreen(self, target: Target) -> bool:
+        """True if the restored app's/existing window covers the screen — KWin
+        stacks such a window above layer-shell TOP, so ceding (staying mapped
+        on TOP with Keyboard.NONE) keeps the app visible."""
+        windows = self._wm.cached_windows()
+        if isinstance(target, AppTarget):
+            app = self._apps[target.index]
+            return any(
+                (w.pid != 0 and w.matches_app(app))
+                and (w.fullscreen or w.covers_screen)
+                for w in windows
+            )
+        return any(
+            w.id == target.window_id and (w.fullscreen or w.covers_screen)
+            for w in windows
+        )
 
     def arrange_windows(self, activate_pid: int | None = None) -> None:
         """Activate windows for activate_pid and minimize all other running apps."""

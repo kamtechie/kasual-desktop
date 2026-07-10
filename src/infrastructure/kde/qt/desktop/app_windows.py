@@ -19,3 +19,19 @@ def has_mapped_window(
     pid   = app_manager.running_pid(app.id)
     owned = expand_pid_tree({pid}) if pid else set()
     return app_window_present(windows, app, owned)
+
+
+def app_window_fullscreen(
+    app: App, windows: Sequence[Window], app_manager: ProcessManager,
+) -> bool:
+    """True if *app* has a mapped window that covers the screen — either via
+    KWin's fullscreen property or by sizing itself to the full output (e.g.
+    Steam Big Picture). KWin stacks such windows above layer-shell TOP, so
+    ceding (staying mapped on TOP with Keyboard.NONE) keeps the app visible
+    without hiding the Desktop."""
+    pid   = app_manager.running_pid(app.id)
+    owned = expand_pid_tree({pid}) if pid else set()
+    return any(
+        (w.pid in owned or w.matches_app(app)) and (w.fullscreen or w.covers_screen)
+        for w in windows
+    )

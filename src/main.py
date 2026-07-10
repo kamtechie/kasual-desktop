@@ -141,8 +141,8 @@ def main() -> None:
             is_game_pid=is_game_pid,
             app_adder=app_adder,
             power_preference=power_preference,
-            deferred_hide_factory=lambda wm_, pm_, on_hide:
-                DeferredHide(wm_, pm_, on_hide=on_hide),
+            deferred_hide_factory=lambda wm_, pm_, on_cede, on_hide:
+                DeferredHide(wm_, pm_, on_cede=on_cede, on_hide=on_hide),
             deferred_show_factory=lambda wm_, pm_, on_show:
                 DeferredShow(wm_, pm_, on_show=on_show),
         )

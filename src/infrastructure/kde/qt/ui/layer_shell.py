@@ -110,18 +110,6 @@ def make_layer_surface(
     return True
 
 
-def set_layer(widget: QWidget, layer: Layer) -> bool:
-    """Move an already-promoted surface to another layer. Works on a mapped
-    window: KWin applies zwlr set_layer on the next surface commit (caller
-    should force a repaint, e.g. widget.update())."""
-    got = _ls_handle(widget)
-    if got is None:
-        return False
-    lib, ls_window = got
-    lib._ls_layer(ls_window, int(layer))
-    return True
-
-
 def set_keyboard(widget: QWidget, keyboard: Keyboard) -> bool:
     """Change keyboard interactivity of an already-promoted surface."""
     got = _ls_handle(widget)
