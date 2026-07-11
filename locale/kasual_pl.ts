@@ -381,7 +381,7 @@
         <translation>Włącz HUD</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/home_header.py" line="335" />
+        <location filename="../src/infrastructure/common/qt/overlays/home_header.py" line="357" />
         <source>Power</source>
         <translation>Zasilanie</translation>
     </message>
@@ -394,6 +394,51 @@
         <location filename="../src/infrastructure/common/qt/overlays/notifications_overlay.py" line="168" />
         <source>No notifications</source>
         <translation>Brak powiadomień</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="138" />
+        <source>Kasual Desktop needs its GNOME Shell helper extension to manage windows.
+
+Enable it now?</source>
+        <translation>Kasual Desktop potrzebuje swojego rozszerzenia GNOME Shell do zarządzania oknami.
+
+Włączyć je teraz?</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="143" />
+        <source>Enable</source>
+        <translation>Włącz</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="144" />
+        <source>Not now</source>
+        <translation>Nie teraz</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="155" />
+        <source>The Kasual Helper GNOME Shell extension isn't installed. Install the Kasual Desktop package, then enable it with:</source>
+        <translation>Rozszerzenie GNOME Shell „Kasual Helper” nie jest zainstalowane. Zainstaluj pakiet Kasual Desktop, a następnie włącz je poleceniem:</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="161" />
+        <source>Kasual Desktop couldn't enable its GNOME Shell helper extension. Enable it manually with:</source>
+        <translation>Kasual Desktop nie mógł włączyć swojego rozszerzenia GNOME Shell. Włącz je ręcznie poleceniem:</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="166" />
+        <source>then retry.</source>
+        <translation>a następnie spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="169" />
+        <source>Retry</source>
+        <translation>Ponów</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="42" />
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="170" />
+        <source>Quit</source>
+        <translation>Zamknij</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/ui/tray.py" line="35" />
@@ -409,11 +454,6 @@
         <location filename="../src/infrastructure/common/qt/ui/tray.py" line="39" />
         <source>About…</source>
         <translation>O programie…</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="42" />
-        <source>Quit</source>
-        <translation>Zamknij</translation>
     </message>
 </context><context>
     <name>LogViewer</name>

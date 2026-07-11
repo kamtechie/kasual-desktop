@@ -20,6 +20,8 @@ SERVICE = "org.consoledesktop.GnomeHelper"
 OBJECT_PATH = "/org/consoledesktop/GnomeHelper"
 INTERFACE = "org.consoledesktop.GnomeHelper"
 
+EXTENSION_UUID = "kasual-helper@consoledesktop.org"
+
 _DEFAULT_APP_ID = "kasual-desktop"
 
 _iface: QDBusInterface | None = None

@@ -17,6 +17,15 @@ logger = logging.getLogger(__name__)
 
 _CFG_PATH = Path.home() / '.config' / 'plasma-org.kde.plasma.desktop-appletsrc'
 
+# Distros rebrand by replacing this package's contents, so resolving Plasma's
+# default wallpaper by name tracks the distro default too.
+_DEFAULT_PACKAGE = 'Next'
+_WALLPAPER_DIRS = (
+    str(Path.home() / '.local' / 'share' / 'wallpapers'),
+    '/usr/local/share/wallpapers',
+    '/usr/share/wallpapers',
+)
+
 
 class KdeSystemWallpaper(SystemWallpaper):
     """Reads the KDE Plasma wallpaper setting and returns it as a `Wallpaper`."""
@@ -54,7 +63,16 @@ class KdeSystemWallpaper(SystemWallpaper):
             logger.info('KDE wallpaper: %s', path)
             return Wallpaper(image_path=path)
 
-        logger.warning('No wallpaper found in Plasma configuration')
+        logger.info('No wallpaper in Plasma config; falling back to the default package')
+        return self._default_wallpaper()
+
+    def _default_wallpaper(self) -> Wallpaper | None:
+        for base in _WALLPAPER_DIRS:
+            image = self._best_package_image(os.path.join(base, _DEFAULT_PACKAGE))
+            if image:
+                logger.info('KDE default wallpaper: %s', image)
+                return Wallpaper(image_path=image)
+        logger.warning('No default wallpaper package found')
         return None
 
     def _best_package_image(self, directory: str) -> str | None:

@@ -382,7 +382,7 @@
         <translation>Enable HUD</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/home_header.py" line="335" />
+        <location filename="../src/infrastructure/common/qt/overlays/home_header.py" line="357" />
         <source>Power</source>
         <translation>Power</translation>
     </message>
@@ -395,6 +395,51 @@
         <location filename="../src/infrastructure/common/qt/overlays/notifications_overlay.py" line="168" />
         <source>No notifications</source>
         <translation>No notifications</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="138" />
+        <source>Kasual Desktop needs its GNOME Shell helper extension to manage windows.
+
+Enable it now?</source>
+        <translation>Kasual Desktop needs its GNOME Shell helper extension to manage windows.
+
+Enable it now?</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="143" />
+        <source>Enable</source>
+        <translation>Enable</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="144" />
+        <source>Not now</source>
+        <translation>Not now</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="155" />
+        <source>The Kasual Helper GNOME Shell extension isn't installed. Install the Kasual Desktop package, then enable it with:</source>
+        <translation>The Kasual Helper GNOME Shell extension isn't installed. Install the Kasual Desktop package, then enable it with:</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="161" />
+        <source>Kasual Desktop couldn't enable its GNOME Shell helper extension. Enable it manually with:</source>
+        <translation>Kasual Desktop couldn't enable its GNOME Shell helper extension. Enable it manually with:</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="166" />
+        <source>then retry.</source>
+        <translation>then retry.</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="169" />
+        <source>Retry</source>
+        <translation>Retry</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="42" />
+        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="170" />
+        <source>Quit</source>
+        <translation>Quit</translation>
     </message>
     <message>
         <location filename="../src/infrastructure/common/qt/ui/tray.py" line="35" />
@@ -410,11 +455,6 @@
         <location filename="../src/infrastructure/common/qt/ui/tray.py" line="39" />
         <source>About…</source>
         <translation>About…</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="42" />
-        <source>Quit</source>
-        <translation>Quit</translation>
     </message>
 </context><context>
     <name>LogViewer</name>

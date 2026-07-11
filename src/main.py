@@ -62,6 +62,27 @@ from infrastructure.common.qt.i18n import install_translations
 logger = logging.getLogger(__name__)
 
 
+def _preflight_gate(app, gamepad, feedback, proceed) -> None:
+    """On GNOME, ensure the helper extension is active before any subsystem starts;
+    everywhere else there is nothing to gate."""
+    if detect_compositor() is not Compositor.GNOME:
+        proceed()
+        return
+    from domain.preflight.extension_gate import ExtensionGate
+    from infrastructure.gnome.extension import (
+        GnomeExtensionActivator, GnomeExtensionProbe,
+    )
+    from infrastructure.common.qt.overlays.preflight_overlay import QtPreflightView
+
+    gate = ExtensionGate(
+        GnomeExtensionProbe(),
+        GnomeExtensionActivator(),
+        QtPreflightView(gamepad, feedback),
+        on_quit=app.quit,
+    )
+    gate.ensure(proceed)
+
+
 def main() -> None:
     # Restore default Ctrl+C handling: Qt's Wayland event loop swallows SIGINT
     # (Python's handler never runs while app.exec() blocks), leaving the app
@@ -200,7 +221,11 @@ def main() -> None:
         app.aboutToQuit.connect(controller.shutdown)
         app.aboutToQuit.connect(log_viewer.close)
 
-    run_onboarding_or_start(provisioning, provisioning_uc, gamepad, feedback, start_session)
+    def start() -> None:
+        run_onboarding_or_start(
+            provisioning, provisioning_uc, gamepad, feedback, start_session)
+
+    _preflight_gate(app, gamepad, feedback, start)
 
     QTimer.singleShot(0, feedback.init)
 

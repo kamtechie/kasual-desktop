@@ -12,6 +12,7 @@ import logging
 import os
 import subprocess
 import urllib.parse
+import xml.etree.ElementTree as ET
 
 from domain.shell.wallpaper import SystemWallpaper, Wallpaper
 
@@ -27,11 +28,30 @@ class GnomeSystemWallpaper(SystemWallpaper):
         if not uri:
             return None
         path = urllib.parse.unquote(uri[7:]) if uri.startswith("file://") else uri
+        if path.endswith(".xml"):
+            # picture-uri may be a slideshow/time-of-day descriptor, not a raw image.
+            path = self._image_from_slideshow(path)
+            if path is None:
+                return None
         if not os.path.isfile(path):
             logger.debug("GNOME wallpaper path not a file: %s", path)
             return None
         logger.info("GNOME wallpaper: %s", path)
         return Wallpaper(image_path=path)
+
+    def _image_from_slideshow(self, xml_path: str) -> str | None:
+        try:
+            root = ET.parse(xml_path).getroot()
+        except (OSError, ET.ParseError) as exc:
+            logger.debug("Could not parse GNOME wallpaper XML %s: %s", xml_path, exc)
+            return None
+        for tag in ("file", "size"):
+            for element in root.iter(tag):
+                candidate = (element.text or "").strip()
+                if candidate and os.path.isfile(candidate):
+                    return candidate
+        logger.debug("No usable image in GNOME wallpaper XML: %s", xml_path)
+        return None
 
     def _prefers_dark(self) -> bool:
         scheme = self._gsettings("org.gnome.desktop.interface", "color-scheme") or ""

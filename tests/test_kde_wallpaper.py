@@ -13,9 +13,13 @@ from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
 
 @pytest.fixture
 def plasma_cfg(tmp_path, monkeypatch):
-    """Return a writer for the appletsrc content, pointing the loader at it."""
+    """Return a writer for the appletsrc content, pointing the loader at it.
+
+    Also isolates the default-package fallback onto an empty dir, so tests that
+    expect no wallpaper aren't rescued by a real ``Next`` package on the host."""
     cfg = tmp_path / "plasma-appletsrc"
     monkeypatch.setattr(kw, "_CFG_PATH", cfg)
+    monkeypatch.setattr(kw, "_WALLPAPER_DIRS", (str(tmp_path / "no-wallpapers"),))
 
     def write(body: str) -> None:
         cfg.write_text(body, encoding="utf-8")
@@ -72,3 +76,14 @@ class TestNoConfig:
     def test_no_wallpaper_section_returns_none(self, plasma_cfg):
         plasma_cfg("[Containments][1][General]\nfoo=bar\n")
         assert KdeSystemWallpaper().current() is None
+
+
+class TestDefaultFallback:
+    def test_falls_back_to_default_package(self, plasma_cfg, tmp_path, monkeypatch):
+        images = tmp_path / "share" / kw._DEFAULT_PACKAGE / "contents" / "images"
+        images.mkdir(parents=True)
+        (images / "1920x1080.jpg").write_bytes(b"x")
+        (images / "3840x2160.jpg").write_bytes(b"x")
+        monkeypatch.setattr(kw, "_WALLPAPER_DIRS", (str(tmp_path / "share"),))
+        plasma_cfg("[Containments][1][General]\nfoo=bar\n")
+        assert KdeSystemWallpaper().current().image_path.endswith("3840x2160.jpg")
