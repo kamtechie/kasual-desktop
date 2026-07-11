@@ -44,7 +44,7 @@ class HyprlandWindowManager(WlrootsWindowManager):
         )
 
     def activate_window(self, window_id: str) -> None:
-        self._run(["hyprctl", "dispatch", "focuswindow", f"address:{window_id}"])
+        self._focus_fullscreen(window_id)
 
     def close_window(self, window_id: str) -> None:
         self._run(["hyprctl", "dispatch", "closewindow", f"address:{window_id}"])
@@ -56,7 +56,22 @@ class HyprlandWindowManager(WlrootsWindowManager):
 
     def activate_windows_for_pids(self, pids: set[int]) -> None:
         for w in self._windows_for_pids(pids):
-            self._run(["hyprctl", "dispatch", "focuswindow", f"address:{w.id}"])
+            self._focus_fullscreen(w.id)
+
+    def _focus_fullscreen(self, address: str) -> None:
+        # Hyprland drops a window's own fullscreen request when it maps unfocused
+        # (the Desktop's layer surface holds the keyboard), so KD focuses it and
+        # forces fullscreen itself — guarded, as the dispatcher toggles.
+        if self._is_fullscreen(address):
+            self._run(["hyprctl", "dispatch", "focuswindow", f"address:{address}"])
+        else:
+            self._run(["hyprctl", "--batch",
+                       f"dispatch focuswindow address:{address} ; dispatch fullscreen 0"])
+
+    def _is_fullscreen(self, address: str) -> bool:
+        clients = self._run_json(["hyprctl", "-j", "clients"]) or []
+        return any(c.get("address") == address and c.get("fullscreen") == 2
+                   for c in clients)
 
     def raise_windows_for_pid_exact(self, pid: int) -> None:
         for w in self._cache.values():

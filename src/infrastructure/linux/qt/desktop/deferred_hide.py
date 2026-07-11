@@ -100,8 +100,13 @@ class DeferredHide(QObject, LaunchHide, metaclass=ProtocolQtMeta):
         self._act_now()
 
     def _act_now(self) -> None:
+        app = self._app
         self._app = None
         (self._on_cede if self._fullscreen else self._on_hide)()
+        if app is not None:
+            pid = self._app_manager.running_pid(app.id)
+            if pid is not None:
+                self._wm.activate_windows_for_pids({pid})
 
     def _stop_watch(self) -> None:
         self._poll.stop()

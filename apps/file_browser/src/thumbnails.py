@@ -9,7 +9,7 @@ import hashlib
 import mimetypes
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 try:
     from PyQt6.QtDBus import QDBusConnection, QDBusInterface
@@ -109,5 +109,6 @@ class Thumbnailer(QObject):
         bus.connect(_SERVICE, _PATH, _INTERFACE, "Ready", self._on_ready)
         return iface
 
+    @pyqtSlot("uint", "QStringList")
     def _on_ready(self, handle, uris) -> None:
         self.ready.emit(list(uris))

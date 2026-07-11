@@ -53,6 +53,25 @@ class TestHyprlandWallpaper:
             result = HyprlandWallpaper().current()
         assert result.image_path == str(img)
 
+    def test_returns_swww_wallpaper(self, config_home, tmp_path):
+        img = _image(tmp_path)
+        with patch("infrastructure.wlroots.display.wallpaper.subprocess.run") as run:
+            run.return_value.stdout = (
+                f"eDP-1: 3840x2160, scale: 1, currently displaying: image: {img}\n"
+            )
+            result = HyprlandWallpaper().current()
+        assert result.image_path == str(img)
+
+    def test_falls_back_to_hyde_current_file(self, config_home, tmp_path):
+        effects = config_home / "hypr" / "wallpaper_effects"
+        effects.mkdir(parents=True)
+        current = effects / ".wallpaper_current"
+        current.write_bytes(b"\x89PNG\r\n")
+        with patch("infrastructure.wlroots.display.wallpaper.subprocess.run",
+                   side_effect=FileNotFoundError):
+            result = HyprlandWallpaper().current()
+        assert result.image_path == str(current)
+
     def test_falls_back_when_hyprpaper_absent(self, config_home):
         with patch("infrastructure.wlroots.display.wallpaper.subprocess.run",
                    side_effect=FileNotFoundError):

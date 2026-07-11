@@ -157,13 +157,27 @@ class TestHyprlandOps:
             for addr, pid in entries
         }
 
-    def test_activate_and_close(self, qapp):
+    def test_activate_focuses_and_fullscreens_when_windowed(self, qapp):
+        wm = HyprlandWindowManager()
+        with patch.object(wm, "_run_json", return_value=[{"address": "0x1", "fullscreen": 0}]), \
+             patch.object(wm, "_run") as run:
+            wm.activate_window("0x1")
+        run.assert_called_once_with(
+            ["hyprctl", "--batch",
+             "dispatch focuswindow address:0x1 ; dispatch fullscreen 0"])
+
+    def test_activate_only_focuses_when_already_fullscreen(self, qapp):
+        wm = HyprlandWindowManager()
+        with patch.object(wm, "_run_json", return_value=[{"address": "0x1", "fullscreen": 2}]), \
+             patch.object(wm, "_run") as run:
+            wm.activate_window("0x1")
+        run.assert_called_once_with(["hyprctl", "dispatch", "focuswindow", "address:0x1"])
+
+    def test_close(self, qapp):
         wm = HyprlandWindowManager()
         with patch.object(wm, "_run") as run:
-            wm.activate_window("0x1")
             wm.close_window("0x1")
-        run.assert_any_call(["hyprctl", "dispatch", "focuswindow", "address:0x1"])
-        run.assert_any_call(["hyprctl", "dispatch", "closewindow", "address:0x1"])
+        run.assert_called_once_with(["hyprctl", "dispatch", "closewindow", "address:0x1"])
 
     def test_minimize_maps_to_special_workspace(self, qapp):
         wm = HyprlandWindowManager()

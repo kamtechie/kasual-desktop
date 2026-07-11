@@ -1,9 +1,9 @@
 """Wallpaper resolution for wlroots compositors (Sway, Hyprland).
 
 Resolved fresh on every Kasual launch, so a wallpaper changed in the compositor
-is picked up on the next restart. When the compositor's own wallpaper can't be
-resolved — an unsupported tool, or nothing configured — it falls back to the
-static ``<config>/wallpaper`` file.
+is picked up on the next restart. When no wallpaper daemon reports one and no
+known convention file holds it, it falls back to the static ``<config>/wallpaper``
+file.
 """
 
 from __future__ import annotations
@@ -22,24 +22,39 @@ logger = logging.getLogger(__name__)
 _CLI_TIMEOUT_S = 2.0
 
 
+_HYDE_CURRENT = "hypr/wallpaper_effects/.wallpaper_current"
+
+
 class HyprlandWallpaper(SystemWallpaper):
-    """Current wallpaper from hyprpaper's IPC (``hyprctl hyprpaper listactive``)."""
+    """Current Hyprland wallpaper, whichever daemon set it.
+
+    swww and hyprpaper are both common, and setups like HyDE track the live
+    wallpaper as a plain file, so each source is tried in turn before the static
+    fallback.
+    """
 
     def current(self) -> Wallpaper | None:
-        path = self._active_path()
-        if path:
-            logger.info("Hyprland wallpaper: %s", path)
-            return Wallpaper(image_path=path)
+        for source in (self._swww_path, self._hyprpaper_path, self._hyde_path):
+            path = source()
+            if path:
+                logger.info("Hyprland wallpaper: %s", path)
+                return Wallpaper(image_path=path)
         return StaticFileWallpaper().current()
 
-    def _active_path(self) -> str | None:
-        try:
-            out = subprocess.run(
-                ["hyprctl", "hyprpaper", "listactive"],
-                timeout=_CLI_TIMEOUT_S, check=True, capture_output=True, text=True,
-            ).stdout
-        except (OSError, subprocess.SubprocessError) as exc:
-            logger.debug("hyprpaper listactive failed: %s", exc)
+    def _swww_path(self) -> str | None:
+        out = self._run(["swww", "query"])
+        if out is None:
+            return None
+        for line in out.splitlines():
+            _, sep, path = line.partition("image: ")
+            path = path.strip()
+            if sep and os.path.isfile(path):
+                return path
+        return None
+
+    def _hyprpaper_path(self) -> str | None:
+        out = self._run(["hyprctl", "hyprpaper", "listactive"])
+        if out is None:
             return None
         for line in out.splitlines():
             _, sep, path = line.partition("=")
@@ -47,6 +62,20 @@ class HyprlandWallpaper(SystemWallpaper):
             if sep and os.path.isfile(path):
                 return path
         return None
+
+    def _hyde_path(self) -> str | None:
+        base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
+        current = Path(base) / _HYDE_CURRENT
+        return str(current) if current.is_file() else None
+
+    def _run(self, argv: list[str]) -> str | None:
+        try:
+            return subprocess.run(
+                argv, timeout=_CLI_TIMEOUT_S, check=True, capture_output=True, text=True,
+            ).stdout
+        except (OSError, subprocess.SubprocessError) as exc:
+            logger.debug("%s failed: %s", argv[0], exc)
+            return None
 
 
 # output <name> bg <path> <mode> — the mode keyword bounds a path that may hold spaces.
