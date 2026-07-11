@@ -62,7 +62,7 @@ overrides:
       - python3 >= 3.11
       - python3-pyqt6
       - python3-pyqt6-webengine
-      - python3-qtawesome
+      - python3-QtAwesome
       - python3-evdev
       - python3-xlib
       - layer-shell-qt
