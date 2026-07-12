@@ -153,22 +153,26 @@ _RAISE_BY_PIDS_SCRIPT = """\
 }})();
 """
 
-# Persistent event hook: poke us over D-Bus whenever a window unmaps, so the
-# window list refreshes in ~150 ms instead of waiting for the 3 s poll (e.g.
-# returning to the Desktop right as an app's window disappears).
+# Persistent event hook: poke us over D-Bus whenever the window stack changes, so
+# the list refreshes in ~150 ms instead of waiting for the 3 s poll — returning to
+# the Desktop as an app's window disappears, and getting out of the way of a splash
+# or a launcher (which only shows up as a focus change) as it appears.
 _EVENTS_SCRIPT = """\
 (function () {
-    workspace.windowRemoved.connect(function (w) {
+    var poke = function (w) {
         callDBus('org.consoledesktop.WindowList', '/WindowList',
-                 '', 'windowRemoved', String(w ? w.pid : 0));
-    });
+                 '', 'windowsChanged', String(w ? w.pid : 0));
+    };
+    workspace.windowRemoved.connect(poke);
+    workspace.windowAdded.connect(poke);
+    workspace.windowActivated.connect(poke);
 })();
 """
 
 _EVENTS_PLUGIN = 'consoled_window_events'
 
 _SCRIPT_TIMEOUT_MS = 5_000
-_REMOVED_DEBOUNCE_MS = 150
+_CHANGED_DEBOUNCE_MS = 150
 
 
 class _WindowListHost(QObject):
@@ -182,7 +186,7 @@ class _WindowListHost(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._callbacks: list = []
-        self._removed_cb: Callable[[str], None] | None = None
+        self._changed_cb: Callable[[str], None] | None = None
 
         bus = QDBusConnection.sessionBus()
         ok_obj = bus.registerObject(
@@ -206,12 +210,12 @@ class _WindowListHost(QObject):
         self._on_receive(data)
 
     @pyqtSlot(str)
-    def windowRemoved(self, pid: str) -> None:
-        if self._removed_cb is not None:
-            self._removed_cb(pid)
+    def windowsChanged(self, pid: str) -> None:
+        if self._changed_cb is not None:
+            self._changed_cb(pid)
 
-    def set_removed_callback(self, cb: Callable[[str], None]) -> None:
-        self._removed_cb = cb
+    def set_changed_callback(self, cb: Callable[[str], None]) -> None:
+        self._changed_cb = cb
 
     def add_callback(self, cb) -> None:
         self._callbacks.append(cb)
@@ -261,11 +265,12 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         self._timeout_guard.setSingleShot(True)
         self._timeout_guard.timeout.connect(self._on_script_timeout)
 
-        # Coalesces windowRemoved bursts (a closing app drops several windows).
-        self._removed_debounce = QTimer(self)
-        self._removed_debounce.setSingleShot(True)
-        self._removed_debounce.setInterval(_REMOVED_DEBOUNCE_MS)
-        self._removed_debounce.timeout.connect(self._request_list_refresh)
+        # Coalesces bursts (a closing app drops several windows; a launcher maps
+        # a window and takes focus in the same breath).
+        self._changed_debounce = QTimer(self)
+        self._changed_debounce.setSingleShot(True)
+        self._changed_debounce.setInterval(_CHANGED_DEBOUNCE_MS)
+        self._changed_debounce.timeout.connect(self._request_list_refresh)
         self._events_path: str | None = None
 
     # ── Public API ─────────────────────────────────────────────────────────
@@ -358,7 +363,7 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
             self._host = _WindowListHost()
 
     def _install_event_script(self) -> None:
-        """Load the persistent windowRemoved hook (idempotent). A fixed plugin
+        """Load the persistent window-stack hook (idempotent). A fixed plugin
         name plus unload-before-load clears any copy left by a crashed run."""
         if self._events_path is not None:
             return
@@ -366,7 +371,7 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         path = self._write_script(_EVENTS_SCRIPT)
         if path is None:
             return
-        self._host.set_removed_callback(self._on_window_removed)
+        self._host.set_changed_callback(self._on_windows_changed)
         if self._load_script(path, _EVENTS_PLUGIN):
             self._events_path = path
         else:
@@ -375,8 +380,8 @@ class KWinWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
             except Exception:
                 pass
 
-    def _on_window_removed(self, _pid: str) -> None:
-        self._removed_debounce.start()
+    def _on_windows_changed(self, _pid: str) -> None:
+        self._changed_debounce.start()
 
     def _request_list_refresh(self) -> None:
         if self._loading:

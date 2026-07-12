@@ -39,6 +39,11 @@ class DesktopSurface(Protocol):
         the moment the app's window unmaps the compositor reveals the Desktop —
         never the bare DE. Elsewhere this degrades to ``hide()``."""
 
+    def sink(self, under_windows: bool) -> None:
+        """While ceded, sit under the app's ordinary windows — it is showing a
+        launcher or a splash that the ceded surface would otherwise cover — or back
+        over them. A no-op where ceding already unmaps the surface."""
+
     def activate(self) -> None: ...
     def is_visible(self) -> bool:
         """Logical visibility: is the Desktop the surface in front? A surface
@@ -76,6 +81,9 @@ class PlainSurface:
 
     def drop_below(self) -> None:
         self._widget.hide()
+
+    def sink(self, under_windows: bool) -> None:
+        pass   # ceding already unmapped the widget
 
     def activate(self) -> None:
         self._widget.activateWindow()

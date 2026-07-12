@@ -63,6 +63,9 @@ class WindowsDesktopSurface:
         # launch path starts the foreground monitor via hide_for_launch().
         self._widget.hide()
 
+    def sink(self, under_windows: bool) -> None:
+        pass   # ceding already unmapped the window
+
     def activate(self) -> None:
         self._widget.activateWindow()
 

@@ -58,6 +58,9 @@ class GnomeSurface:
         # reached for fullscreen apps (which cover it) — others take hide().
         helper.cede_overlay()
 
+    def sink(self, under_windows: bool) -> None:
+        pass   # the extension's restacking rule has no depth to switch (yet)
+
     def activate(self) -> None:
         self._widget.activateWindow()
         helper.activate_surface(_TITLE)

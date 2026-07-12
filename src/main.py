@@ -29,6 +29,7 @@ from infrastructure.common.audio.feedback import SoundFeedback
 from infrastructure.common.single_instance import SingleInstanceGuard
 from infrastructure.linux.input.gamepad_watcher import GamepadWatcher
 from infrastructure.common.qt.desktop import build_desktop
+from infrastructure.linux.qt.desktop.cede_depth import CedeDepthWatcher
 from infrastructure.linux.qt.desktop.deferred_hide import DeferredHide
 from infrastructure.linux.qt.desktop.deferred_show import DeferredShow
 from infrastructure.common.qt.cursor_auto_hide import CursorAutoHide
@@ -183,6 +184,8 @@ def main() -> None:
                              in (Compositor.HYPRLAND, Compositor.SWAY)),
             deferred_show_factory=lambda wm_, pm_, on_show:
                 DeferredShow(wm_, pm_, on_show=on_show),
+            cede_depth_factory=lambda wm_, pm_, on_sink:
+                CedeDepthWatcher(wm_, pm_, on_sink=on_sink),
         )
         # Subscribed after `record` above, so the count is already updated when
         # this runs; delivered on the GUI thread by the monitor's signal hop.

@@ -101,6 +101,7 @@ def _make(apps=None, visible=False, is_game_pid=None, paused=False):
     foreground = ForegroundState()
     deferred_hide = MagicMock()
     deferred_show = MagicMock()
+    cede_depth = MagicMock()
     tilebar = MagicMock()
     tilebar.is_closing.return_value = False
     pad = object()  # sentinel pad-handler identity
@@ -126,6 +127,7 @@ def _make(apps=None, visible=False, is_game_pid=None, paused=False):
         foreground=foreground,
         deferred_hide=deferred_hide,
         deferred_show=deferred_show,
+        cede_depth=cede_depth,
         tilebar=tilebar,
         pad_handler=pad,
         scheduler=scheduler,
@@ -136,7 +138,7 @@ def _make(apps=None, visible=False, is_game_pid=None, paused=False):
     )
     return SimpleNamespace(
         lc=lc, view=view, gamepad=gamepad, wm=wm, am=app_manager,
-        apps=apps, fg=foreground, dh=deferred_hide, ds=deferred_show,
+        apps=apps, fg=foreground, dh=deferred_hide, ds=deferred_show, cd=cede_depth,
         tilebar=tilebar, pad=pad,
         scheduler=scheduler, feedback=feedback, prompts=prompts,
     )

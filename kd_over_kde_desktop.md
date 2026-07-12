@@ -35,15 +35,20 @@ znika (unmap), KWin od razu odsłania **gotowy, narysowany pulpit KD** zamiast
 Plasmy. Koszt w trakcie grania ~zero: całkowicie zasłonięty surface nie dostaje
 frame callbacków (Qt nic nie renderuje); direct scanout gry nie cierpi.
 
-### Dlaczego nie BOTTOM (pierwotny plan)
+### Dlaczego nie stały BOTTOM (pierwotny plan)
 
 Pierwotnie planowano obniżyć warstwę do BOTTOM. Spike
 (`tools/spike_layerswitch.py`) potwierdził, że `set_layer` na żywym oknie
 działa (LayerShellQt wysyła `zwlr_layer_surface_v1.set_layer` na wire), ale
-okazało się, że warstwa BOTTOM w KWin leży **poniżej** normalnych okien
-i pulpitu Plasmy — zielony surface na BOTTOM zachowywał się jak tapeta:
-okno Konsole i taskbar KDE były nad nim. BOTTOM nie ukrywa KD pod aplikacją —
-odsłania KDE ponad KD.
+BOTTOM leży pod normalnymi oknami i panelem KDE — jako *stała* warstwa cede
+nie nadaje się: po zniknięciu okna gry KD zostaje pod panelem i pod resztkowymi
+oknami, zamiast odsłonić się czysto.
+
+Uwaga: pierwotna notatka twierdziła, że BOTTOM leży też **pod pulpitem Plasmy**
+— to nieprawda. Zmierzone (zrzuty ekranu z powierzchni layer-shell na BOTTOM):
+BOTTOM (`BelowLayer`) jest **nad** pulpitem Plasmy (`DesktopLayer` — tapeta,
+ikony, widżety), a pod normalnymi oknami i panelem. To właśnie czyni z BOTTOM
+dobre miejsce dla *chwilowo* zsuniętego KD — patrz niżej.
 
 ### Pełny ekran vs zwykłe okno
 
@@ -145,6 +150,68 @@ TOP, więc fałszywe podniesienie jest niewidoczne.
 Nieuzbrojone przypadki: gdy okno aplikacji nigdy się nie zmapuje, `DeferredHide`
 chowa KD po 5 s guardem, a `DeferredShow` nie ma czego pilnować (`_seen_window`
 zostaje `False`) — zachowanie jak przed zmianą.
+
+## Splash i launcher — KD zsuwa się pod okna aplikacji (zaimplementowane)
+
+### Problem
+
+Gra odpalona ze Steama pokazuje najpierw *zwykłe* okno: splash Kingdom Come,
+Red Launcher Wiedźmina 3. Zaparkowane KD zasłaniało je w całości — zamiast
+splasha widać było pulpit KD, a Red Launchera nie dało się nawet kliknąć
+(bez „Graj" W3 nie startuje).
+
+### Przyczyna (zmierzona)
+
+KWin wynosi ponad layer-shell TOP tylko **aktywne** okno pełnoekranowe
+(`isActiveFullScreen()` → `ActiveLayer`; layer-shell TOP → `AboveLayer`).
+Gdy splash/launcher przejmuje fokus, okno gry (i Steam BPM) spadają do
+`NormalLayer` — **pod** KD. Efekt: KD zasłania i launcher, i grę pod nim.
+Potwierdzone spikem ze zrzutami: TOP + aktywne fullscreen → widać apkę;
+to samo fullscreen po utracie fokusu na rzecz małego okna → widać wyłącznie KD.
+
+### Reguła
+
+Zaparkowane KD zostaje na TOP dopóki aplikacja **trzyma ekran** — ma aktywne
+okno pokrywające ekran (`fullscreen || covers_screen` i `active`). Gdy tego okna
+nie ma, a aplikacja coś pokazuje, KD **zsuwa się na BOTTOM**: pod okna aplikacji,
+wciąż nad pulpitem Plasmy (tapeta/ikony/widżety). Gdy aplikacja nie ma okien —
+KD wraca na TOP, gotowe do natychmiastowego odsłonięcia bez chrome KDE nad sobą.
+
+Reguła działa też dla splasha KCD, którego nie ma na liście okien (nie jest
+`normalWindow`): jego pojawienie się widać jako utratę fokusu przez Steam BPM,
+co samo w sobie już spycha aplikację pod KD.
+
+Koszt w stanie zsuniętym: nad KD widać panel KDE (`DockLayer`) i ewentualne inne
+zwykłe okna. Świadomy kompromis — launcher jest klikalny, a pulpit KDE dalej
+zasłonięty.
+
+### Zmienione pliki (splash/launcher)
+
+- `src/domain/lifecycle/cede_depth.py` — port `CedeDepth` (arm/cancel).
+- `src/infrastructure/linux/qt/desktop/cede_depth.py` — `CedeDepthWatcher`:
+  na każdej aktualizacji listy okien ustawia głębokość zaparkowanego KD.
+- `src/infrastructure/linux/qt/desktop/app_windows.py` — `app_holds_screen()`
+  (aktywne okno pokrywające ekran).
+- `src/infrastructure/linux/wayland/surface.py` — `sink(under_windows)`
+  (TOP↔BOTTOM na zmapowanym, zaparkowanym surfacie); `show_fullscreen()`
+  bezwarunkowo wraca na TOP (powrót spod launchera).
+- `src/infrastructure/common/qt/desktop/desktop.py` — `sink_view()`; kliknięcie
+  w kafelek ignorowane, gdy KD jest zaparkowane (zsunięte KD jest widoczne i
+  klikalne obok launchera).
+- `src/infrastructure/kde/wm/window_manager.py` — trwały skrypt zdarzeń łapie
+  teraz `windowAdded` i `windowActivated` obok `windowRemoved` (splash i launcher
+  objawiają się głównie zmianą fokusu) → reakcja ~150 ms zamiast do 3 s.
+- `src/domain/lifecycle/app_lifecycle.py` — uzbraja `cede_depth` przy
+  launch/restore, rozbraja przy powrocie na pulpit.
+
+### Status na innych kompozytorach
+
+- **Hyprland/Sway** — cede i tak schodzi na BOTTOM (`cede_to_bottom`), więc
+  launcher jest nad KD; `sink()` jest tam no-opem. Niezweryfikowane pomiarem.
+- **GNOME** — `_sync()` w rozszerzeniu trzyma KD *nad* zwykłymi oknami i pod
+  pełnoekranowymi, więc splash/launcher wpada pod KD: **ten sam błąd**, do
+  naprawy osobno (reguła musi zejść pod zwykłe okna, gdy fokus nie jest na oknie
+  pełnoekranowym). `GnomeSurface.sink()` jest na razie no-opem.
 
 ## Przenośność na Hyprland / Sway / GNOME (vs branch `kde_independence`)
 

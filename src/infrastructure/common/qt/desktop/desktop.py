@@ -208,7 +208,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         # same idempotent domain entry point used by changeEvent on Linux.
         self._surface.on_reactivate(self._lifecycle.reactivate_desktop)
 
-        self._tilebar.activated.connect(self._lifecycle.on_tile_activated)
+        self._tilebar.activated.connect(self._activate_tile)
         self._tilebar.windows_changed.connect(self._lifecycle.check_active_dyn_gone)
         self._app_manager.on_finished(
             lambda e: self._lifecycle.on_app_finished(e.app_id))
@@ -216,6 +216,14 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             lambda e: self._lifecycle.on_app_launch_failed(e.app_id, e.error))
 
         QApplication.instance().installEventFilter(self)
+
+    def _activate_tile(self, target) -> None:
+        # A ceded Desktop keeps its surface mapped, and once sunk under a launcher
+        # it is again the topmost surface wherever that launcher doesn't reach — so
+        # a stray click there must not launch anything.
+        if not self._surface.is_visible():
+            return
+        self._lifecycle.on_tile_activated(target)
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -287,6 +295,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def hide_view(self) -> None:
         self._surface.drop_below()
         self._chrome.sync()
+
+    def sink_view(self, under_windows: bool) -> None:
+        self._surface.sink(under_windows)
 
     def withdraw_view(self) -> None:
         self._surface.hide()

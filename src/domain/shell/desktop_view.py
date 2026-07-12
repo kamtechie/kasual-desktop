@@ -15,6 +15,10 @@ class DesktopView(Protocol):
         """Cede the screen to a launched app (the surface may stay mapped
         underneath — see DesktopSurface.drop_below)."""
 
+    def sink_view(self, under_windows: bool) -> None:
+        """While ceded, sit under the app's ordinary windows (it is showing a
+        launcher or a splash the Desktop would otherwise cover) or back over them."""
+
     def withdraw_view(self) -> None:
         """Leave the screen entirely (pause / minimize to tray)."""
     def close_active_dialog(self) -> None: ...
