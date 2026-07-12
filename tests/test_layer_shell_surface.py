@@ -39,7 +39,7 @@ class FakeWidget:
         self.activated += 1
 
 
-def _make(monkeypatch, layered=True):
+def _make(monkeypatch, layered=True, cede_to_bottom=False):
     calls = {"keyboard": []}
     monkeypatch.setattr(surface_mod, "make_layer_surface",
                         lambda *_a, **_k: layered)
@@ -49,7 +49,7 @@ def _make(monkeypatch, layered=True):
         return True
 
     monkeypatch.setattr(surface_mod, "set_keyboard", fake_set_keyboard)
-    surface = LayerShellSurface()
+    surface = LayerShellSurface(cede_to_bottom=cede_to_bottom)
     widget = FakeWidget()
     surface.install(widget)
     return surface, widget, calls
@@ -92,6 +92,43 @@ class TestLayeredPath:
         assert widget.visible is False
 
 
+class TestSunkState:
+    """is_sunk reports whether the ceded surface sits under the app's ordinary
+    windows — what a behavioral test asserts on when a splash is up."""
+
+    def test_ceded_surface_is_not_sunk_until_it_sinks(self, monkeypatch):
+        surface, _, _ = _make(monkeypatch)
+        surface.show_fullscreen()
+        surface.drop_below()
+        assert surface.is_sunk() is False
+        surface.sink(True)
+        assert surface.is_sunk() is True
+        surface.sink(False)
+        assert surface.is_sunk() is False
+
+    def test_returning_to_the_front_unsinks(self, monkeypatch):
+        surface, _, _ = _make(monkeypatch)
+        surface.show_fullscreen()
+        surface.drop_below()
+        surface.sink(True)
+        surface.show_fullscreen()
+        assert surface.is_sunk() is False
+
+    def test_ceding_to_bottom_is_already_sunk(self, monkeypatch):
+        surface, _, _ = _make(monkeypatch, cede_to_bottom=True)
+        surface.show_fullscreen()
+        surface.drop_below()
+        assert surface.is_sunk() is True
+
+    def test_hide_clears_sunk(self, monkeypatch):
+        surface, _, _ = _make(monkeypatch)
+        surface.show_fullscreen()
+        surface.drop_below()
+        surface.sink(True)
+        surface.hide()
+        assert surface.is_sunk() is False
+
+
 class TestDegradedPaths:
     def test_unlayered_drop_below_hides(self, monkeypatch):
         surface, widget, _ = _make(monkeypatch, layered=False)
@@ -99,3 +136,10 @@ class TestDegradedPaths:
         surface.drop_below()
         assert widget.visible is False
         assert surface.is_visible() is False
+
+    def test_unlayered_surface_never_reports_sunk(self, monkeypatch):
+        surface, _, _ = _make(monkeypatch, layered=False)
+        surface.show_fullscreen()
+        surface.drop_below()
+        surface.sink(True)
+        assert surface.is_sunk() is False

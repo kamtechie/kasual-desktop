@@ -46,7 +46,11 @@ class VirtualPad:
         return getattr(self._ui.device, 'path', '?')
 
     def close(self) -> None:
-        self._ui.close()
+        """Unplugging the pad is also how the teardown minimizes KD, so this runs
+        once from there and again from the run's finally."""
+        if self._ui is not None:
+            self._ui.close()
+            self._ui = None
 
     # ── buttons ──────────────────────────────────────────────────────────────
 

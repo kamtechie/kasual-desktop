@@ -11,7 +11,10 @@ class SessionView(Protocol):
     """Desktop visibility as the session policy drives it (the Desktop)."""
 
     def resume(self) -> None: ...
-    def hide(self) -> None: ...
+    def withdraw(self) -> None:
+        """Leave the screen entirely — the Home chrome (header, hint bar) is its
+        own surface and must come down with it."""
+        ...
 
 
 class ConnectionIndicator(Protocol):

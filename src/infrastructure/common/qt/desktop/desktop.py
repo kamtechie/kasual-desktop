@@ -30,6 +30,9 @@ from domain.shell.desktop_view import DesktopView
 from domain.shell.desktop_control import DesktopControl
 from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
+from domain.shell.introspection import (
+    HEADER, TILES, FocusSnapshot, ShellSnapshot, TileSnapshot,
+)
 from domain.shell.open_overlays import OpenOverlays
 from domain.system.desktop_shell import DesktopShell
 from domain.shell.wallpaper import SystemWallpaper
@@ -225,6 +228,36 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             return
         self._lifecycle.on_tile_activated(target)
 
+    # ── ShellIntrospection port ────────────────────────────────────────────
+
+    def snapshot(self) -> ShellSnapshot:
+        tiles = tuple(
+            TileSnapshot(index=i, app_id=app.id, name=app.name)
+            for i, app in enumerate(self._apps)
+        )
+        on_tiles = self._nav is None or self._nav.in_tiles
+        index = (
+            self._tilebar.current_app_index()
+            if on_tiles and self._tilebar.current_is_app() else None
+        )
+        return ShellSnapshot(
+            desktop_visible=self._surface.is_visible(),
+            desktop_sunk=self._surface.is_sunk(),
+            home_header_mapped=(
+                self._home_surface is not None and self._home_surface.isVisible()
+            ),
+            home_menu_open=(
+                self._home_surface is not None and self._home_surface.is_open()
+            ),
+            hint_bar_mapped=self._hintbar.isVisible(),
+            focus=FocusSnapshot(
+                zone=TILES if on_tiles else HEADER,
+                tile_index=index,
+                app_id=tiles[index].app_id if index is not None and index < len(tiles) else None,
+            ),
+            tiles=tiles,
+        )
+
     # ── Public API ─────────────────────────────────────────────────────────
 
     @property
@@ -263,6 +296,10 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         """Restore the Desktop after reconnecting the gamepad — without resetting state."""
         self._chrome.refresh_power_default()
         self._desktop.resume()
+
+    def withdraw(self) -> None:
+        """Leave the screen when the controller goes away, chrome included."""
+        self.withdraw_view()
 
     # ── Hint bar / Home chrome (decisions live in the HomeChrome coordinator) ─
 

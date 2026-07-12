@@ -10,7 +10,7 @@ from domain.shell.session_collaborators import SessionView
 class DesktopControl(SessionView, Protocol):
     """The Desktop-surface operations the `Application` controller drives; dismiss
     any open overlays so a freshly raised Home Overlay supersedes rather than
-    covers them. Inherits resume()/hide() from SessionView."""
+    covers them. Inherits resume()/withdraw() from SessionView."""
 
     def show_desktop(self) -> None: ...
     def is_visible(self) -> bool:

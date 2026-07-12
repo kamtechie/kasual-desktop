@@ -14,7 +14,7 @@ class FakeView:
     def resume(self):
         self.resumed += 1
 
-    def hide(self):
+    def withdraw(self):
         self.hidden += 1
 
 

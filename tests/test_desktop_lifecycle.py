@@ -85,6 +85,24 @@ class TestPause:
         assert not desktop.isVisible()
 
 
+# ── withdraw() (controller gone) ──────────────────────────────────────────────
+
+class TestWithdraw:
+    """The Home chrome lives on its own surfaces, so unmapping the Desktop widget
+    alone leaves the header and hint bar floating over the DE with nothing left to
+    drive them."""
+
+    def test_withdraw_takes_the_chrome_down(self, mock_gamepad):
+        desktop = _make_desktop(mock_gamepad)
+        desktop.show_fullscreen()
+        assert desktop._hintbar.isVisible()
+
+        desktop.withdraw()
+
+        assert not desktop.isVisible()
+        assert not desktop._hintbar.isVisible()
+
+
 # ── Unpin confirmation ──────────────────────────────────────────────────────────
 
 class TestUnpinConfirmation:

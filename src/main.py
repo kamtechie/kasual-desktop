@@ -218,6 +218,12 @@ def main() -> None:
             gamepad=gamepad, desktop=desktop, tray=tray, wm=wm,
             power=power, hud=MangoHudControl(),
         )
+
+        if os.environ.get("KD_TEST_API") == "1":
+            from infrastructure.linux.introspection import ShellIntrospectionService
+            # Parented to `app` for the same reason as the monitors above.
+            ShellIntrospectionService(desktop, parent=app)
+
         wm.start_periodic_refresh(3000)
         # Start the notification monitor only once the event loop is running, so
         # its subprocess spawn can never sit on the critical startup path (e.g.

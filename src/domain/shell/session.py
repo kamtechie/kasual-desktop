@@ -15,12 +15,12 @@ class SessionPolicy:
         self, connected: bool, overlay: Dismissable | None
     ) -> None:
         """Connected → resume the desktop. Disconnected → dismiss any open
-        overlay and hide the desktop (it must not linger without a controller to
-        drive it). The tray indicator always reflects the new state."""
+        overlay and withdraw the desktop (it must not linger without a controller
+        to drive it). The tray indicator always reflects the new state."""
         self._indicator.set_connected(connected)
         if connected:
             self._view.resume()
         else:
             if overlay is not None:
                 overlay.hide_overlay()
-            self._view.hide()
+            self._view.withdraw()

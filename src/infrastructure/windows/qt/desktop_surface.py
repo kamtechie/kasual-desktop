@@ -72,6 +72,9 @@ class WindowsDesktopSurface:
     def is_visible(self) -> bool:
         return self._widget.isVisible() if self._widget is not None else False
 
+    def is_sunk(self) -> bool:
+        return False
+
     def on_reactivate(self, callback: Callable[[], None]) -> None:
         self._on_reactivate = callback
 

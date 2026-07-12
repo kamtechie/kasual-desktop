@@ -50,6 +50,11 @@ class DesktopSurface(Protocol):
         parked below a running app reports False even though it stays mapped."""
         ...
 
+    def is_sunk(self) -> bool:
+        """Whether the ceded surface currently sits under the app's ordinary
+        windows (see ``sink``). False where ceding unmaps the surface."""
+        ...
+
     def on_reactivate(self, callback: Callable[[], None]) -> None:
         """Register the callback the surface invokes when the platform decides the
         Desktop should return to the foreground (e.g. the app it ceded focus to has
@@ -90,6 +95,9 @@ class PlainSurface:
 
     def is_visible(self) -> bool:
         return self._widget.isVisible()
+
+    def is_sunk(self) -> bool:
+        return False
 
     def on_reactivate(self, callback: Callable[[], None]) -> None:
         pass

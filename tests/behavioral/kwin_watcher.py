@@ -58,22 +58,25 @@ _WATCH_SCRIPT = """\
             });
         }
         callDBus('org.consoledesktop.BehavioralWatcher', '/BehavioralWatcher',
-                 '', 'event',
+                 '', 'receive',
                  JSON.stringify({
                      reason: reason,
                      window: w ? String(w.internalId) : '',
                      stack: out
                  }));
     }
+    // Restacks are announced per window (KWin 6 has no workspace-level signal).
     function hook(w) {
         w.fullScreenChanged.connect(function () { snap('fullscreen', w); });
         w.minimizedChanged.connect(function () { snap('minimized', w); });
+        w.stackingOrderChanged.connect(function () { snap('stacking', w); });
+        w.keepAboveChanged.connect(function () { snap('keepabove', w); });
     }
     var ws = workspace.windowList();
     for (var i = 0; i < ws.length; i++) hook(ws[i]);
     workspace.windowAdded.connect(function (w) { hook(w); snap('added', w); });
     workspace.windowRemoved.connect(function (w) { snap('removed', w); });
-    workspace.stackingOrderChanged.connect(function () { snap('stacking', null); });
+    workspace.windowActivated.connect(function (w) { snap('activated', w); });
     snap('init', null);
 })();
 """
@@ -101,8 +104,10 @@ class KWinWatcher(QObject):
             )
         self._scripting = QDBusInterface(_KWIN_SVC, _SCRI_PATH, _SCRI_IFACE, bus)
 
+    # Must not be named event(): that would override QObject.event(), which is
+    # what QtDBus uses to deliver the incoming call to this very slot.
     @pyqtSlot(str)
-    def event(self, json_str: str) -> None:
+    def receive(self, json_str: str) -> None:
         try:
             ev = json.loads(json_str)
         except Exception as exc:
@@ -128,10 +133,21 @@ class KWinWatcher(QObject):
         reply = self._scripting.call('loadScript', path, _PLUGIN)
         if reply.type() != QDBusMessage.MessageType.ReplyMessage:
             raise RuntimeError(f'loadScript failed: {reply.errorMessage()}')
+        # KWin answers -1 (a *successful* reply) when a script under this plugin
+        # name is still loaded — a leftover from a crashed run would silently
+        # stay in place of ours.
+        if reply.arguments() and reply.arguments()[0] == -1:
+            raise RuntimeError(
+                f'KWin refused to load the script: plugin "{_PLUGIN}" is already '
+                'loaded. Run: qdbus6 org.kde.KWin /Scripting '
+                f'org.kde.kwin.Scripting.unloadScript {_PLUGIN}'
+            )
         self._scripting.call('start')
 
         self.wait_for(lambda ev: ev['reason'] == 'init', timeout_s,
-                      'initial stacking snapshot from KWin')
+                      'initial stacking snapshot from KWin (a JS error in the '
+                      'script is only visible in: journalctl --user -b '
+                      '| grep kwin_scripting)')
 
     def stop(self) -> None:
         self._scripting.call('unloadScript', _PLUGIN)

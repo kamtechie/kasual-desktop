@@ -45,6 +45,7 @@ class LayerShellSurface:
         self._widget: QWidget | None = None
         self._layered  = False
         self._in_front = False
+        self._sunk     = False
         self._cede_to_bottom = cede_to_bottom
 
     def install(self, widget: QWidget) -> None:
@@ -67,9 +68,11 @@ class LayerShellSurface:
         self._widget.showFullScreen()
         self._widget.update()
         self._in_front = True
+        self._sunk     = False
 
     def hide(self) -> None:
         self._in_front = False
+        self._sunk     = False
         self._widget.hide()
 
     def drop_below(self) -> None:
@@ -79,8 +82,10 @@ class LayerShellSurface:
                 set_layer(self._widget, Layer.BOTTOM)
             set_keyboard(self._widget, Keyboard.NONE)
             self._widget.update()
+            self._sunk = self._cede_to_bottom
         else:
             self._widget.hide()
+            self._sunk = False
 
     def sink(self, under_windows: bool) -> None:
         if self._cede_to_bottom or self._in_front:
@@ -89,12 +94,16 @@ class LayerShellSurface:
             return
         set_layer(self._widget, Layer.BOTTOM if under_windows else Layer.TOP)
         self._widget.update()
+        self._sunk = under_windows
 
     def activate(self) -> None:
         self._widget.activateWindow()
 
     def is_visible(self) -> bool:
         return self._in_front and self._widget.isVisible()
+
+    def is_sunk(self) -> bool:
+        return self._sunk
 
     def on_reactivate(self, callback: Callable[[], None]) -> None:
         pass   # Linux drives reactivation from the widget's changeEvent instead

@@ -1,0 +1,68 @@
+"""Client for Kasual Desktop's test API (KD_TEST_API=1) — read the shell's state.
+
+Layer-shell surfaces never appear in KWin's stackingOrder, so what KD has on
+screen can only be learned from KD itself. The protocol makes the answers
+conclusive: the Home menu is an `overlay`-layer surface, so mapped ⇒ above every
+window, game included; the ceded Desktop sunk to `bottom` ⇒ below the app's
+windows, splash included.
+"""
+
+import json
+import time
+
+from collections.abc import Callable
+
+from PyQt6.QtCore import QCoreApplication, QEventLoop
+from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
+
+_SVC  = 'org.consoledesktop.KasualDesktop'
+_PATH = '/Shell'
+
+
+class KasualDesktopUnavailable(RuntimeError):
+    pass
+
+
+class KDClient:
+    def __init__(self) -> None:
+        self._iface = QDBusInterface(
+            _SVC, _PATH, '', QDBusConnection.sessionBus(),
+        )
+
+    def snapshot(self) -> dict:
+        reply = self._iface.call('Snapshot')
+        if reply.type() != QDBusMessage.MessageType.ReplyMessage:
+            raise KasualDesktopUnavailable(
+                f'no answer from {_SVC}: {reply.errorMessage()} — is Kasual Desktop '
+                'running with KD_TEST_API=1?'
+            )
+        return json.loads(reply.arguments()[0])
+
+    def tile_index(self, app_id: str) -> int:
+        """Locate a tile by its id, or failing that by its displayed name — tiles
+        KD provisioned itself carry the game's name as their id."""
+        tiles = self.snapshot()['tiles']
+        for key in ('app_id', 'name'):
+            for tile in tiles:
+                if tile[key] == app_id:
+                    return tile['index']
+        known = ', '.join(f'{t["app_id"]!r}' for t in tiles)
+        raise KeyError(f'no tile with app_id or name {app_id!r}; tiles: {known}')
+
+    def wait_until(self, predicate: Callable[[dict], bool], timeout_s: float,
+                   description: str) -> dict:
+        """Poll the snapshot until *predicate* holds. Polling is fine here: unlike
+        another app's splash, KD's own state is not short-lived — the test drives it."""
+        deadline = time.monotonic() + timeout_s
+        while True:
+            snap = self.snapshot()
+            if predicate(snap):
+                return snap
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f'timed out after {timeout_s}s waiting for: {description}'
+                )
+            QCoreApplication.processEvents(
+                QEventLoop.ProcessEventsFlag.AllEvents, 50,
+            )
+            time.sleep(0.1)
