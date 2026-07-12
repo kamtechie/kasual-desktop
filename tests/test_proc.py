@@ -1,13 +1,13 @@
 """Tests for infrastructure.linux.proc — game detection functions.
 
 These tests are pure: descends_from_launcher receives injected callables
-instead of real /proc reads; uses_graphics_api has open() mocked out.
+instead of real /proc reads; uses_translation_layer has open() mocked out.
 """
 
 from unittest.mock import mock_open, patch
 
 from infrastructure.linux.proc import (
-    descends_from_launcher, expand_pid_tree, uses_graphics_api,
+    descends_from_launcher, expand_pid_tree, uses_translation_layer,
 )
 
 
@@ -49,47 +49,45 @@ def _mock_maps(content: str):
     return patch("builtins.open", mock_open(read_data=content))
 
 
-class TestUsesGraphicsApi:
-    def test_detects_vulkan(self):
-        maps = "7f00-7f01 r--p 0 08:01 1 /usr/lib/x86_64-linux-gnu/libvulkan.so.1\n"
-        with _mock_maps(maps):
-            assert uses_graphics_api(100) is True
-
-    def test_detects_libgl(self):
-        maps = "7f00-7f01 r--p 0 08:01 1 /usr/lib/x86_64-linux-gnu/libGL.so.1\n"
-        with _mock_maps(maps):
-            assert uses_graphics_api(100) is True
-
+class TestUsesTranslationLayer:
     def test_detects_dxvk(self):
         # DXVK appears in the path when games ship their own DXVK build.
         maps = "7f00-7f01 r--p 0 08:01 1 /home/user/.steam/steamapps/common/Game/dxvk-2.3.1/x64/dxgi.dll\n"
         with _mock_maps(maps):
-            assert uses_graphics_api(100) is True
+            assert uses_translation_layer(100) is True
 
     def test_detects_winevulkan(self):
         maps = "7f00-7f01 r--p 0 08:01 1 /home/user/.steam/proton/files/lib64/wine/x86_64-unix/winevulkan.so\n"
         with _mock_maps(maps):
-            assert uses_graphics_api(100) is True
+            assert uses_translation_layer(100) is True
 
     def test_detects_vkd3d(self):
         maps = "7f00-7f01 r--p 0 08:01 1 /home/user/.steam/proton/files/lib64/wine/x86_64-unix/vkd3d-proton.so\n"
         with _mock_maps(maps):
-            assert uses_graphics_api(100) is True
+            assert uses_translation_layer(100) is True
 
-    def test_libegl_not_a_game(self):
-        # Qt/GTK Wayland apps load libEGL but are not games.
-        maps = "7f00-7f01 r--p 0 08:01 1 /usr/lib/x86_64-linux-gnu/libEGL.so.1\n"
+    def test_vulkan_loader_alone_is_not_a_game(self):
+        # A Qt video player or a Chromium-based app maps the Vulkan loader too —
+        # and so does every process the MangoHud Vulkan layer attaches to.
+        maps = ("7f00-7f01 r--p 0 08:01 1 /usr/lib/x86_64-linux-gnu/libvulkan.so.1\n"
+                "7f02-7f03 r--p 0 08:01 2 /usr/lib/x86_64-linux-gnu/libMangoHud.so\n")
         with _mock_maps(maps):
-            assert uses_graphics_api(100) is False
+            assert uses_translation_layer(100) is False
+
+    def test_opengl_alone_is_not_a_game(self):
+        maps = ("7f00-7f01 r--p 0 08:01 1 /usr/lib/x86_64-linux-gnu/libGL.so.1\n"
+                "7f02-7f03 r--p 0 08:01 2 /usr/lib/x86_64-linux-gnu/libEGL.so.1\n")
+        with _mock_maps(maps):
+            assert uses_translation_layer(100) is False
 
     def test_plain_process_not_a_game(self):
         maps = "7f00-7f01 r--p 0 08:01 1 /usr/lib/x86_64-linux-gnu/libc.so.6\n"
         with _mock_maps(maps):
-            assert uses_graphics_api(100) is False
+            assert uses_translation_layer(100) is False
 
     def test_missing_proc_returns_false(self):
         with patch("builtins.open", side_effect=OSError):
-            assert uses_graphics_api(99999) is False
+            assert uses_translation_layer(99999) is False
 
 
 def _children_opener(children: dict[int, str]):

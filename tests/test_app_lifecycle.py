@@ -649,6 +649,31 @@ class TestForegroundIsGame:
         c.fg.set(WindowTarget(window_id="g1", name="Witcher 3", pid=500))
         assert c.lc.foreground_is_game() is True
 
+    def test_bundled_app_playing_video_is_not_a_game(self):
+        # The bundled File Browser / YouTube run as `python3`, so their window is
+        # not attributed to the tile — but accelerated playback must not make the
+        # HUD toggle appear.
+        c = _make(
+            apps=[_app(command="file_browser.sh")],
+            is_game_pid=lambda _pid: False,
+        )
+        c.fg.set(AppTarget(index=0, app_id="app0", name="File Browser"))
+        c.wm.cached_windows.return_value = [
+            Window(id="fb1", title="File Browser", pid=321, active=True,
+                   resource_class="python3"),
+        ]
+        assert c.lc.foreground_is_game() is False
+
+    def test_game_tile_qualifies_despite_unmatched_window(self):
+        # A native game whose window class does not match its tile: the tile's
+        # Categories=Game settles it, without asking the process.
+        c = _make(apps=[_game_app()], is_game_pid=lambda _pid: False)
+        c.fg.set(AppTarget(index=0, app_id="game0", name="Game"))
+        c.wm.cached_windows.return_value = [
+            Window(id="g1", title="Game", pid=555, active=True, resource_class="game_x"),
+        ]
+        assert c.lc.foreground_is_game() is True
+
 
 class TestDeferredShow:
     def test_restore_arms_show_watcher(self):

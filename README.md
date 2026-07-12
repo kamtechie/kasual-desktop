@@ -415,17 +415,19 @@ turn it on or off. The backend differs per platform:
 Only over a **game** — never on the bare desktop or over ordinary apps. How a
 foreground is recognised as a game differs per platform:
 
-- **Linux** — two complementary signals are combined (either is sufficient):
-  1. **Graphics API detection** — the process has mapped a 3D graphics library
-     (`libvulkan`, `libGL`, DXVK, VKD3D-Proton, Wine Vulkan). This catches
-     native games and Proton/Wine titles regardless of which launcher started them.
+- **Linux** — three signals, any one of which is sufficient:
+  1. **Tile category** — the tile declares **`Categories=Game`** in its `.desktop`
+     file. This is the reliable one, and the only one for a native game started
+     straight from its own tile.
   2. **Launcher ancestry** — the process descends from a known launcher/runtime
      (**Steam, Heroic, Lutris, Gamescope, Wine/Proton, Bottles**). Covers games
-     whose libraries aren't yet mapped (early startup) or statically linked titles.
+     started from a launcher tile, which run in their own window under it.
+  3. **Translation layer** — the process has mapped DXVK, VKD3D-Proton or Wine
+     Vulkan, i.e. it is a Windows title running under Wine/Proton.
 
-  As a fallback, a tile that declares **`Categories=Game`** in its `.desktop`
-  file also qualifies — use this for standalone game tiles not started through a
-  launcher that don't trigger either automatic signal.
+  The plain 3D loaders (`libvulkan`, `libGL`) are deliberately **not** a signal:
+  Qt, Chromium and Mesa map them in ordinary apps — a video player or a web view
+  would otherwise be taken for a game.
 
 - **Windows** — **RTSS itself is the authority**: the toggle appears when RTSS is
   actively rendering its OSD into the foreground process (i.e. a hooked 3D app).

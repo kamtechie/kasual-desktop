@@ -5,17 +5,17 @@
 but must stay platform-free. The game-detection predicate ``is_game_pid``
 combines two orthogonal signals:
 
-  * ``uses_graphics_api`` — reads /proc/<pid>/maps for known 3D graphics
-    libraries (Vulkan, OpenGL/libGL, DXVK, VKD3D-Proton, Wine Vulkan). A
-    process that has mapped any of these is almost certainly a game or a
-    3D-capable app, regardless of how it was launched.
+  * ``uses_translation_layer`` — reads /proc/<pid>/maps for the Windows→Vulkan
+    graphics translation layers (DXVK, VKD3D-Proton, Wine Vulkan). Only a
+    Windows game run under Wine/Proton maps these.
 
   * ``descends_from_launcher`` — walks the /proc parent chain looking for
     known game-launcher process names (Steam, Heroic, Lutris, …). Covers
-    games whose launcher does not explicitly load a graphics library but
-    that descend from a recognisable runtime (e.g. early-startup frames).
+    native games, which map nothing a browser or video player does not.
 
-Either signal alone is sufficient: the two are OR-combined.
+Either signal alone is sufficient: the two are OR-combined. Anything else
+(a native game started outside a launcher) is recognised by its tile's
+``Categories=Game`` instead, not from the process.
 """
 
 from __future__ import annotations
@@ -36,13 +36,12 @@ GAME_LAUNCHERS = frozenset({
     "bottles", "bottles-cli",
 })
 
-# Substrings matched against lines of /proc/<pid>/maps to detect 3D API use.
-# libGL.so (OpenGL with GLX) is distinct from libEGL.so, which is used by
-# Wayland UI toolkits (Qt, GTK) but not by game renderers — so checking for
-# "libGL.so" avoids false positives on ordinary GUI applications.
-_GRAPHICS_LIBS = (
-    "libvulkan",   # Vulkan loader — Vulkan-native games, DXVK, VKD3D
-    "libGL.so",    # Mesa OpenGL with GLX — Linux-native OpenGL games
+# Substrings matched against lines of /proc/<pid>/maps. Only Wine/Proton
+# translation layers qualify: the plain 3D loaders (libvulkan, libGL, libEGL)
+# are mapped by ordinary accelerated desktop apps too — a Qt video player, a
+# Chromium-based app, or any process the MangoHud Vulkan layer attaches to —
+# so they say nothing about a process being a game.
+_TRANSLATION_LAYERS = (
     "dxvk",        # DXVK: D3D9/D3D11 → Vulkan (Proton, Wine)
     "winevulkan",  # Wine Vulkan layer
     "vkd3d",       # VKD3D-Proton: D3D12 → Vulkan
@@ -95,16 +94,16 @@ def expand_pid_tree(root_pids: set[int]) -> set[int]:
     return result
 
 
-def uses_graphics_api(pid: int) -> bool:
-    """True if *pid* has mapped a 3D graphics library.
+def uses_translation_layer(pid: int) -> bool:
+    """True if *pid* has mapped a Wine/Proton graphics translation layer.
 
-    Reads /proc/<pid>/maps line by line and returns True on the first match
-    against a known graphics API library name. Stops early so the cost is
-    proportional to where in the map the library appears (typically early)."""
+    Reads /proc/<pid>/maps line by line and returns True on the first match.
+    Stops early so the cost is proportional to where in the map the library
+    appears (typically early)."""
     try:
         with open(f"/proc/{pid}/maps", encoding="utf-8", errors="replace") as f:
             for line in f:
-                if any(lib in line for lib in _GRAPHICS_LIBS):
+                if any(lib in line for lib in _TRANSLATION_LAYERS):
                     return True
     except OSError:
         pass
@@ -130,5 +129,5 @@ def descends_from_launcher(
 
 
 def is_game_pid(pid: int) -> bool:
-    """True if *pid* is a game: uses a 3D graphics API or descends from a launcher."""
-    return uses_graphics_api(pid) or descends_from_launcher(pid, process_name, parent_pid)
+    """True if *pid* is a game: runs translated graphics or descends from a launcher."""
+    return uses_translation_layer(pid) or descends_from_launcher(pid, process_name, parent_pid)

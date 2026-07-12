@@ -66,9 +66,10 @@ class ForegroundInspector:
         return None
 
     def foreground_is_game(self) -> bool:
-        """Whether the foreground is a game — a pid ``is_game_pid`` classifies as
-        one, or a tile carrying ``Categories=Game``. A launcher's own UI is an
-        ``AppTarget`` without that category, so it does not qualify."""
+        """Whether the foreground is a game — a tile carrying ``Categories=Game``, or
+        a window ``is_game_pid`` classifies as one. A launcher's own UI is an
+        ``AppTarget`` without that category, so it does not qualify; the pid check
+        then covers the game the launcher spawned into its own window."""
         target = self._foreground.current
         if isinstance(target, WindowTarget):
             result = bool(target.pid) and self._is_game_pid(target.pid)
@@ -76,15 +77,17 @@ class ForegroundInspector:
                          target.name, target.pid, result)
             return result
         if isinstance(target, AppTarget):
+            if self._apps[target.index].is_game:
+                logger.debug("foreground_is_game: AppTarget %r -> Categories=Game", target.name)
+                return True
             window = active_unmanaged_window(self._wm.cached_windows(), self._apps)
             if window is not None and window.pid:
                 result = self._is_game_pid(window.pid)
                 logger.debug("foreground_is_game: AppTarget %r, active window %r pid=%s -> %s",
                              target.name, window.title, window.pid, result)
                 return result
-            result = self._apps[target.index].is_game
-            logger.debug("foreground_is_game: AppTarget %r, no active window -> Categories=Game? %s",
-                         target.name, result)
-            return result
+            logger.debug("foreground_is_game: AppTarget %r, no spawned window -> False",
+                         target.name)
+            return False
         logger.debug("foreground_is_game: no foreground target -> False")
         return False
