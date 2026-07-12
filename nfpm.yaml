@@ -47,9 +47,10 @@ overrides:
       - layer-shell-qt
       - qt6-wayland
     recommends:
-      # Runtime helpers Kasual shells out to. brightnessctl is the DE-independent
-      # backlight path — without KDE's Solid.PowerManagement D-Bus service (Sway,
-      # Hyprland) it is the only way brightness control works.
+      # Runtime helpers Kasual shells out to. brightnessctl is the only brightness
+      # path where KDE's Solid.PowerManagement D-Bus service is absent (Sway,
+      # Hyprland), so it stays a Recommends even though apt installs it by default
+      # onto hosts that have no kernel backlight and will never use it.
       - pipewire-pulse | pulseaudio-utils
       - network-manager
       - brightnessctl
@@ -75,6 +76,9 @@ overrides:
       - mangohud
   archlinux:
     # Arch's python-pyqt6 bundles QtMultimedia; QtWebEngine is a separate pkg.
+    # nfpm drops recommends/suggests for this packager (they reach no .PKGINFO
+    # field), so brightnessctl — the sole brightness path under Sway/Hyprland,
+    # which is most of the Arch audience — has to be a hard depend or nothing.
     depends:
       - python
       - python-pyqt6
@@ -84,6 +88,7 @@ overrides:
       - python-xlib
       - layer-shell-qt
       - qt6-wayland
+      - brightnessctl
 
 # pacman runs post_upgrade (not post_install) on upgrades, so mirror the shared
 # postinstall there as well — keeps the udev reload idempotent across package

@@ -28,6 +28,10 @@ in-game HUD, …) live behind platform adapters. See [Architecture](#-architectu
 - **First-Run Onboarding**: A provisioning picker seeds your catalog from installed apps (curated starter set on Linux; Start-Menu scan on Windows).
 - **In-Game HUD Toggle**: Show or hide the performance overlay for games straight from the controller menu — **[MangoHud](https://github.com/flightlessmango/MangoHud)** on Linux, **[RivaTuner Statistics Server](https://www.guru3d.com/page/rivatuner-rtss-overlay/)** (MSI Afterburner) on Windows. See [In-Game HUD](#-in-game-hud).
 - **Advanced Audio System**: System sounds and audio feedback.
+- **Screensaver Aware** (Linux): a gamepad is invisible to the compositor's idle
+  timers, so Kasual Desktop holds a screensaver inhibition while its UI is on
+  screen and pokes user activity on pad input — the screen no longer blanks
+  mid-session.
 
 ## 🏗️ Architecture
 
@@ -78,24 +82,26 @@ DE-independent.
 
 | Compositor | Status | Window management | Wallpaper | Notes |
 |---|---|---|---|---|
-| **KDE Plasma 6 (KWin)** | Full | KWin D-Bus scripts | Plasma config | The original target. |
+| **KDE Plasma 6 (KWin)** | Full | KWin D-Bus scripts | Plasma config, else Plasma's default wallpaper package | The original target. |
 | **Sway** | Full | `swaymsg` (i3-IPC) | `output … bg` from the Sway config | Minimize is emulated by moving windows to the scratchpad. |
-| **Hyprland** | Full | `hyprctl` | hyprpaper (`hyprctl hyprpaper`) | Minimize is emulated via a dedicated special workspace. |
-| **GNOME 45+ (Mutter)** | Full | Kasual Helper extension (D-Bus) | `gsettings` background | Requires the [Kasual Helper extension](#gnome-the-kasual-helper-extension); Mutter has no `wlr-layer-shell`. |
+| **Hyprland** | Full | `hyprctl` | swww, hyprpaper, or HyDE's current-wallpaper file — whichever answers first | Minimize is emulated via a dedicated special workspace. |
+| **GNOME 45+ (Mutter)** | Full | Kasual Helper extension (D-Bus) | `gsettings` background (dark variant and slideshow XML understood) | Requires the [Kasual Helper extension](#gnome-the-kasual-helper-extension); Mutter has no `wlr-layer-shell`. |
 | Other wlroots (e.g. labwc) | Partial | none (no-op) | `<config>/wallpaper` static file | Starts and renders, but window switching is unavailable. |
 
-For a compositor without a wallpaper backend Kasual reads a static image at
-`<config>/wallpaper` (a file or a symlink into your own collection); the
-wallpaper is resolved on every launch, so a restart picks up a change.
+Whenever a compositor's own wallpaper source comes up empty, Kasual Desktop falls
+back to a static image at `<config>/wallpaper` (a file or a symlink into your own
+collection), and finally to the Desktop's built-in background. The wallpaper is
+resolved on every launch, so a restart picks up a change.
 
 ### GNOME: the Kasual Helper extension
 
 Mutter implements neither `wlr-layer-shell` nor any window-list protocol for
 clients, so on GNOME both jobs are done by a small Shell extension that Kasual
-talks to over D-Bus (`org.consoledesktop.GnomeHelper`). It reports the windows
-with their PIDs, activates/minimizes/closes them, and keeps Kasual's frameless
-surfaces stacked above a fullscreen game — including suppressing Mutter's direct
-scanout, which would otherwise hide any overlay drawn over the game.
+Desktop talks to over D-Bus (`org.consoledesktop.GnomeHelper`). It reports the
+windows with their PIDs, activates/minimizes/closes them, and keeps Kasual
+Desktop's frameless surfaces stacked above a fullscreen game — including
+suppressing Mutter's direct scanout, which would otherwise hide any overlay drawn
+over the game.
 
 `./install.sh` installs and enables it for the current user; the packages ship it
 system-wide, where each user enables it once:
@@ -105,8 +111,12 @@ gnome-extensions enable kasual-helper@consoledesktop.org
 ```
 
 GNOME Shell cannot be reloaded on Wayland, so **log out and back in** afterwards.
-Without the extension Kasual still starts on GNOME, but window switching and
-above-game overlays are unavailable.
+
+Because window management depends on it, Kasual Desktop checks the extension on
+GNOME **before starting anything else**. If it is installed but disabled, a dialog
+offers to enable it right there; if it is missing, the dialog shows the command
+above and waits for a **Retry**. Both are gamepad-operable, so nothing on GNOME
+requires reaching for a keyboard.
 
 ## 🚀 Getting Started
 
@@ -126,22 +136,28 @@ above-game overlays are unavailable.
   ```bash
   sudo apt install python3-pyqt6 python3-pyqt6.sip python3-pyqt6.qtmultimedia \
       python3-pyqt6.qtwebengine python3-qtawesome python3-evdev python3-xlib \
-      layer-shell-qt qt6-wayland
+      layer-shell-qt qt6-wayland brightnessctl
   ```
 
   On **Arch Linux**:
   ```bash
   sudo pacman -S python python-pyqt6 python-pyqt6-webengine python-qtawesome \
-      python-evdev python-xlib layer-shell-qt qt6-wayland
+      python-evdev python-xlib layer-shell-qt qt6-wayland brightnessctl
   ```
+
+  On **Fedora** the qtawesome package is spelled `python3-QtAwesome` (and Qt's
+  Wayland platform plugin `qt6-qtwayland`).
 
   Other distros: install the equivalent of `python3-pyqt6` (incl. its
   `QtMultimedia` and `QtWebEngine` modules), `python3-qtawesome`, `python3-evdev`,
   `python3-xlib`, `layer-shell-qt` (LayerShellQt) and `qt6-wayland`. `QtWebEngine`
   is required by the bundled YouTube app.
-- **(Optional) `brightnessctl`** — the DE-independent backlight control. On KDE
-  Kasual uses Plasma's power-management D-Bus service; on Sway/Hyprland that
-  service is absent, so without `brightnessctl` brightness control is a no-op.
+- **(Optional) `brightnessctl`** — brightness control. Kasual Desktop tries the
+  backends in order and keeps the first one that actually drives a screen:
+  `brightnessctl` (a kernel backlight, under any DE), then Plasma's
+  power-management D-Bus service (which also reaches external monitors over DDC).
+  A desktop with neither — no backlight, no Plasma — simply has no brightness
+  slider in the Home Overlay. Installing from a package pulls `brightnessctl` in.
 
 ### Gamepad permissions
 
