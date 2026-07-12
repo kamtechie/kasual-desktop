@@ -8,3 +8,4 @@ src/_version.txt
 btn_mode_daemon
 .idea
 apps/*/tools
+tests/behavioral/artifacts/
