@@ -60,6 +60,7 @@ const IFACE = `
 // The layer-shell vocabulary Kasual speaks (infrastructure/common/qt/ui/layer_shell.py).
 const ANCHOR_TOP = 1, ANCHOR_BOTTOM = 2, ANCHOR_LEFT = 4, ANCHOR_RIGHT = 8;
 const DEFAULT_LAYER = 3;
+const OVERLAY_LAYER = 3;
 
 // Mutter moved the unredirect toggle from Meta to global.compositor across 45–50.
 function unredirectApi() {
@@ -332,13 +333,18 @@ class Helper {
         // keeps plain fullscreen windows in NORMAL), so drop ABOVE and re-raise
         // the apps instead; the last app unmapping leaves the Desktop topmost.
         if (this._ceded) {
-            for (const w of wanted)
+            const overlays = wanted.filter(w => this._isOverlay(w));
+            const desktop = wanted.filter(w => !this._isOverlay(w));
+            for (const w of desktop)
                 w.unmake_above();
             if (this._focusIsOrdinaryWindow())
-                this._sinkUnderWindows(wanted);
+                this._sinkUnderWindows(desktop);
             else
-                this._floatOverWindows(wanted);
-            this._setUnredirectSuppressed(false);
+                this._floatOverWindows(desktop);
+            this._pinOverApp(overlays);
+            // Only an overlay needs the app redirected; the ceded Desktop is happy
+            // to stay under a scanned-out game.
+            this._setUnredirectSuppressed(overlays.length > 0);
             this._setRestackGuard(false);
             return;
         }
@@ -382,6 +388,28 @@ class Helper {
             .filter(w => !this._isOurs(w) && w.is_fullscreen());
         for (const a of apps)
             raiseWindow(a);
+    }
+
+    // Kasual's overlays — the Home menu, dialogs, the OSDs — are summoned *over* a
+    // running app, so unlike the ceded Desktop they must outrank even a fullscreen
+    // game. make_above lifts them to Mutter's TOP layer, which a fullscreen window
+    // (NORMAL) cannot reach.
+    _isOverlay(win) {
+        const role = this._roleOf(win);
+        if (role)
+            return role.layer >= OVERLAY_LAYER;
+        // Roles are registered as Kasual's surfaces are built, so reloading the
+        // helper under a running Kasual leaves them behind: fall back on the shape,
+        // where the Desktop is the fullscreen surface and the overlays are not.
+        return !win.is_fullscreen();
+    }
+
+    _pinOverApp(overlays) {
+        for (const w of overlays) {
+            if (!w.is_above())
+                w.make_above();
+            raiseWindow(w);
+        }
     }
 
     // Layer, not map order, decides: the Desktop must stay below the overlays even

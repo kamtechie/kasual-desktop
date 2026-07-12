@@ -222,6 +222,22 @@ wywołane bez argumentu rzuca `JS ERROR` i okno nie schodzi (zmierzone).
 
 `GnomeSurface.sink()` zostaje no-opem: depth ustala rozszerzenie.
 
+#### Overlaye (Home menu, dialogi, OSD) nad grą
+
+Gałąź `_ceded` traktowała wszystkie nasze okna jednakowo, więc Home menu
+przywołane znad gry (BTN_MODE) lądowało **pod** oknem gry, a do tego cede oddaje
+grze direct scanout (`_setUnredirectSuppressed(false)`) — czyli nawet gdyby było
+wyżej, Mutter by go nie narysował. Objaw: menu słychać, ale go nie widać.
+Zmierzone przez `Debug()`: `depth 1: kasualmenu` pod `depth 2: gra FULLSCREEN`,
+`unredirect=None`.
+
+Podział po roli warstwy: okna z rolą >= OVERLAY (Home menu, hint bar, dialogi,
+OSD — `promote_overlay_surface`) są przypinane `make_above` (warstwa TOP Muttera,
+której pełnoekranowe okno w NORMAL nie dosięga) i włączają supresję unredirect na
+czas, gdy są zmapowane. Pulpit (rola TOP) dalej podlega regule sink/float.
+Gdy roli brak (przeładowanie rozszerzenia pod działającym KD gubi `_roles`),
+rozstrzyga kształt: pulpit jest pełnoekranowy, overlaye nie.
+
 ### Status na innych kompozytorach
 
 - **Hyprland/Sway** — cede i tak schodzi na BOTTOM (`cede_to_bottom`), więc
