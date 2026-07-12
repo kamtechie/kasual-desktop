@@ -291,6 +291,11 @@ class AppLifecycle(AppControl):
         self._cede_depth.cancel()
         self._gamepad.set_app_btn_mode_trigger(Trigger.CLICK)
         self._gamepad.push_handler(self._pad_handler)
+        if not self._gamepad.is_connected():
+            # An app closing must not put the Desktop back on a screen with no
+            # controller to drive it; reconnecting one surfaces it again. Input
+            # control above is still restored, so it comes back ready.
+            return
         if not self._view.is_visible():
             self._view.show_fullscreen()
         self._view.activate()

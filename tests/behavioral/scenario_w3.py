@@ -1,13 +1,15 @@
-"""Behavioral scenario: KD → tile → Steam → KCD splash → game → Home Menu.
+"""Behavioral scenario: KD → tile → Steam → RED Launcher → W3 → Home Menu.
 
-Kasual Desktop launches the game itself (pad → tile → A), so the run exercises the
-real choreography — DeferredHide, CedeDepth — that a bare `steam://rungameid/…`
-would bypass. KCD's splash is a plain window that comes and goes on its own; the
-scenario only has to assert nothing of KD sits over it.
+Where KCD's splash comes and goes on its own, the Witcher 3 stops at the RED
+Launcher and waits: the game only starts once "Graj" — the launcher's default
+button — is activated. That makes the launcher the sharper test of ceding. A
+splash KD covers is merely invisible; a *launcher* KD covers is unusable, and the
+run cannot get past it. Reaching the game's fullscreen window is therefore the
+proof that the ceded Desktop really sank under it.
 
 Run on the KDE Plasma 6 / Wayland machine, with no physical gamepad connected:
 
-    python3 tests/behavioral/scenario_kcd.py
+    python3 tests/behavioral/scenario_w3.py
 
 KD must run with the test API on, and must start *after* this script has created
 the virtual pad (KD grabs the first matching device it finds):
@@ -16,6 +18,7 @@ the virtual pad (KD grabs the first matching device it finds):
 """
 
 import sys
+import time
 
 from PyQt6.QtCore import QCoreApplication
 
@@ -25,8 +28,9 @@ from kwin_watcher import KWinWatcher
 from steps import report, summary
 from virtual_pad import VirtualPad
 
-TILE_ID = 'Kingdom Come Deliverance'
-APPID = '379430'
+TILE_ID = 'Wiedmin 3 Dziki Gon'
+APPID = '292030'
+LAUNCHER = 'RED Launcher'
 
 
 def main() -> int:
@@ -59,10 +63,16 @@ def main() -> int:
 
         steps.launch_tile(kd, pad, TILE_ID)
 
-        # The splash is passive — nobody has to click it — so KD's own state is
-        # the only evidence that it was not buried under the shell.
-        if steps.wait_plain_window(watcher, game_rc, 'splash', known=stale) is not None:
-            steps.check_kd_below(kd, 'splash')
+        launcher = steps.wait_plain_window(watcher, game_rc, LAUNCHER, known=stale)
+        if launcher is None:
+            return summary()
+        steps.note_kd_state(kd, LAUNCHER)
+
+        time.sleep(2)   # let the launcher take focus before it is driven
+        # The launcher has to be *used*, so reaching the game proves what no
+        # reading of KD's state can: nothing of KD was covering it.
+        if not steps.activate_launcher(pad, watcher, game_rc, LAUNCHER):
+            return summary()
 
         game = steps.wait_game_fullscreen(watcher, game_rc)
         game_pid = game['pid']
@@ -71,11 +81,12 @@ def main() -> int:
         steps.check_home_menu_over_game(kd, pad)
 
     finally:
+        # The launcher is its own process and outlives the game — close both.
         pids = steps.game_pids(watcher, game_rc)
         if game_pid:
             pids.add(game_pid)
         steps.shut_down(pad, kd, pids)
-        steps.dump_events(watcher, kd, 'kcd')
+        steps.dump_events(watcher, kd, 'w3')
         watcher.stop()
         pad.close()
 

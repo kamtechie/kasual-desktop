@@ -225,6 +225,9 @@ class BaseGamepadWatcher(
         """The handler currently receiving events, or None if the stack is empty."""
         return self._stack.top()
 
+    def is_connected(self) -> bool:
+        return self._connected
+
     def trigger_btn_mode(self) -> None:
         """Request BTN_MODE from outside the gamepad (e.g. a keyboard shortcut).
 

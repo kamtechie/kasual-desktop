@@ -28,6 +28,9 @@ class KDClient:
         self._iface = QDBusInterface(
             _SVC, _PATH, '', QDBusConnection.sessionBus(),
         )
+        # Every state KD reported, for the artifact: a failed stacking assertion
+        # is only readable against what KD was doing at the time.
+        self.history: list[dict] = []
 
     def snapshot(self) -> dict:
         reply = self._iface.call('Snapshot')
@@ -36,7 +39,9 @@ class KDClient:
                 f'no answer from {_SVC}: {reply.errorMessage()} — is Kasual Desktop '
                 'running with KD_TEST_API=1?'
             )
-        return json.loads(reply.arguments()[0])
+        snap = json.loads(reply.arguments()[0])
+        self.history.append({'at': time.time(), **snap})
+        return snap
 
     def tile_index(self, app_id: str) -> int:
         """Locate a tile by its id, or failing that by its displayed name — tiles

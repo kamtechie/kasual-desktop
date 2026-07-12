@@ -149,11 +149,24 @@ class TestOnAppFinished:
     def test_shows_desktop_when_not_visible(self, mock_gamepad):
         """App zakończyła się sama — desktop niewidoczny → powinien się pokazać."""
         desktop = _make_desktop(mock_gamepad)
+        mock_gamepad._connected = True
         assert not desktop.isVisible()
 
         desktop._lifecycle.on_app_finished(0)
 
         assert desktop.isVisible()
+        assert desktop._handle_pad in mock_gamepad._stack
+
+    def test_stays_off_screen_without_a_controller(self, mock_gamepad):
+        """Pad odłączony w trakcie gry: gdy gra się kończy, desktop nie ma czym
+        być sterowany, więc nie wolno mu wskoczyć na ekran — wróci, gdy wróci pad."""
+        desktop = _make_desktop(mock_gamepad)
+        mock_gamepad._connected = False
+
+        desktop._lifecycle.on_app_finished(0)
+
+        assert not desktop.isVisible()
+        # Input control is still restored, so a reconnect surfaces it ready to drive.
         assert desktop._handle_pad in mock_gamepad._stack
 
     def test_does_not_push_handler_again_when_already_visible(self, mock_gamepad):

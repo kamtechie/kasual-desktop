@@ -27,12 +27,15 @@ class FocusSnapshot:
 class ShellSnapshot:
     """The Home view (tiles, focus) and which shell surfaces are on screen.
 
-    ``desktop_sunk`` says the ceded Desktop sits *under* a running app's ordinary
-    windows — the state that decides whether an app's launcher or splash is
-    reachable, or buried under the shell.
+    Three states tell apart the ways the Desktop leaves the foreground, which
+    decide whether a launcher or splash of the app is reachable or buried:
+    ``desktop_visible`` — in front and owning input; ``desktop_mapped`` — still
+    on screen though ceded (it would cover an app's ordinary window unless it
+    also sank); ``desktop_sunk`` — ceded *and* under those windows.
     """
 
     desktop_visible:    bool
+    desktop_mapped:     bool
     desktop_sunk:       bool
     home_header_mapped: bool
     home_menu_open:     bool

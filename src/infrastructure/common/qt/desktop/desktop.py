@@ -242,6 +242,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         )
         return ShellSnapshot(
             desktop_visible=self._surface.is_visible(),
+            desktop_mapped=self.isVisible(),
             desktop_sunk=self._surface.is_sunk(),
             home_header_mapped=(
                 self._home_surface is not None and self._home_surface.isVisible()
