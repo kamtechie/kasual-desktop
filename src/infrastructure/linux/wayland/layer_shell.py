@@ -118,3 +118,13 @@ def set_keyboard(widget: QWidget, keyboard: Keyboard) -> bool:
     lib, ls_window = got
     lib._ls_kbd(ls_window, int(keyboard))
     return True
+
+
+def set_layer(widget: QWidget, layer: Layer) -> bool:
+    """Move an already-promoted surface to a different compositor layer."""
+    got = _ls_handle(widget)
+    if got is None:
+        return False
+    lib, ls_window = got
+    lib._ls_layer(ls_window, int(layer))
+    return True

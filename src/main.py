@@ -178,7 +178,9 @@ def main() -> None:
             app_adder=app_adder,
             power_preference=power_preference,
             deferred_hide_factory=lambda wm_, pm_, on_cede, on_hide:
-                DeferredHide(wm_, pm_, on_cede=on_cede, on_hide=on_hide),
+                DeferredHide(wm_, pm_, on_cede=on_cede, on_hide=on_hide,
+                             always_cede=detect_compositor()
+                             in (Compositor.HYPRLAND, Compositor.SWAY)),
             deferred_show_factory=lambda wm_, pm_, on_show:
                 DeferredShow(wm_, pm_, on_show=on_show),
         )

@@ -127,26 +127,46 @@ class TestNullBrightnessControl:
 
 
 class TestSelector:
+    def _which(self, *installed: str):
+        return lambda name: f"/usr/bin/{name}" if name in installed else None
+
     def test_prefers_brightnessctl(self):
-        with patch("infrastructure.linux.display.brightness.shutil.which", return_value="/usr/bin/brightnessctl"):
+        with patch("infrastructure.linux.display.brightness.shutil.which",
+                   side_effect=self._which("brightnessctl", "qdbus6")), \
+             patch.object(BrightnessctlBrightnessControl, "is_controllable", return_value=True), \
+             patch.object(KdeBrightnessControl, "is_controllable", return_value=True):
             assert isinstance(select_brightness_control(), BrightnessctlBrightnessControl)
 
+    def test_skips_installed_brightnessctl_without_backlight(self):
+        # A desktop whose only adjustable screen is an external monitor: brightnessctl
+        # is installed (package dependency) but drives nothing; KDE's D-Bus does.
+        with patch("infrastructure.linux.display.brightness.shutil.which",
+                   side_effect=self._which("brightnessctl", "qdbus6")), \
+             patch.object(BrightnessctlBrightnessControl, "is_controllable", return_value=False), \
+             patch.object(KdeBrightnessControl, "is_controllable", return_value=True):
+            assert isinstance(select_brightness_control(), KdeBrightnessControl)
+
     def test_falls_back_to_kde_with_qdbus6(self):
-        def which(name):
-            return "/usr/bin/qdbus6" if name == "qdbus6" else None
-        with patch("infrastructure.linux.display.brightness.shutil.which", side_effect=which):
+        with patch("infrastructure.linux.display.brightness.shutil.which", side_effect=self._which("qdbus6")), \
+             patch.object(KdeBrightnessControl, "is_controllable", return_value=True):
             adapter = select_brightness_control()
         assert isinstance(adapter, KdeBrightnessControl)
         assert adapter._qdbus == "qdbus6"
 
     def test_kde_falls_back_to_unsuffixed_qdbus(self):
-        def which(name):
-            return "/usr/bin/qdbus" if name == "qdbus" else None
-        with patch("infrastructure.linux.display.brightness.shutil.which", side_effect=which):
+        with patch("infrastructure.linux.display.brightness.shutil.which", side_effect=self._which("qdbus")), \
+             patch.object(KdeBrightnessControl, "is_controllable", return_value=True):
             adapter = select_brightness_control()
         assert isinstance(adapter, KdeBrightnessControl)
         assert adapter._qdbus == "qdbus"
 
-    def test_falls_back_to_null(self):
+    def test_falls_back_to_null_when_nothing_installed(self):
         with patch("infrastructure.linux.display.brightness.shutil.which", return_value=None):
+            assert isinstance(select_brightness_control(), NullBrightnessControl)
+
+    def test_falls_back_to_null_when_no_backend_controls_anything(self):
+        with patch("infrastructure.linux.display.brightness.shutil.which",
+                   side_effect=self._which("brightnessctl", "qdbus6")), \
+             patch.object(BrightnessctlBrightnessControl, "is_controllable", return_value=False), \
+             patch.object(KdeBrightnessControl, "is_controllable", return_value=False):
             assert isinstance(select_brightness_control(), NullBrightnessControl)

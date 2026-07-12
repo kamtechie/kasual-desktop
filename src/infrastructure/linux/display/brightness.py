@@ -172,12 +172,20 @@ def select_brightness_control() -> BrightnessControl:
     """Pick the best available BrightnessControl for the running system.
 
     Prefers a real kernel backlight via ``brightnessctl`` (works under any DE),
-    then KDE's D-Bus service, and finally a no-op fallback. This is the single
-    DE-dependent decision; everything upstream depends only on the port."""
+    then KDE's D-Bus service, and finally a no-op fallback. An installed backend
+    that drives nothing on this host is skipped rather than shadowing the next
+    one: ``brightnessctl`` ships as a package dependency even on desktops whose
+    only adjustable screen is an external monitor reachable over KDE's D-Bus.
+    This is the single DE-dependent decision; everything upstream depends only on
+    the port."""
+    candidates: list[BrightnessControl] = []
     if shutil.which("brightnessctl"):
-        return BrightnessctlBrightnessControl()
+        candidates.append(BrightnessctlBrightnessControl())
     qdbus = _qdbus_binary()
     if qdbus:
-        return KdeBrightnessControl(qdbus)
+        candidates.append(KdeBrightnessControl(qdbus))
+    for control in candidates:
+        if control.is_controllable():
+            return control
     logger.warning("No brightness backend available; brightness control disabled")
     return NullBrightnessControl()

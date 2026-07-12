@@ -40,6 +40,7 @@ class HyprlandWindowManager(WlrootsWindowManager):
             title=client.get("title") or "",
             pid=pid,
             active=bool(address) and address == active_address,
+            fullscreen=client.get("fullscreen") == 2,
             resource_class=resource_class,
         )
 

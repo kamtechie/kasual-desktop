@@ -168,10 +168,15 @@ def build_desktop_surface() -> "DesktopSurface":
     wlr-layer-shell surface; GNOME (no layer-shell) uses a frameless window that
     the Kasual Helper extension pins above the foreground app.
     """
-    if detect_compositor() is Compositor.GNOME:
+    compositor = detect_compositor()
+    if compositor is Compositor.GNOME:
         from infrastructure.gnome.helper import helper_present
         if helper_present():
             from infrastructure.gnome.qt.surface import GnomeSurface
             return GnomeSurface()
     from infrastructure.linux.wayland.surface import LayerShellSurface
-    return LayerShellSurface()
+    # wlroots keeps layer-shell TOP above every window, so there the Desktop
+    # cedes by dropping to the BOTTOM layer; KWin lets a fullscreen app cover TOP.
+    return LayerShellSurface(
+        cede_to_bottom=compositor in (Compositor.HYPRLAND, Compositor.SWAY)
+    )
