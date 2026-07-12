@@ -86,6 +86,13 @@ function raiseWindow(w) {
     else if (typeof w.raise === 'function') w.raise();
 }
 
+function lowerWindow(w) {
+    if (typeof w.lower_with_transients === 'function')
+        w.lower_with_transients(global.get_current_time());
+    else if (typeof w.lower === 'function')
+        w.lower();
+}
+
 function mappedWindows() {
     return global.get_window_actors()
         .map(a => a.meta_window)
@@ -132,6 +139,9 @@ class Helper {
             'window-created', (_d, win) => this._trackWindow(win));
         this._attentionId = global.display.connect(
             'window-demands-attention', (_d, win) => this._muteAttention(win));
+        // A ceded Desktop's depth follows the focus (see _focusIsOrdinaryWindow).
+        this._focusId = global.display.connect(
+            'notify::focus-window', () => this._scheduleSync());
         for (const win of mappedWindows())
             this._trackWindow(win);
 
@@ -146,6 +156,7 @@ class Helper {
         this._anchorSourceId = 0;
         global.display.disconnect(this._windowCreatedId);
         global.display.disconnect(this._attentionId);
+        global.display.disconnect(this._focusId);
         for (const [win, ids] of this._windowSignals)
             for (const id of ids)
                 win.disconnect(id);
@@ -321,14 +332,12 @@ class Helper {
         // keeps plain fullscreen windows in NORMAL), so drop ABOVE and re-raise
         // the apps instead; the last app unmapping leaves the Desktop topmost.
         if (this._ceded) {
-            for (const w of wanted) {
+            for (const w of wanted)
                 w.unmake_above();
-                raiseWindow(w);
-            }
-            const apps = stackedBottomToTop(mappedWindows())
-                .filter(w => !this._isOurs(w) && w.is_fullscreen());
-            for (const a of apps)
-                raiseWindow(a);
+            if (this._focusIsOrdinaryWindow())
+                this._sinkUnderWindows(wanted);
+            else
+                this._floatOverWindows(wanted);
             this._setUnredirectSuppressed(false);
             this._setRestackGuard(false);
             return;
@@ -346,6 +355,33 @@ class Helper {
             const titles = wanted.map(w => `${w.get_title()}${w.is_fullscreen() ? '*' : ''}`);
             console.log(`${TAG} pinned ${wanted.length}: [${titles.join(' | ')}]`);
         }
+    }
+
+    // What the app puts on screen right now shows in the focus, not in the window
+    // list: a game that opens a launcher (Witcher 3) or a splash (Kingdom Come)
+    // hands focus to an ordinary window while its own fullscreen window lives on.
+    _focusIsOrdinaryWindow() {
+        const focus = global.display.focus_window;
+        return !!focus && !this._isOurs(focus) && !focus.is_fullscreen();
+    }
+
+    // Mutter keeps such a window in NORMAL — exactly where a ceded Desktop raised
+    // over ordinary windows sits — so the Desktop would bury it, and the game
+    // behind it, and the launcher could never be clicked. Under every window the
+    // Desktop still covers the DE's desktop: the wallpaper is no window.
+    _sinkUnderWindows(ours) {
+        // Lowering puts a window at the bottom, so go top-down to keep our own order.
+        for (const w of [...ours].reverse())
+            lowerWindow(w);
+    }
+
+    _floatOverWindows(ours) {
+        for (const w of ours)
+            raiseWindow(w);
+        const apps = stackedBottomToTop(mappedWindows())
+            .filter(w => !this._isOurs(w) && w.is_fullscreen());
+        for (const a of apps)
+            raiseWindow(a);
     }
 
     // Layer, not map order, decides: the Desktop must stay below the overlays even

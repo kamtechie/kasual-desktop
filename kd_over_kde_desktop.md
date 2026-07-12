@@ -204,14 +204,28 @@ zasłonięty.
 - `src/domain/lifecycle/app_lifecycle.py` — uzbraja `cede_depth` przy
   launch/restore, rozbraja przy powrocie na pulpit.
 
+### GNOME (zaimplementowane, zweryfikowane w zagnieżdżonym GNOME 46)
+
+Ten sam błąd był na GNOME: `_sync()` trzymał KD nad zwykłymi oknami, więc
+splash/launcher (Mutter zostawia je w warstwie NORMAL) lądował pod KD.
+
+Regułę wykonuje samo rozszerzenie, nie KD: lista okien na GNOME jest odpytywana
+co 3 s, a rozszerzenie widzi fokus natychmiast. W gałęzi `_ceded` w `_sync()`:
+gdy fokus ma zwykłe (nie-pełnoekranowe) cudze okno — `_sinkUnderWindows()`
+(`lower_with_transients`, od góry, żeby zachować własną kolejność); w przeciwnym
+razie dotychczasowe `_floatOverWindows()`. Do tego `notify::focus-window` na
+`global.display` wyzwala `_sync`. Tapeta GNOME nie jest oknem, więc zsunięte KD
+wciąż ją zasłania (nad KD widać tylko górny pasek i dash).
+
+Pułapka API: `Meta.Window.lower_with_transients()` **wymaga timestampu** —
+wywołane bez argumentu rzuca `JS ERROR` i okno nie schodzi (zmierzone).
+
+`GnomeSurface.sink()` zostaje no-opem: depth ustala rozszerzenie.
+
 ### Status na innych kompozytorach
 
 - **Hyprland/Sway** — cede i tak schodzi na BOTTOM (`cede_to_bottom`), więc
   launcher jest nad KD; `sink()` jest tam no-opem. Niezweryfikowane pomiarem.
-- **GNOME** — `_sync()` w rozszerzeniu trzyma KD *nad* zwykłymi oknami i pod
-  pełnoekranowymi, więc splash/launcher wpada pod KD: **ten sam błąd**, do
-  naprawy osobno (reguła musi zejść pod zwykłe okna, gdy fokus nie jest na oknie
-  pełnoekranowym). `GnomeSurface.sink()` jest na razie no-opem.
 
 ## Przenośność na Hyprland / Sway / GNOME (vs branch `kde_independence`)
 

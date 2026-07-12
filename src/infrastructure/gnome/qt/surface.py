@@ -59,7 +59,9 @@ class GnomeSurface:
         helper.cede_overlay()
 
     def sink(self, under_windows: bool) -> None:
-        pass   # the extension's restacking rule has no depth to switch (yet)
+        # The extension already follows the focus, which tells it what the app is
+        # showing before our window list does (it is polled).
+        pass
 
     def activate(self) -> None:
         self._widget.activateWindow()
