@@ -36,6 +36,7 @@ def _body(session: Session) -> None:
     # Over a running app the menu offers its own three cards, pre-focused on the one
     # that costs nothing — returning to the app.
     shell.expect_menu_offers(kd, CARDS, focused=shell.RETURN_TO_APP)
+    shell.expect_no_hud_card(kd, 'File Browser')
     shell.pick_menu_action(kd, pad, shell.CLOSE_APP)
 
     shell.expect_confirm(kd)

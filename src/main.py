@@ -214,15 +214,16 @@ def main() -> None:
             version=version, gamepad=gamepad, quit_fn=app.quit,
         )
 
+        hud = MangoHudControl()
         controller = build_controller(
             gamepad=gamepad, desktop=desktop, tray=tray, wm=wm,
-            power=power, hud=MangoHudControl(),
+            power=power, hud=hud,
         )
 
         if os.environ.get("KD_TEST_API") == "1":
             from infrastructure.linux.introspection import ShellIntrospectionService
             # Parented to `app` for the same reason as the monitors above.
-            ShellIntrospectionService(desktop, parent=app)
+            ShellIntrospectionService(desktop, hud, parent=app)
 
         wm.start_periodic_refresh(3000)
         # Start the notification monitor only once the event loop is running, so

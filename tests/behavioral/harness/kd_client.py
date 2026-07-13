@@ -44,7 +44,7 @@ def running_pid() -> int | None:
 # the harness — the run would otherwise die of a KeyError halfway through a scenario.
 _SNAPSHOT_KEYS = frozenset({
     'desktop_visible', 'desktop_mapped', 'desktop_sunk', 'home_header_mapped',
-    'hint_bar_mapped', 'home_menu', 'confirm', 'focus', 'tiles',
+    'hint_bar_mapped', 'home_menu', 'confirm', 'hud', 'focus', 'tiles',
 })
 
 

@@ -127,9 +127,11 @@ HIDE_DESKTOP      = 'hide_desktop'
 RETURN_TO_DESKTOP = 'return_to_desktop'
 RETURN_TO_APP     = 'return_to_app'
 CLOSE_APP         = 'close_app'
+TOGGLE_HUD        = 'toggle_hud'
 
 QUICK   = 'quick'     # the sliders
 ACTIONS = 'actions'   # the cards
+HUD     = 'hud'       # the performance-HUD toggle, offered over a game and nowhere else
 
 
 def _focused_item(snapshot: dict) -> dict | None:
@@ -140,24 +142,30 @@ def _focused_item(snapshot: dict) -> dict | None:
     return None
 
 
-def _locate(snapshot: dict, action: str) -> tuple[str, int] | None:
-    for section in snapshot['home_menu']['sections']:
+def _locate(snapshot: dict, action: str) -> tuple[int, int] | None:
+    """Where a card sits: which section, and which slot in it."""
+    for section_index, section in enumerate(snapshot['home_menu']['sections']):
         for index, item in enumerate(section['items']):
             if item['action'] == action:
-                return section['kind'], index
+                return section_index, index
     return None
 
 
-def _columns(snapshot: dict, kind: str) -> int:
-    for section in snapshot['home_menu']['sections']:
-        if section['kind'] == kind:
-            return max(1, section['columns'])
-    return 1
+def _columns(snapshot: dict, section_index: int) -> int:
+    return max(1, snapshot['home_menu']['sections'][section_index]['columns'])
 
 
-def open_home_menu(kd: KDClient, pad: VirtualPad) -> None:
-    """BTN_MODE — the gesture that recalls KD wherever it is, minimized included."""
-    pad.home()
+def _section(snapshot: dict, kind: str) -> dict | None:
+    return next((s for s in snapshot['home_menu']['sections'] if s['kind'] == kind), None)
+
+
+def open_home_menu(kd: KDClient, pad: VirtualPad, *, hold: bool = False) -> None:
+    """BTN_MODE — the gesture that recalls KD wherever it is, minimized included.
+
+    An app can claim the click for itself and leave KD the *hold* (a game does, so its
+    own Guide button keeps working); over such an app a short press never reaches KD.
+    """
+    pad.hold_home(1.2) if hold else pad.home()
     try:
         kd.wait_until(lambda s: s['home_menu']['open'], timeouts.HOME_MENU,
                       'the Home menu open')
@@ -200,44 +208,87 @@ def expect_menu_offers(kd: KDClient, actions: tuple[str, ...], focused: str) -> 
            f'sliders: {sliders}, cards: {list(cards)}, focused: {focused!r}')
 
 
-def pick_menu_action(kd: KDClient, pad: VirtualPad, action: str) -> None:
-    """Walk the cards to *action* and press A, reading the focus back at every step."""
+def focus_menu_action(kd: KDClient, pad: VirtualPad, action: str) -> dict:
+    """Walk the menu to *action*, reading the focus back at every step.
+
+    The menu is sections of grids, and up/down spills from one section into the next —
+    so crossing sections and moving within one are the same two presses, taken in that
+    order.
+    """
     snapshot = kd.snapshot()
     target = _locate(snapshot, action)
     focused = _focused_item(snapshot)
     if target is None or focused is None:
-        report(f'picked {action!r} in the menu', 'FAIL', 'no such card, or nothing focused')
+        report(f'focused {action!r} in the menu', 'FAIL',
+               'no such card, or nothing focused')
         raise ScenarioAborted(f'{action!r} is not on the menu')
 
-    section, wanted_index = target
-    columns = _columns(snapshot, section)
-    for _ in range(len(snapshot['home_menu']['sections']) + 8):
+    for _ in range(sum(len(s['items']) for s in snapshot['home_menu']['sections']) + 4):
         here = _locate(snapshot, focused['action'])
         if here == target:
-            break
-        if here is None or here[0] != section:
-            report(f'picked {action!r} in the menu', 'FAIL',
-                   f'the focus is in a different section ({here[0] if here else None})')
-            raise ScenarioAborted('the focus left the cards')
+            return focused
         before = focused['action']
-        # The zone is a grid: cross the rows first, then the columns. A one-column
-        # zone — which the cards are — simply never moves sideways.
-        if here[1] // columns != wanted_index // columns:
-            pad.down() if here[1] < wanted_index else pad.up()
+        if here[0] != target[0]:
+            pad.down() if here[0] < target[0] else pad.up()
         else:
-            pad.right() if here[1] < wanted_index else pad.left()
+            columns = _columns(snapshot, target[0])
+            if here[1] // columns != target[1] // columns:
+                pad.down() if here[1] < target[1] else pad.up()
+            else:
+                pad.right() if here[1] < target[1] else pad.left()
         try:
             snapshot = kd.wait_until(
                 lambda s, b=before: (_focused_item(s) or {}).get('action') != b,
                 timeouts.TILE_FOCUS, f'the menu focus to move off {before!r}')
         except TimeoutError as exc:
-            report(f'picked {action!r} in the menu', 'FAIL',
+            report(f'focused {action!r} in the menu', 'FAIL',
                    f'the focus would not move off {before!r} — is KD reading the pad?')
             raise ScenarioAborted('the menu focus is stuck') from exc
         focused = _focused_item(snapshot)
 
+    report(f'focused {action!r} in the menu', 'FAIL', 'the focus never got there')
+    raise ScenarioAborted(f'could not focus {action!r}')
+
+
+def pick_menu_action(kd: KDClient, pad: VirtualPad, action: str) -> None:
+    focused = focus_menu_action(kd, pad, action)
     pad.confirm()
     report(f'picked {action!r} in the menu', 'PASS', f'A pressed on {focused["label"]!r}')
+
+
+# ── the performance HUD ──────────────────────────────────────────────────────
+
+def expect_no_hud_card(kd: KDClient, what: str) -> None:
+    """The HUD is a game's business. Over anything else the card must not be there —
+    a silent regression nobody would notice until the menu grew a card that does
+    nothing."""
+    if _section(kd.snapshot(), HUD) is None:
+        report(f'no HUD card over the {what}', 'PASS', 'the toggle is offered to games only')
+        return
+    report(f'no HUD card over the {what}', 'FAIL', 'the HUD toggle is on the menu')
+
+
+def toggle_hud(kd: KDClient, pad: VirtualPad) -> None:
+    """Flip the HUD from the menu, and check that KD's own state flipped with it."""
+    snapshot = kd.snapshot()
+    if _section(snapshot, HUD) is None:
+        report('the menu offers the HUD toggle', 'FAIL', 'no HUD card over the game')
+        raise ScenarioAborted('the HUD toggle is not on the menu')
+    was = snapshot['hud']['enabled']
+    report('the menu offers the HUD toggle', 'PASS',
+           f'{_section(snapshot, HUD)["items"][0]["label"]!r} '
+           f'(HUD is {"on" if was else "off"})')
+
+    pick_menu_action(kd, pad, TOGGLE_HUD)
+    try:
+        kd.wait_until(lambda s: s['hud']['enabled'] != was, timeouts.CEDE,
+                      f'the HUD to turn {"off" if was else "on"}')
+    except TimeoutError:
+        report('the HUD toggle takes effect', 'FAIL',
+               f'still {"on" if was else "off"} after the press')
+        return
+    report('the HUD toggle takes effect', 'PASS',
+           f'{"on" if was else "off"} → {"off" if was else "on"}')
 
 
 def expect_minimized(kd: KDClient) -> None:

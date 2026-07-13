@@ -94,6 +94,31 @@ class SteamGame:
         else:
             report('game process alive', 'FAIL', f'pid {pid} not in /proc')
 
+    def check_hud_not_overridden(self, window: dict) -> None:
+        """MANGOHUD_CONFIG in the game's environment overrides MangoHud's config file —
+        the very file KD's HUD toggle writes. Steam's per-game FPS limit sets it, and
+        the toggle then flips a file nobody reads: it looks like it worked, and nothing
+        happens on screen.
+        """
+        pid = window['pid']
+        try:
+            with open(f'/proc/{pid}/environ', 'rb') as environ:
+                variables = environ.read().decode('utf-8', 'replace').split('\0')
+        except OSError as exc:
+            report('nothing overrides the HUD config', 'WARN',
+                   f'could not read the environment of pid {pid}: {exc}')
+            return
+
+        override = next((v for v in variables if v.startswith('MANGOHUD_CONFIG=')), None)
+        if override is None:
+            report('nothing overrides the HUD config', 'PASS',
+                   'no MANGOHUD_CONFIG in the game\'s environment')
+            return
+        report('nothing overrides the HUD config', 'FAIL',
+               f'the game runs with {override} — it shadows MangoHud.conf, so KD\'s '
+               'toggle writes a file the game never reads (Steam\'s per-game FPS limit '
+               'sets this)')
+
     # ── a launcher that waits to be used ─────────────────────────────────────
 
     def activate_launcher(self, what: str, max_presses: int = 3,
