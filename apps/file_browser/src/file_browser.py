@@ -881,6 +881,18 @@ class FileBrowserWindow(QMainWindow):
             self._focus_after = self._current.name
             self._navigate(parent)
 
+    def snapshot(self) -> dict:
+        """Where the browser is and what its cursor is on (see introspection.py)."""
+        item = self._file_list.currentItem()
+        target = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        return {
+            'current_dir': str(self._current),
+            'focused_entry': item.text() if item is not None else None,
+            'focused_index': self._file_list.currentRow(),
+            'focused_is_dir': isinstance(target, Path) and target.is_dir(),
+            'entries': self._file_list.count(),
+        }
+
     def _activate_current_item(self) -> None:
         item = self._file_list.currentItem()
         if item is None:
@@ -1384,6 +1396,12 @@ def main() -> None:
 
     window = FileBrowserWindow()
     window.showFullScreen()
+
+    if os.environ.get("KD_TEST_API") == "1":
+        from introspection import BrowserIntrospectionService
+        # Parented to `app`: a service held only by a local name is collected, and the
+        # bus keeps the name while the object path quietly disappears.
+        BrowserIntrospectionService(window, parent=app)
 
     def _start_pad():
         try:

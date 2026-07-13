@@ -161,6 +161,11 @@ class HomeSurface(QWidget):
         bar (so "up" from the tiles enters it)."""
         return self._header
 
+    @property
+    def menu_content(self) -> HomeMenuContent:
+        """The expanded menu's zones and cursor, for whoever reports the shell's state."""
+        return self._content
+
     def is_expanded(self) -> bool:
         """Whether the menu is morphed open in the Home view (context 1)."""
         return self._expanded

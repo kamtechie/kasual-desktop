@@ -40,12 +40,20 @@ def running_pid() -> int | None:
     return pid if os.path.isdir(f'/proc/{pid}') else None
 
 
+# What the harness reads. A KD that answers with less than this is a KD older than
+# the harness — the run would otherwise die of a KeyError halfway through a scenario.
+_SNAPSHOT_KEYS = frozenset({
+    'desktop_visible', 'desktop_mapped', 'desktop_sunk', 'home_header_mapped',
+    'hint_bar_mapped', 'home_menu', 'confirm', 'focus', 'tiles',
+})
+
+
 def test_api_answers() -> bool:
     try:
-        KDClient().snapshot()
+        snapshot = KDClient().snapshot()
     except KasualDesktopUnavailable:
         return False
-    return True
+    return _SNAPSHOT_KEYS <= snapshot.keys()
 
 
 class KDClient:

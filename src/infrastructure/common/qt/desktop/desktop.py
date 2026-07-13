@@ -31,7 +31,8 @@ from domain.shell.desktop_control import DesktopControl
 from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
 from domain.shell.introspection import (
-    HEADER, TILES, FocusSnapshot, ShellSnapshot, TileSnapshot,
+    HEADER, TILES, ConfirmSnapshot, FocusSnapshot, HomeMenuSnapshot, MenuItemSnapshot,
+    MenuSectionSnapshot, ShellSnapshot, TileSnapshot,
 )
 from domain.shell.open_overlays import OpenOverlays
 from domain.system.desktop_shell import DesktopShell
@@ -230,6 +231,40 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
     # ── ShellIntrospection port ────────────────────────────────────────────
 
+    def _home_menu_snapshot(self) -> HomeMenuSnapshot:
+        if self._home_surface is None or not self._home_surface.is_open():
+            return HomeMenuSnapshot(open=False)
+        content = self._home_surface.menu_content
+        return HomeMenuSnapshot(
+            open=True,
+            sections=tuple(
+                MenuSectionSnapshot(
+                    kind=str(zone.kind),
+                    columns=zone.columns,
+                    items=tuple(
+                        MenuItemSnapshot(
+                            label=item.label,
+                            action=item.action,
+                            focused=(zone_index == content.active
+                                     and item_index == zone.index),
+                        )
+                        for item_index, item in enumerate(zone.items)
+                    ),
+                )
+                for zone_index, zone in enumerate(content.zones)
+            ),
+        )
+
+    def _confirm_snapshot(self) -> ConfirmSnapshot:
+        dialog = self._dialogs.active_confirm if self._dialogs is not None else None
+        if dialog is None:
+            return ConfirmSnapshot(open=False)
+        return ConfirmSnapshot(
+            open=True,
+            question=dialog.question,
+            confirm_focused=dialog.confirm_focused,
+        )
+
     def snapshot(self) -> ShellSnapshot:
         tiles = tuple(
             TileSnapshot(index=i, app_id=app.id, name=app.name)
@@ -247,10 +282,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
             home_header_mapped=(
                 self._home_surface is not None and self._home_surface.isVisible()
             ),
-            home_menu_open=(
-                self._home_surface is not None and self._home_surface.is_open()
-            ),
             hint_bar_mapped=self._hintbar.isVisible(),
+            home_menu=self._home_menu_snapshot(),
+            confirm=self._confirm_snapshot(),
             focus=FocusSnapshot(
                 zone=TILES if on_tiles else HEADER,
                 tile_index=index,

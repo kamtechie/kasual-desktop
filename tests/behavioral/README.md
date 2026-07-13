@@ -192,8 +192,11 @@ Inside `harness/`:
   full `workspace.stackingOrder` snapshot, so nothing short-lived is missed.
   `wait_for()` consumes events sequentially, which makes a chain of waits assert
   the *order* of what happened.
-- **KD introspection** — `kd_client.py`: reads the shell's state from KD's test
-  API (tiles, focus, surfaces) and keeps every answer for the artifact.
+- **KD introspection** — `kd_client.py`: reads the shell's state from KD's test API
+  (tiles, focus, surfaces, and the Home menu's sections, cards and cursor) and keeps
+  every answer for the artifact. It also checks the shape of what comes back: a KD
+  older than the harness is caught before the run, not by a `KeyError` halfway
+  through it.
 - **Navigation** — `navigation.py`: moves the tile focus with the pad, reading the
   focus back from KD after each step, so a dropped press fails loudly instead of
   launching the wrong tile.
@@ -254,6 +257,18 @@ directly: the whole hide choreography (DeferredHide, CedeDepth) is armed only
 inside `AppLifecycle.on_tile_activated`, so a launch from the side leaves the
 HomeHeader and the hint bar sitting on top of Steam — which is exactly the bug the
 first draft of this suite "passed" through.
+
+### The scenarios
+
+- **`minimize`** — the Home menu, Minimize, the bare desktop, BTN_MODE, and back. No
+  application at all, and the only scenario whose subject is KD alone. What it guards
+  is a failure invisible from inside KD: a Desktop that believes it is minimized while
+  its chrome still floats over the DE looks perfectly fine to itself, so the assertions
+  are about *absence* — no tiles, no wallpaper, no header, no hint bar, no menu.
+- **`kcd`** — tile → Steam → the splash → the game → the Home Menu over it.
+- **`w3`** — tile → Steam → the RED Launcher, which has to be *used* → the game.
+- **`steam_kcd`** — tile → Big Picture → Steam's own UI, walked with the pad → the
+  game. The one that proves KD's re-emitted pad reaches a foreign application.
 
 ## Preconditions
 

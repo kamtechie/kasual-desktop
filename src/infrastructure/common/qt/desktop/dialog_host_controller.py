@@ -128,6 +128,11 @@ class DialogHostController:
             self._nav.render()
         self._sync_hint_visibility()
 
+    @property
+    def active_confirm(self) -> 'ConfirmDialog | None':
+        """The confirmation currently on screen, for whoever reports the shell's state."""
+        return self._confirm_dialog
+
     def close_active_dialog(self) -> None:
         if self._confirm_dialog is not None:
             logger.warning("Dialog window still active after app ending – forcing to close")

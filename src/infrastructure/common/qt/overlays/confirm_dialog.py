@@ -31,6 +31,7 @@ class ConfirmDialog(BaseOverlay):
         dim: bool = True,
     ):
         super().__init__(gamepad, self._handle_pad, feedback, parent, dim=dim)
+        self._question = question
         self._on_confirmed = on_confirmed
         self._on_cancelled = on_cancelled
         self._cursor = MenuCursor(
@@ -84,6 +85,16 @@ class ConfirmDialog(BaseOverlay):
             QPushButton.enterEvent(btn, event)
             self._cursor.hover(index)
         btn.enterEvent = _enter
+
+    # ── What is being asked, and which answer A would give ─────────────────
+
+    @property
+    def question(self) -> str:
+        return self._question
+
+    @property
+    def confirm_focused(self) -> bool:
+        return self._cursor.index == 0
 
     # ── Focus state (backed by cursor index) ───────────────────────────────
 

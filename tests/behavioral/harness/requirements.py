@@ -92,10 +92,11 @@ def kd_test_api() -> Requirement:
     answers.
     """
     return Requirement(
-        'its test API answers (KD_TEST_API=1)',
+        'its test API answers, and answers with what this harness reads',
         lambda _kd: kd_client.test_api_answers(),
-        remedy='that Kasual Desktop was started without the test API — quit it and '
-               'start: KD_TEST_API=1 ./kasual.sh',
+        remedy='the running Kasual Desktop was started without the test API, or it '
+               'predates the API this harness expects — quit it and start: '
+               'KD_TEST_API=1 ./kasual.sh',
     )
 
 
