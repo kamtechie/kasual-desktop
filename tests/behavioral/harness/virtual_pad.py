@@ -1,6 +1,12 @@
 """Virtual gamepad for behavioral tests — an evdev UInput device shaped like an
 Xbox 360 pad, so it passes GamepadWatcher._is_gamepad (gamepad buttons, a hat,
-no KEY_A) and is recognisable to Steam/SDL via the X360 vendor/product ids.
+no KEY_A).
+
+Steam never reads this device: KD grabs it exclusively and re-emits it as
+`kasual-vpad`, and that is the pad every launched application sees. (Steam does
+*notice* it, takes the X360 vendor/product ids at face value, and logs a
+`hid_read failure` when the hidraw node a real X360 pad would have is not there.
+Harmless, but it is why those ids are not evidence of anything.)
 
 KD grabs whichever matching device it finds first, so physical pads must stay
 disconnected. It picks this one up on its device scan, whether it was already
@@ -71,6 +77,11 @@ class VirtualPad:
 
     def back(self) -> None:
         self.press(e.BTN_EAST)
+
+    def home(self) -> None:
+        """A short press — KD keeps the *hold* for itself over an app that asked for
+        HOLD_1S, so this one is the app's (in Steam: its main menu)."""
+        self.press(e.BTN_MODE)
 
     def hold_home(self, seconds: float = 1.2) -> None:
         self.hold(e.BTN_MODE, seconds)

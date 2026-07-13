@@ -161,11 +161,26 @@ def _terminate(pid: int) -> bool:
     return False
 
 
+def _steam_gone() -> bool:
+    return subprocess.run(['pgrep', '-x', 'steam'],
+                          stdout=subprocess.DEVNULL).returncode != 0
+
+
 def _shut_down_steam() -> None:
+    """`steam -shutdown` asks politely, and Big Picture is free to ignore it — it
+    quits from its own power menu. The teardown is not the place to drive that menu,
+    so an ignored request is escalated."""
     subprocess.run(['steam', '-shutdown'], stdout=subprocess.DEVNULL,
                    stderr=subprocess.DEVNULL, check=False)
-    gone = _await_exit(
-        lambda: subprocess.run(['pgrep', '-x', 'steam'],
-                               stdout=subprocess.DEVNULL).returncode != 0,
-        timeouts.EXIT)
-    print(f'  steam {"shut down" if gone else "still running"}', flush=True)
+    if _await_exit(_steam_gone, timeouts.EXIT):
+        print('  steam shut down', flush=True)
+        return
+
+    for pid in _pids_of('steam'):
+        _terminate(pid)
+    print(f'  steam {"killed" if _steam_gone() else "still running"}', flush=True)
+
+
+def _pids_of(process: str) -> list[int]:
+    found = subprocess.run(['pgrep', '-x', process], capture_output=True, text=True)
+    return [int(line) for line in found.stdout.split()]

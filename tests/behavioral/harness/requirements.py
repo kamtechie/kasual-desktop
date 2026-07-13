@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -62,6 +63,16 @@ def tile(tile_id: str, description: str | None = None) -> Requirement:
 def manual(description: str) -> Requirement:
     """Something only the operator can confirm. Stated and printed, never verified."""
     return Requirement(description)
+
+
+def not_running(process: str, description: str | None = None,
+                remedy: str | None = None) -> Requirement:
+    return Requirement(
+        description or f'{process} is not running',
+        lambda _kd: subprocess.run(['pgrep', '-x', process],
+                                   stdout=subprocess.DEVNULL).returncode != 0,
+        remedy=remedy or f'quit {process} and run again',
+    )
 
 
 def kd_running() -> Requirement:

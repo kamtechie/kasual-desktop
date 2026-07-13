@@ -19,6 +19,10 @@ wiring) and passes 1200+ tests. It does not cover what actually broke:
 - **Whether a piece of KD is really on screen.** A widget that is "shown" is not
   necessarily the current page of a stack; a surface that is mapped is not
   necessarily on top.
+- **Whether the pad KD re-emits reaches the application in front.** KD grabs the
+  physical pad exclusively and hands applications a `kasual-vpad` of its own making.
+  Nothing about that is visible to a unit test, and a launch from a tile barely
+  exercises it — `steam_kcd` navigates the whole of Steam's UI with it.
 - **The choreography end to end**, across three processes we only partly control.
 
 The point is to establish "X is on the screen right now" — including for windows
@@ -105,8 +109,14 @@ layers.
 
 ## Foreign applications (Steam, Proton/Wine games)
 
-No DOM: a game is a black box committing buffers. The ceiling of inquiry is layer 2
-plus the graphics stack. The structural signals available:
+A *game* is a black box committing buffers, and the ceiling of inquiry there is layer
+2 plus the graphics stack. **Steam is not.** Its Big Picture UI is Chromium (CEF), and
+with `~/.local/share/Steam/.cef-enable-remote-debugging` in place before it starts, it
+speaks the Chrome DevTools Protocol on `localhost:8080` — a real DOM, with the focus
+in it. So the one foreign application we must *drive* is also the one that can be read
+back, and `steam_kcd` checks every pad press against what Steam says it did.
+
+The structural signals available for the rest:
 
 - **Window identity and lifecycle**: a toplevel's `app_id` — Steam games get
   `steam_app_<appid>` (KCD: `steam_app_379430`, W3: `steam_app_292030`) — plus
@@ -122,9 +132,18 @@ plus the graphics stack. The structural signals available:
   started the game, the game never mapped a window — has a different structural
   signature.
 
-Driving Steam's Big Picture UI with the pad is the most brittle step imaginable
-(it depends on the state of the library), so scenarios launch a game through its
-KD tile, whose `.desktop` runs `steam steam://rungameid/<appid>`.
+Two of the three scenarios launch a game through its KD tile, whose `.desktop` runs
+`steam steam://rungameid/<appid>` — the shortest path, and the one a tile is for. The
+third (`steam_kcd`) goes through Steam's UI on purpose, because that is the only way
+to prove something no tile launch can: **that the pad Kasual Desktop re-emits actually
+reaches a foreign application in the foreground.** KD grabs the physical pad
+exclusively (`EVIOCGRAB`) and re-emits it as `kasual-vpad`; `kcd` and `w3` hand the
+screen to a game and stay out of the way, so nothing there exercises that path beyond
+a single press on a launcher.
+
+Driving Big Picture blind would indeed be the most brittle step imaginable. Driving it
+with a read-back is not: Steam is asked after every press where its focus went, and a
+press that lands nowhere fails the run on the spot instead of launching the wrong game.
 
 ## The splash / launcher case — what the right assertion is
 
@@ -183,6 +202,12 @@ Inside `harness/`:
 - **Steps against the game** — `game.py`: `SteamGame` — the windows of a
   `steam_app_<appid>`, the processes behind them, activating a launcher, and the
   way out. Building one registers its own shutdown with the session.
+- **Steps against Steam's UI** — `steam_ui.py`: `SteamUI` reads Big Picture's focus
+  over the DevTools Protocol, and `CefDebugging` puts the debug flag in place for the
+  run and takes it away afterwards — an open debug port is not something to leave
+  behind on someone's desktop. Read-only by design: Steam *could* be driven from here
+  (the protocol dispatches input, and `SteamClient` is right there), but then the run
+  would prove something about Steam's DOM instead of about KD's re-emitted pad.
 - **The run** — `session.py`: bring-up, teardown, artifact, exit code. A scenario
   body starts with KD already on the Home view and both sources of truth open, and
   may give up anywhere by raising `ScenarioAborted` — the teardown still runs.
@@ -258,6 +283,16 @@ The game scenarios (`kcd`, `w3`) additionally need:
   `.desktop` stem or the displayed name; on a miss the error lists the tiles that
   exist).
 
+`steam_kcd` needs instead:
+
+- A KD tile for Steam, whose `.desktop` opens `steam://open/bigpicture` — the desktop
+  UI is not pad-navigable, and this scenario is about the pad.
+- Steam **not running**: the debug flag is read at startup and only then, so the run
+  has to be the one that starts it. (It puts the flag there itself, and removes it
+  afterwards if it was not there already.)
+- **[!]** The game among Big Picture's recent games on the home page — that is the row
+  the run walks.
+
 The list grows with the suite, and it grows in the scenarios: a YouTube scenario
 will want a logged-in session in the YT app, and it will say so in its own
 `requires`, not here.
@@ -313,12 +348,36 @@ a coda to this one.
   leaves it running, and next run it is still on screen, ready to be mistaken for
   a fresh one.
 
+And five paid for by `steam_kcd`, every one of them a press that vanished:
+
+- **Steam ignores the pad unless its own window has the keyboard focus.** A test run
+  from a terminal leaves the focus in that terminal — but that is a fact about the rig,
+  not about KD, and it is not papered over: the scenario asserts that Steam *got* the
+  focus, and a KD that fails to hand it over fails the run.
+- **Big Picture answers the debugger while it is still logging in.** Its loading screens
+  are pages like any other, and a press that lands on them is gone. The UI proper is
+  told apart by weight: a handful of `.Focusable` elements against some two hundred.
+- **The intro animation swallows the press that skips it** — and it plays on after the
+  UI is up and answering. Waiting it out is the only fix; there is nothing to query.
+- **Steam's menus, popups and toasts are CEF pages of their own.** Reading the focus
+  from "the Big Picture page" answers for a page that merely *had* it: a closed menu
+  will happily report its last focused item forever. Ask `document.hasFocus()` which
+  page holds it, and treat "nobody" as an answer rather than as a reason to guess.
+- **The CSS class names are per-build hashes** (`WYgDg9NyCcMIVuMyZ_NBC`). What survives
+  Steam's updates is `.Focusable`, `.gpfocus` and the ARIA labels — the accessibility
+  layer, not the styling one.
+
 ## Next steps
 
 - A scenario for closing an app *the way a user does* (Home Menu → close → KD
   returns), kept separate from the launch scenarios on purpose.
 - MangoHud FPS as proof the game actually renders; today a fullscreen window is
   taken as proof enough.
+- **Shader-processing progress, from the same channel `steam_kcd` reads.** Between the
+  press of Play and the game's first frame the screen sits black for minutes, and a
+  player cannot tell a shader rebuild from a hang. Steam knows which it is — it is in
+  the DOM the scenario already talks to — so KD could say so. A test-only channel that
+  turns out to answer a product question is worth following.
 - A `pytest-bdd` (Gherkin) layer, once there are enough scenarios for the repeated
   parts to be obvious. The split into `scenarios/` and `harness/` is the groundwork:
   a scenario body is already a sequence of named steps over a `Session`, so the step
