@@ -6,7 +6,7 @@ registered here. On every window event the script sends the full
 workspace.stackingOrder snapshot, so relative-order assertions (splash vs KD
 surfaces) need no extra round-trip and short-lived windows cannot be missed.
 
-Runs standalone (needs a QCoreApplication); see scenario_kcd.py for usage.
+Needs a QCoreApplication to dispatch D-Bus; the Session builds one.
 """
 
 import json

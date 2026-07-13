@@ -1,0 +1,116 @@
+"""What a machine must already have before a scenario can run.
+
+A scenario declares its requirements instead of documenting them: the ones that can
+be verified are checked before the run touches the screen, and all of them —
+verifiable or not — are what `run.py --list` prints. The list is the documentation.
+
+Some can only be confirmed by the person at the keyboard (a game is installed, a
+YouTube session is logged in). Those are stated, never guessed at.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+
+from tests.behavioral.harness import kd_client
+from tests.behavioral.harness.kd_client import KDClient
+from tests.behavioral.harness.report import ScenarioAborted, report
+
+
+@dataclass(frozen=True)
+class Requirement:
+    description: str
+    verify: Callable[[KDClient | None], bool] | None = None
+    needs_kd: bool = False
+    remedy: str = 'precondition not met'
+
+
+def command(name: str, description: str | None = None) -> Requirement:
+    return Requirement(
+        description or f'{name} is installed',
+        lambda _kd: shutil.which(name) is not None,
+    )
+
+
+def writable(path: str, description: str | None = None) -> Requirement:
+    return Requirement(
+        description or f'{path} is writable',
+        lambda _kd: os.access(path, os.W_OK),
+    )
+
+
+def tile(tile_id: str, description: str | None = None) -> Requirement:
+    def kd_has_the_tile(kd: KDClient | None) -> bool:
+        if kd is None:
+            return False
+        try:
+            kd.tile_index(tile_id)
+        except KeyError:
+            return False
+        return True
+
+    return Requirement(
+        description or f'Kasual Desktop has a tile for {tile_id!r}',
+        kd_has_the_tile,
+        needs_kd=True,
+    )
+
+
+def manual(description: str) -> Requirement:
+    """Something only the operator can confirm. Stated and printed, never verified."""
+    return Requirement(description)
+
+
+def kd_running() -> Requirement:
+    """Read from the single-instance lock, so this sees the packaged KD too."""
+    return Requirement(
+        'Kasual Desktop is running',
+        lambda _kd: kd_client.running_pid() is not None,
+        remedy='start it with: KD_TEST_API=1 ./kasual.sh',
+    )
+
+
+def kd_test_api() -> Requirement:
+    """The running KD must be one that answers.
+
+    KD publishes the API only under KD_TEST_API=1, and the packaged instance started
+    from the menu is not that one — nothing about it looks wrong, it simply never
+    answers.
+    """
+    return Requirement(
+        'its test API answers (KD_TEST_API=1)',
+        lambda _kd: kd_client.test_api_answers(),
+        remedy='that Kasual Desktop was started without the test API — quit it and '
+               'start: KD_TEST_API=1 ./kasual.sh',
+    )
+
+
+BASE: tuple[Requirement, ...] = (
+    kd_running(),
+    kd_test_api(),
+    writable('/dev/uinput',
+             '/dev/uinput is writable (the `input` group, or a udev rule)'),
+    manual('no physical gamepad is connected — Kasual Desktop grabs the first pad '
+           'it finds, and it must find the virtual one'),
+)
+
+
+def check(requirements: Sequence[Requirement], kd: KDClient | None) -> None:
+    """Verify what can be verified now. Without *kd*, only the requirements that do
+    not need it — so a missing Steam is caught before the operator is asked to start
+    Kasual Desktop."""
+    for requirement in requirements:
+        if requirement.verify is None:
+            if kd is None:
+                report(requirement.description, 'INFO', 'confirm this yourself')
+            continue
+        if requirement.needs_kd != (kd is not None):
+            continue
+        if requirement.verify(kd):
+            report(requirement.description, 'PASS')
+        else:
+            report(requirement.description, 'FAIL', requirement.remedy)
+            raise ScenarioAborted(f'precondition not met: {requirement.description}')

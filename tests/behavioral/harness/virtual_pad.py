@@ -2,9 +2,10 @@
 Xbox 360 pad, so it passes GamepadWatcher._is_gamepad (gamepad buttons, a hat,
 no KEY_A) and is recognisable to Steam/SDL via the X360 vendor/product ids.
 
-KD grabs whichever matching device it finds first: create the pad *before*
-launching KD and keep physical pads disconnected. The name must stay distinct
-from KD's own re-emitter ("kasual-vpad").
+KD grabs whichever matching device it finds first, so physical pads must stay
+disconnected. It picks this one up on its device scan, whether it was already
+running or not. The name must stay distinct from KD's own re-emitter
+("kasual-vpad").
 """
 
 import time

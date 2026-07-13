@@ -153,6 +153,16 @@ the stack. Where a window must be used, we assert that it could be.
 
 ## The harness
 
+```
+tests/behavioral/
+  run.py         the entry point: a scenario name, or --list
+  scenarios/     one module per scenario — nothing but the run itself
+  harness/       everything the scenarios are made of
+  artifacts/     one JSON per run: the steps, KWin's events, KD's own states
+```
+
+Inside `harness/`:
+
 - **Input driver** — `virtual_pad.py`: a virtual gamepad through `evdev.UInput`,
   shaped like an Xbox 360 pad, so it passes `GamepadWatcher._is_gamepad` and KD
   grabs it like a real one. No screen coordinates anywhere, and precise control of
@@ -168,39 +178,122 @@ the stack. Where a window must be used, we assert that it could be.
 - **Navigation** — `navigation.py`: moves the tile focus with the pad, reading the
   focus back from KD after each step, so a dropped press fails loudly instead of
   launching the wrong tile.
-- **Steps** — `steps.py`: what the scenarios are made of (Home view, launch by
-  tile, the game's windows, ceding, the Home Menu, teardown).
-- **Scenarios** — `scenario_kcd.py` (splash) and `scenario_w3.py` (RED Launcher).
+- **Steps against KD** — `shell.py`: the Home view, launching a tile, where KD is
+  while a splash or a game is up, and whether the Home Menu came back over it.
+- **Steps against the game** — `game.py`: `SteamGame` — the windows of a
+  `steam_app_<appid>`, the processes behind them, activating a launcher, and the
+  way out. Building one registers its own shutdown with the session.
+- **The run** — `session.py`: bring-up, teardown, artifact, exit code. A scenario
+  body starts with KD already on the Home view and both sources of truth open, and
+  may give up anywhere by raising `ScenarioAborted` — the teardown still runs.
+- **Preconditions** — `requirements.py` (see below).
+- **Verdicts** — `report.py` (`PASS`/`FAIL`/`WARN`/`INFO`); every wait in the
+  harness is a named constant in `timeouts.py`.
 
 Two sources of truth, deliberately: other applications' windows come from the
 compositor, KD's own layer-shell surfaces come from KD.
 
-A scenario must launch the game **through KD**, never through `steam://rungameid/…`
+### Writing a scenario
+
+A module in `scenarios/` exporting a `SCENARIO`: what it needs, and what it does.
+The runner discovers it by import — there is no registry to edit.
+
+```python
+TILE_ID = 'Kingdom Come Deliverance'
+APPID = '379430'
+
+def _body(session: Session) -> None:
+    game = SteamGame(session, APPID)
+    shell.launch_tile(session.kd, session.pad, TILE_ID)
+    if game.wait_plain_window('splash') is not None:
+        shell.check_kd_below(session.kd, 'splash')
+    window = game.wait_fullscreen()
+    game.check_process(window)
+    shell.check_kd_ceded(session.kd)
+    shell.check_home_menu_over_game(session.kd, session.pad)
+
+SCENARIO = Scenario(
+    name='kcd',
+    title='launch Kingdom Come: Deliverance from its tile, recall the Home Menu over it',
+    body=_body,
+    requires=(
+        require.command('steam'),
+        require.manual('Steam is logged in, and Kingdom Come: Deliverance is installed'),
+        require.tile(TILE_ID),
+    ),
+)
+```
+
+A scenario must launch the app **through KD**, never through `steam://rungameid/…`
 directly: the whole hide choreography (DeferredHide, CedeDepth) is armed only
 inside `AppLifecycle.on_tile_activated`, so a launch from the side leaves the
 HomeHeader and the hint bar sitting on top of Steam — which is exactly the bug the
 first draft of this suite "passed" through.
 
+## Preconditions
+
+Scenarios **declare** what they need rather than documenting it, so the list below
+is generated, not maintained: `python3 tests/behavioral/run.py --list` prints it,
+and a requirement that can be checked is checked before the run touches the screen.
+`[!]` marks the ones no code can confirm — a game being installed, a session being
+logged in — which are printed and left to the person at the keyboard.
+
+Every scenario needs:
+
+- KDE Plasma 6 on Wayland — the window watcher speaks KWin's scripting API.
+- `/dev/uinput` writable (the `input` group, or a udev rule) — as KD itself needs.
+- **[!]** No physical gamepad connected: KD grabs the first pad it finds, and it
+  must find the virtual one.
+- Kasual Desktop already running, started with `KD_TEST_API=1` — checked from the
+  single-instance lock (`~/.local/cache/kasual/kasual.lock`) and one call to the
+  API. Both failures are told apart, because they need different fixes: KD is not
+  running at all, or KD is running but was started without the test API — which a
+  packaged, menu-launched instance always is, and which nothing about it betrays
+  until you notice it never answers.
+
+The game scenarios (`kcd`, `w3`) additionally need:
+
+- Steam installed, **[!]** logged in, with the game installed.
+- A KD tile for the game (`TILE_ID` at the top of the scenario, matched against the
+  `.desktop` stem or the displayed name; on a miss the error lists the tiles that
+  exist).
+
+The list grows with the suite, and it grows in the scenarios: a YouTube scenario
+will want a logged-in session in the YT app, and it will say so in its own
+`requires`, not here.
+
 ## Running it (KDE Plasma 6 / Wayland)
 
-1. Unplug physical gamepads (KD grabs the first matching device it finds).
-2. Have access to `/dev/uinput` (as KD does: the `input` group / a udev rule).
-3. Stop any running KD — the virtual pad must exist *before* KD starts.
-4. `python3 tests/behavioral/scenario_kcd.py` — this creates the pad and then
-   waits for KD to appear on the bus.
-5. In a second terminal: `KD_TEST_API=1 ./kasual.sh`
+Start Kasual Desktop with the test API on, and leave it there — with no controller
+connected it holds off the screen, showing nothing:
 
-The tile and the app id are hardcoded to this machine's library (`TILE_ID`,
-`APPID` at the top of each scenario). A tile is named by its `id` (the `.desktop`
-stem) or by its displayed name; on a miss, the error lists the tiles that exist.
+```
+KD_TEST_API=1 ./kasual.sh
+```
+
+Then, in another terminal:
+
+```
+python3 tests/behavioral/run.py             # all of them, one after another
+python3 tests/behavioral/run.py kcd         # just this one
+python3 tests/behavioral/run.py --list      # what there is and what it needs; runs nothing
+```
+
+The run's virtual pad is what brings KD up: it appears as a controller, KD's device
+scan grabs it, and the Home view comes on screen. That is also the first thing the
+run asserts.
+
+Each scenario is a run of its own — its own pad, its own watcher, its own artifact —
+so one that fails does not take the next one down with it; running them all ends
+with a line per scenario, and a non-zero exit if any of them failed.
 
 Output: `PASS/FAIL/WARN/INFO` steps on stdout, plus an artifact in
-`tests/behavioral/artifacts/<scenario>-<date>.json` holding both the compositor's
-events and the timeline of KD's own state — read them together; a failed stacking
-assertion is only legible against what KD was doing at the time. On the way out,
-including after a failure, the scenario closes the game and Steam and lets KD
-minimize itself, all **without asserting**: leaving an app cleanly is its own
-scenario, not a coda to this one.
+`artifacts/<scenario>-<date>.json` holding both the compositor's events and the
+timeline of KD's own state — read them together; a failed stacking assertion is
+only legible against what KD was doing at the time. On the way out, including after
+a failure or a Ctrl+C, the run closes the game and Steam and lets KD minimize
+itself, all **without asserting**: leaving an app cleanly is its own scenario, not
+a coda to this one.
 
 ## Traps (every one of them cost a debugging session)
 
@@ -226,9 +319,11 @@ scenario, not a coda to this one.
   returns), kept separate from the launch scenarios on purpose.
 - MangoHud FPS as proof the game actually renders; today a fullscreen window is
   taken as proof enough.
-- A `pytest-bdd` (Gherkin) layer once there are enough scenarios for the repeated
-  parts to be obvious — the scenarios in `test_scenarios.md` then rewrite almost
-  1:1:
+- A `pytest-bdd` (Gherkin) layer, once there are enough scenarios for the repeated
+  parts to be obvious. The split into `scenarios/` and `harness/` is the groundwork:
+  a scenario body is already a sequence of named steps over a `Session`, so the step
+  definitions a feature file needs are the functions in `shell.py` and `game.py`,
+  and the scenarios in `test_scenarios.md` would rewrite nearly 1:1:
 
   ```gherkin
   Scenario: launching KCD from its tile and recalling the Home Menu
@@ -241,6 +336,11 @@ scenario, not a coda to this one.
     When I hold Home for 1.2 s                         # uinput
     Then the Home Menu is above the game               # KD introspection
   ```
+
+  What Gherkin buys is a scenario readable by someone who does not read Python; what
+  it costs is a layer of indirection between a failure and the code that produced it.
+  Worth paying once the suite is large enough that scenarios are read more often than
+  they are written — not before.
 
 - The remaining compositors (GNOME first — that is where the other half of the
   ceding bugs lived), and an optional screen capture for what only pixels can

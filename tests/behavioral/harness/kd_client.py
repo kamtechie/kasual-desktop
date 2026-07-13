@@ -8,19 +8,44 @@ windows, splash included.
 """
 
 import json
+import os
 import time
 
 from collections.abc import Callable
+from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication, QEventLoop
+from PyQt6.QtCore import QCoreApplication, QEventLoop, QLockFile
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
 _SVC  = 'org.consoledesktop.KasualDesktop'
 _PATH = '/Shell'
 
+# Where SingleInstanceGuard puts KD's lock (src/main.py logs next to it).
+_LOCK = Path.home() / '.local' / 'cache' / 'kasual' / 'kasual.lock'
+
 
 class KasualDesktopUnavailable(RuntimeError):
     pass
+
+
+def running_pid() -> int | None:
+    """The pid of a live Kasual Desktop, whatever built it — the packaged one too.
+
+    Read from the single-instance lock, so a lock a crash left behind names a pid
+    that is no longer there, and is not mistaken for a running KD.
+    """
+    readable, pid, _hostname, _appname = QLockFile(str(_LOCK)).getLockInfo()
+    if not readable or not pid:
+        return None
+    return pid if os.path.isdir(f'/proc/{pid}') else None
+
+
+def test_api_answers() -> bool:
+    try:
+        KDClient().snapshot()
+    except KasualDesktopUnavailable:
+        return False
+    return True
 
 
 class KDClient:
