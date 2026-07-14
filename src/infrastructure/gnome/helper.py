@@ -99,3 +99,14 @@ def cede_overlay() -> None:
 def hide_overlay() -> None:
     """Release the pin; hiding the surfaces themselves is the Qt side's job."""
     call("HideOverlay", app_id())
+
+
+def is_sunk() -> bool:
+    """Whether the ceded surfaces sit under the app's ordinary windows. The extension
+    decides that from the focus, so Kasual cannot answer it on its own."""
+    reply = call("IsSunk")
+    if reply.type() != QDBusMessage.MessageType.ReplyMessage:
+        logger.debug("IsSunk failed: %s", reply.errorMessage())
+        return False
+    arguments = reply.arguments()
+    return bool(arguments[0]) if arguments else False

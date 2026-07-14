@@ -214,6 +214,9 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
         self._tilebar.activated.connect(self._activate_tile)
         self._tilebar.windows_changed.connect(self._lifecycle.check_active_dyn_gone)
+        # Not windows_changed: an app's own window is no dynamic tile, so its
+        # disappearance rebuilds nothing and the deferred return would never finish.
+        self._wm.on_windows_updated(lambda _w: self._lifecycle.check_pending_return())
         self._app_manager.on_finished(
             lambda e: self._lifecycle.on_app_finished(e.app_id))
         self._app_manager.on_launch_failed(
@@ -291,6 +294,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
                 app_id=tiles[index].app_id if index is not None and index < len(tiles) else None,
             ),
             tiles=tiles,
+            foreground=current.name if (current := self._lifecycle.current_app()) else None,
         )
 
     # ── Public API ─────────────────────────────────────────────────────────

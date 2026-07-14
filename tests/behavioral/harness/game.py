@@ -1,8 +1,8 @@
 """A Steam game as the compositor sees it: its windows, its processes, its way out.
 
 There is no introspecting a game — it is a black box committing buffers — so the
-whole of its identity here is the `steam_app_<appid>` resource class its toplevels
-carry, and the only proof of life is a window that goes fullscreen.
+whole of its identity here is the `steam_app_<appid>` app id its toplevels carry,
+and the only proof of life is a window that goes fullscreen.
 
 Constructing a SteamGame registers its shutdown with the session, so a scenario
 that dies halfway still leaves no game on the screen for the next run.
@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import QCoreApplication, QEventLoop
 
 from tests.behavioral.harness import timeouts
-from tests.behavioral.harness.kwin_watcher import find
 from tests.behavioral.harness.report import ScenarioAborted, report
+from tests.behavioral.harness.window_source import find
 
 if TYPE_CHECKING:
     from tests.behavioral.harness.session import Session
@@ -29,8 +29,8 @@ if TYPE_CHECKING:
 
 class SteamGame:
     def __init__(self, session: Session, appid: str) -> None:
-        self.window_class = f'steam_app_{appid}'
-        self._watcher = session.watcher
+        self.app_id = f'steam_app_{appid}'
+        self._source = session.windows
         self._pad = session.pad
         self._pids: set[int] = set()
         # Windows already up belong to an earlier run: a leftover launcher would
@@ -45,12 +45,10 @@ class SteamGame:
     # ── the game's windows ───────────────────────────────────────────────────
 
     def _windows(self, stack: list[dict], *, fullscreen: bool) -> list[dict]:
-        return [w for w in find(stack, fullscreen=fullscreen)
-                if w['resourceClass'] == self.window_class]
+        return find(stack, app_id=self.app_id, fullscreen=fullscreen)
 
     def _window_ids(self) -> set[str]:
-        return {w['id'] for w in self._watcher.last_stack()
-                if w['resourceClass'] == self.window_class}
+        return {w['id'] for w in find(self._source.last_stack(), app_id=self.app_id)}
 
     def wait_plain_window(self, what: str) -> dict | None:
         """A splash or a launcher: a plain, non-fullscreen toplevel of the game."""
@@ -59,7 +57,7 @@ class SteamGame:
                     if w['id'] not in self._stale]
 
         try:
-            event = self._watcher.wait_for(
+            event = self._source.wait_for(
                 lambda e: bool(fresh(e['stack'])), timeouts.LAUNCHER,
                 f'non-fullscreen game toplevel ({what})')
         except TimeoutError as exc:
@@ -67,14 +65,14 @@ class SteamGame:
             return None
         window = fresh(event['stack'])[0]
         report(f'{what} mapped', 'PASS',
-               f'"{window["title"]}" ({window["resourceClass"]})')
+               f'"{window["title"]}" ({window["app_id"]})')
         return window
 
     def wait_fullscreen(self) -> dict:
-        stack = self._watcher.last_stack()
+        stack = self._source.last_stack()
         if not self._windows(stack, fullscreen=True):
             try:
-                event = self._watcher.wait_for(
+                event = self._source.wait_for(
                     lambda e: bool(self._windows(e['stack'], fullscreen=True)),
                     timeouts.GAME_FULLSCREEN, 'fullscreen game window')
             except TimeoutError as exc:
@@ -133,7 +131,7 @@ class SteamGame:
         next_press = 0.0
         deadline = time.monotonic() + timeouts.GAME_FULLSCREEN
         while time.monotonic() < deadline:
-            stack = self._watcher.last_stack()
+            stack = self._source.last_stack()
             if self._windows(stack, fullscreen=True):
                 report(f'"Play" activated on the {what}', 'PASS',
                        f'{presses} press(es) of A')
@@ -157,8 +155,9 @@ class SteamGame:
         a user does is its own scenario, not a coda to this one."""
         # A launcher is its own process and outlives the game, so every process
         # owning a window of this class has to go — not just the game's.
-        pids = self._pids | {w['pid'] for w in self._watcher.last_stack()
-                             if w['resourceClass'] == self.window_class and w['pid']}
+        pids = self._pids | {w['pid'] for w
+                             in find(self._source.last_stack(), app_id=self.app_id)
+                             if w['pid']}
         for pid in sorted(p for p in pids if p and os.path.isdir(f'/proc/{p}')):
             closed = _terminate(pid)
             print(f'  game process (pid {pid}) '

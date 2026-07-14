@@ -44,7 +44,7 @@ def running_pid() -> int | None:
 # the harness — the run would otherwise die of a KeyError halfway through a scenario.
 _SNAPSHOT_KEYS = frozenset({
     'desktop_visible', 'desktop_mapped', 'desktop_sunk', 'home_header_mapped',
-    'hint_bar_mapped', 'home_menu', 'confirm', 'hud', 'focus', 'tiles',
+    'hint_bar_mapped', 'home_menu', 'confirm', 'hud', 'focus', 'tiles', 'foreground',
 })
 
 
@@ -76,16 +76,22 @@ class KDClient:
         self.history.append({'at': time.time(), **snap})
         return snap
 
-    def tile_index(self, app_id: str) -> int:
+    def tile(self, app_id: str) -> dict:
         """Locate a tile by its id, or failing that by its displayed name — tiles
         KD provisioned itself carry the game's name as their id."""
         tiles = self.snapshot()['tiles']
         for key in ('app_id', 'name'):
             for tile in tiles:
                 if tile[key] == app_id:
-                    return tile['index']
+                    return tile
         known = ', '.join(f'{t["app_id"]!r}' for t in tiles)
         raise KeyError(f'no tile with app_id or name {app_id!r}; tiles: {known}')
+
+    def tile_index(self, app_id: str) -> int:
+        return self.tile(app_id)['index']
+
+    def tile_name(self, app_id: str) -> str:
+        return self.tile(app_id)['name']
 
     def wait_until(self, predicate: Callable[[dict], bool], timeout_s: float,
                    description: str) -> dict:

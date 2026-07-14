@@ -62,6 +62,7 @@ SCENARIO = Scenario(
     title='launch Kingdom Come through Steam\'s own UI, driven by the pad KD re-emits',
     body=_body,
     requires=(
+        require.window_source(),
         require.command('steam'),
         require.not_running(
             'steam',

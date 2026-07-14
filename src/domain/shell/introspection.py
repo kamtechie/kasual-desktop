@@ -87,6 +87,9 @@ class ShellSnapshot:
     ``desktop_visible`` — in front and owning input; ``desktop_mapped`` — still
     on screen though ceded (it would cover an app's ordinary window unless it
     also sank); ``desktop_sunk`` — ceded *and* under those windows.
+
+    ``foreground`` is the app the shell still *believes* it launched: it outlives the
+    app's process, and the shell returns to the Home screen the moment it finds out.
     """
 
     desktop_visible:    bool
@@ -98,6 +101,7 @@ class ShellSnapshot:
     confirm:            ConfirmSnapshot
     focus:              FocusSnapshot
     tiles:              tuple[TileSnapshot, ...]
+    foreground:         str | None = None
 
 
 class ShellIntrospection(Protocol):

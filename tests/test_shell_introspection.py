@@ -4,6 +4,8 @@ An open menu needs a layer-shell surface, which no unit test has; that path is c
 by the `minimize` behavioral scenario, which reads this very snapshot back.
 """
 
+from unittest.mock import MagicMock, patch
+
 from domain.menu.entry import RETURN_TO_DESKTOP
 from domain.shell.introspection import (
     HomeMenuSnapshot, MenuItemSnapshot, MenuSectionSnapshot,
@@ -44,3 +46,14 @@ class TestSnapshot:
         menu = _make_desktop(mock_gamepad).snapshot().home_menu
         assert not menu.open
         assert menu.sections == ()
+
+    def test_the_foreground_app_is_the_one_the_shell_believes_in(self, mock_gamepad):
+        """Not the one whose process is alive: the shell's belief is what makes it
+        return to the Home screen, and it outlives the app it was about."""
+        desktop = _make_desktop(mock_gamepad)
+        assert desktop.snapshot().foreground is None
+
+        running = MagicMock()
+        running.name = 'Kingdom Come Deliverance'
+        with patch.object(desktop.app_control, 'current_app', return_value=running):
+            assert desktop.snapshot().foreground == 'Kingdom Come Deliverance'

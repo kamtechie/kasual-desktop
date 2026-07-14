@@ -166,7 +166,7 @@ class TestCurrentApp:
         c = _make(apps=[_app(command="steam", trigger=Trigger.HOLD_1S)])
         c.fg.set(AppTarget(index=0, app_id="app0", name="Steam"))
         c.wm.cached_windows.return_value = [
-            Window(id="g1", title="Witcher 3", pid=200, active=True,
+            Window(id="g1", title="Witcher 3", pid=200, active=True, fullscreen=True,
                    resource_class="steam_app_292030"),
             Window(id="s1", title="Steam", pid=100, active=False,
                    resource_class="steam"),
@@ -600,7 +600,8 @@ class TestForegroundIsGame:
         )
         c.fg.set(AppTarget(index=0, app_id="app0", name="Steam"))
         c.wm.cached_windows.return_value = [
-            Window(id="g1", title="KCD", pid=500, active=True, resource_class="kcd"),
+            Window(id="g1", title="KCD", pid=500, active=True, fullscreen=True,
+                   resource_class="kcd"),
         ]
         assert c.lc.foreground_is_game() is True
 
@@ -631,7 +632,8 @@ class TestForegroundIsGame:
         )
         c.fg.set(AppTarget(index=0, app_id="app0", name="Steam"))
         c.wm.cached_windows.return_value = [
-            Window(id="g1", title="Witcher 3", pid=777, active=True, resource_class="witcher3"),
+            Window(id="g1", title="Witcher 3", pid=777, active=True, fullscreen=True,
+                   resource_class="witcher3"),
         ]
         assert c.lc.foreground_is_game() is True
 
@@ -713,3 +715,30 @@ class TestDeferredShow:
         c = _make()
         c.lc.on_app_finished("app0")
         c.ds.cancel.assert_called()
+
+    def test_a_deferred_return_finishes_when_the_window_goes(self):
+        """The window list is refreshed asynchronously, so an app that has just been
+        killed still has a window when it is asked about — and the return waits. Nothing
+        else would ever finish it: the foreground would stay on the dead app, and the
+        Home menu would go on offering to close it."""
+        c = _make(apps=[_app(command="files")])
+        c.fg.set(AppTarget(index=0, app_id="app0", name="File Browser"))
+        c.wm.cached_windows.return_value = [
+            Window(id="w1", title="File Browser", pid=200, resource_class="files"),
+        ]
+        c.lc.on_app_finished("app0")
+        assert not c.fg.is_idle()   # deferred: its window is (still) listed
+
+        c.wm.cached_windows.return_value = []
+        c.lc.check_pending_return()
+        assert c.fg.is_idle()
+
+    def test_a_pending_return_waits_for_the_window(self):
+        c = _make(apps=[_app(command="files")])
+        c.fg.set(AppTarget(index=0, app_id="app0", name="File Browser"))
+        c.wm.cached_windows.return_value = [
+            Window(id="w1", title="File Browser", pid=200, resource_class="files"),
+        ]
+        c.lc.on_app_finished("app0")
+        c.lc.check_pending_return()
+        assert not c.fg.is_idle()

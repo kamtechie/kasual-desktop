@@ -20,6 +20,7 @@ from domain.catalog.catalog import AppCatalog
 from domain.input.vocabulary import Trigger
 from domain.menu.ports import TileSettingsStore, TileOrderStore
 from domain.provisioning.candidate import CandidateApp
+from domain.provisioning.catalog import with_bundled_identity
 from domain.provisioning.ports import AppProvisioning
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,8 @@ def load_apps() -> AppCatalog:
         if parsed is None:
             continue
         order, app = parsed
-        entries.append((order, path.name, replace(app, id=path.stem)))
+        entries.append((order, path.name,
+                        replace(with_bundled_identity(app), id=path.stem)))
 
     catalog = AppCatalog.from_entries(entries)
     logger.info("Loaded %d app(s)", len(catalog))

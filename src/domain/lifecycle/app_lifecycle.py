@@ -69,6 +69,7 @@ class AppLifecycle(AppControl):
         self._prompts       = prompts
         self._inspector     = inspector
         self._is_paused     = is_paused
+        self._pending_return: str | None = None
 
     def current_app(self) -> Target | None:
         return self._inspector.current_app()
@@ -231,8 +232,24 @@ class AppLifecycle(AppControl):
         if self._still_windowed(app_id):
             # Forwarder launch (flatpak/single-instance): the process handed off
             # and exited, but its window lives on under another pid — not closed.
+            # The refresh above is asynchronous, so this also reads a window that is
+            # already dead; either way check_pending_return finishes what it started.
             logger.info("%s still has a window; deferring return to window-gone", app_id)
+            self._pending_return = app_id
             return
+        self._return_from(app_id)
+
+    def check_pending_return(self) -> None:
+        """Finish a return that waited on the app's window. Called on every refreshed
+        window list — nothing else would, and the foreground would stay on an app that
+        is gone, with the Home menu still offering to close it."""
+        app_id = self._pending_return
+        if app_id is not None and not self._still_windowed(app_id):
+            logger.info("%s window gone – returning to desktop", app_id)
+            self._return_from(app_id)
+
+    def _return_from(self, app_id: str) -> None:
+        self._pending_return = None
         self._deferred_show.cancel()
         self._cede_depth.cancel()
         self._foreground.clear_if_app(app_id)

@@ -24,22 +24,27 @@ CARDS = (shell.RETURN_TO_APP, shell.CLOSE_APP, shell.RETURN_TO_DESKTOP)
 
 def _body(session: Session) -> None:
     kd, pad = session.kd, session.pad
+    name = kd.tile_name(TILE_ID)
 
     shell.launch_tile(kd, pad, TILE_ID)
 
     browser = FileBrowserClient()
+    session.record('file_browser_snapshots', browser.history)
+    session.add_cleanup(lambda: file_browser.shut_down(browser))
     file_browser.expect_browser(browser)
     shell.check_kd_ceded(kd)
+    shell.expect_foreground(kd, name)
     file_browser.browse_folders(browser, pad)
 
     shell.open_home_menu(kd, pad)
     # Over a running app the menu offers its own three cards, pre-focused on the one
     # that costs nothing — returning to the app.
     shell.expect_menu_offers(kd, CARDS, focused=shell.RETURN_TO_APP)
-    shell.expect_no_hud_card(kd, 'File Browser')
+    shell.expect_no_hud_card(kd, name)
+    shell.expect_foreground(kd, name)
     shell.pick_menu_action(kd, pad, shell.CLOSE_APP)
 
-    shell.expect_confirm(kd)
+    shell.expect_confirm(kd, about=name)
     shell.confirm(kd, pad)
 
     file_browser.expect_gone(browser)
@@ -52,7 +57,8 @@ SCENARIO = Scenario(
     body=_body,
     requires=(
         require.tile(TILE_ID),
-        require.manual('the File Browser tile runs the repo copy '
-                       '(apps/file_browser/file_browser.sh), not the one in /usr/share'),
+        require.manual('the File Browser the tile launches is current — it is the one '
+                       'that has to publish the test API, so an installed copy under '
+                       '/usr/share must be refreshed from apps/ first'),
     ),
 )

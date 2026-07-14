@@ -106,6 +106,39 @@ class TestOps:
             wm.activate_windows_for_pids({1000})
         call.assert_called_once_with("ActivateWindow", "100")
 
+    def _fire_readback(self):
+        """Run the focus read-back at once instead of after its 400 ms."""
+        timer = patch(f"{_WM}.QTimer").start()
+        timer.singleShot.side_effect = lambda _ms, callback: callback()
+        return timer
+
+    def test_an_ignored_activation_is_asked_again(self, qapp):
+        """Mutter may refuse an activation without saying so; Kasual would then read its
+        foreground off whatever window does hold the focus."""
+        wm = GnomeWindowManager()
+        self._seed(wm, [("100", 1000)])
+        still_unfocused = [Window(id="100", title="", pid=1000, resource_class="x")]
+        self._fire_readback()
+        with patch(f"{_WM}.expand_pid_tree", return_value={1000}), \
+             patch.object(GnomeWindowManager, "_enum_windows",
+                          return_value=still_unfocused), \
+             patch(f"{_WM}.helper.call") as call:
+            wm.activate_windows_for_pids({1000})
+        assert [c.args for c in call.call_args_list] == [("ActivateWindow", "100")] * 2
+        patch.stopall()
+
+    def test_an_activation_that_took_is_left_alone(self, qapp):
+        wm = GnomeWindowManager()
+        self._seed(wm, [("100", 1000)])
+        focused = [Window(id="100", title="", pid=1000, resource_class="x", active=True)]
+        self._fire_readback()
+        with patch(f"{_WM}.expand_pid_tree", return_value={1000}), \
+             patch.object(GnomeWindowManager, "_enum_windows", return_value=focused), \
+             patch(f"{_WM}.helper.call") as call:
+            wm.activate_windows_for_pids({1000})
+        call.assert_called_once_with("ActivateWindow", "100")
+        patch.stopall()
+
     def test_raise_for_pid_exact_no_expansion(self, qapp):
         wm = GnomeWindowManager()
         self._seed(wm, [("100", 1000), ("101", 1000), ("102", 2000)])
@@ -226,6 +259,29 @@ class TestGnomeSurface:
         assert surface.is_visible() is True
         surface.drop_below()
         assert surface.is_visible() is False   # mapped, but not in front
+        patch.stopall()
+
+    def test_is_sunk_is_the_extension_s_answer(self, qapp):
+        """The extension decides this from the focus, so a ceded Desktop has to ask it —
+        while one in front answers without asking."""
+        surface = GnomeSurface()
+        widget = MagicMock()
+        widget.isVisible.return_value = True
+        with patch("infrastructure.gnome.qt.surface.helper.set_surface_role"):
+            surface.install(widget)
+        for fn in ("show_overlay", "activate_surface", "cede_overlay"):
+            patch(f"infrastructure.gnome.qt.surface.helper.{fn}").start()
+
+        with patch("infrastructure.gnome.qt.surface.helper.is_sunk") as asked:
+            surface.show_fullscreen()
+            assert surface.is_sunk() is False
+            asked.assert_not_called()
+
+            surface.drop_below()
+            asked.return_value = True
+            assert surface.is_sunk() is True
+            asked.return_value = False
+            assert surface.is_sunk() is False
         patch.stopall()
 
 

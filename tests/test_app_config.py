@@ -63,6 +63,23 @@ class TestLoadApps:
         assert a.launch_hide_grace_ms == 500
         assert a.env == {"MANGOHUD": "1"}
 
+    def test_a_bundled_app_gets_its_identity_back(self, apps_root):
+        """A tile written before Kasual's own apps announced an app_id has no
+        StartupWMClass, and their windows then look foreign to Kasual."""
+        _write(apps_root, "files.desktop", (
+            "[Desktop Entry]\nType=Application\nName=File Browser\n"
+            "Exec=/usr/share/kasual-desktop/apps/file_browser/file_browser.sh\n"
+        ))
+        assert load_apps()[0].wm_class == "kasual-file-browser"
+
+    def test_a_stated_identity_is_left_alone(self, apps_root):
+        _write(apps_root, "files.desktop", (
+            "[Desktop Entry]\nType=Application\nName=File Browser\n"
+            "Exec=/opt/mine/apps/file_browser/file_browser.sh\n"
+            "StartupWMClass=something-else\n"
+        ))
+        assert load_apps()[0].wm_class == "something-else"
+
     def test_defaults(self, apps_root):
         _write(apps_root, "min.desktop",
                "[Desktop Entry]\nType=Application\nName=Min\nExec=min\n")

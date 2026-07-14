@@ -45,6 +45,7 @@ SCENARIO = Scenario(
     title='launch Kingdom Come: Deliverance from its tile, recall the Home Menu over it',
     body=_body,
     requires=(
+        require.window_source(),
         require.command('steam'),
         require.manual('Steam is logged in, and Kingdom Come: Deliverance is installed'),
         require.tile(TILE_ID),

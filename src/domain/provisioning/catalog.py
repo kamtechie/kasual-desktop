@@ -11,6 +11,23 @@ from domain.provisioning.candidate import CandidateApp
 from domain.provisioning.ports import AppDiscovery
 
 
+# What Kasual's own apps announce themselves as (their Wayland app_id). Keyed by the
+# launcher that starts them, because that is all a tile records about them.
+BUNDLED_WM_CLASS = {
+    "file_browser.sh": "kasual-file-browser",
+    "yt.sh":           "kasual-youtube",
+}
+
+
+def with_bundled_identity(app: App) -> App:
+    """Tiles provisioned before Kasual's own apps announced an app_id carry no
+    StartupWMClass, so those apps' windows look foreign to Kasual — it would offer to
+    close "the window" rather than the app. Their identity is known; fill it in."""
+    if app.wm_class or app.command_basename not in BUNDLED_WM_CLASS:
+        return app
+    return replace(app, wm_class=BUNDLED_WM_CLASS[app.command_basename])
+
+
 def starter_candidates(discovery: AppDiscovery, bundled_base: str) -> list[CandidateApp]:
     """Build the ordered starter list, filtering system apps by availability."""
     def with_real_icon(app: App, *icon_names: str) -> App:
@@ -25,6 +42,7 @@ def starter_candidates(discovery: AppDiscovery, bundled_base: str) -> list[Candi
             app=App(
                 name="File Browser",
                 command=f"{bundled_base}/apps/file_browser/file_browser.sh",
+                wm_class=BUNDLED_WM_CLASS["file_browser.sh"],
                 icon="fa5s.folder-open",
                 color="#5e81ac",
             ),
@@ -36,6 +54,7 @@ def starter_candidates(discovery: AppDiscovery, bundled_base: str) -> list[Candi
             app=with_real_icon(App(
                 name="YouTube",
                 command=f"{bundled_base}/apps/yt/yt.sh",
+                wm_class=BUNDLED_WM_CLASS["yt.sh"],
                 icon="fa5b.youtube",
                 color="#c0392b",
             ), "youtube"),

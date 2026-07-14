@@ -85,7 +85,7 @@ class SteamUnavailable(RuntimeError):
 
 
 def _pump(seconds: float) -> None:
-    """Sleep without going deaf: the KWin watcher's events arrive on Qt's event loop,
+    """Sleep without going deaf: the window source's events arrive on Qt's event loop,
     and a plain sleep here leaves its window snapshots stale."""
     QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
     time.sleep(seconds)

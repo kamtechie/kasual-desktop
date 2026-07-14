@@ -17,6 +17,7 @@ from adblocker import AdBlocker, JS_PATCH
 # "kasual-vpad" device; the app reads from it because the physical pad is
 # exclusive-grabbed and BTN_MODE is filtered. On Windows the controller is
 # cooperative, so padbackend reads it directly via pygame.
+APP_ID = "kasual-youtube"
 VIRTUAL_DEVICE_NAME = "kasual-vpad"
 PHYSICAL_DEVICE_NAME = '8BitDo Ultimate Wireless / Pro 2 Wired Controller'
 
@@ -45,6 +46,9 @@ class PadListener(_PadListener):
 
 def main() -> None:
     app = QApplication(sys.argv)
+    # Wayland takes the window's app_id from here; without it the window reports
+    # "python3" and Kasual Desktop cannot tell its own app from a foreign one.
+    app.setDesktopFileName(APP_ID)
     window = QMainWindow()
     window.setWindowTitle("YouTube")
 

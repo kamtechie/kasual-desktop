@@ -9,6 +9,8 @@ inherits from the Kasual Desktop that launches it.
 from __future__ import annotations
 
 import json
+import os
+import signal
 import time
 
 from collections.abc import Callable
@@ -127,6 +129,30 @@ def browse_folders(browser: FileBrowserClient, pad: VirtualPad) -> None:
         report('walked back out', 'FAIL', f'B pressed, still in {inside["current_dir"]}')
         return
     report('walked back out', 'PASS', f'back in {start}')
+
+
+def shut_down(browser: FileBrowserClient) -> None:
+    """Leave no browser behind. A scenario that gives up half way leaves the app on
+    screen, and Kasual Desktop keeps believing in it — the teardown then waits out its
+    whole timeout for a foreground that will never clear, and the next run starts under
+    somebody else's window."""
+    try:
+        pid = browser.snapshot().get('pid')
+    except FileBrowserUnavailable:
+        return
+    if not pid or not os.path.isdir(f'/proc/{pid}'):
+        return
+    print(f'  File Browser (pid {pid}) still up — closing it', flush=True)
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            return
+        deadline = time.monotonic() + timeouts.EXIT
+        while time.monotonic() < deadline:
+            if not os.path.isdir(f'/proc/{pid}'):
+                return
+            time.sleep(0.2)
 
 
 def expect_gone(browser: FileBrowserClient) -> None:

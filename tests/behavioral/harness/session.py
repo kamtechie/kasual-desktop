@@ -18,15 +18,27 @@ from PyQt6.QtCore import QCoreApplication
 
 from tests.behavioral.harness import requirements, shell, timeouts
 from tests.behavioral.harness.kd_client import KDClient
-from tests.behavioral.harness.kwin_watcher import KWinWatcher
 from tests.behavioral.harness.report import (
     ScenarioAborted, report, reset, results, summary,
 )
 from tests.behavioral.harness.requirements import Requirement
 from tests.behavioral.harness.virtual_pad import VirtualPad
+from tests.behavioral.harness.window_source import WindowSource, build_window_source
 
 ARTIFACTS = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'artifacts')
+
+_app: QCoreApplication | None = None
+
+
+def _application() -> QCoreApplication:
+    """One per process, and it must outlive every Session: a collected QCoreApplication
+    takes Qt's D-Bus machinery with it, leaving interfaces cached across scenarios —
+    KD's own GNOME helper client — pointing at deleted C++ objects."""
+    global _app
+    if _app is None:
+        _app = QCoreApplication.instance() or QCoreApplication(sys.argv)
+    return _app
 
 
 @dataclass(frozen=True)
@@ -50,8 +62,13 @@ class Session:
         self.scenario = scenario
         self.pad: VirtualPad
         self.kd: KDClient
-        self.watcher: KWinWatcher
+        self.windows: WindowSource
         self._cleanups: list[Callable[[], None]] = []
+        self._histories: dict[str, list[dict]] = {}
+
+    def record(self, name: str, history: list[dict]) -> None:
+        """Keep an app's own answers for the artifact, beside Kasual Desktop's."""
+        self._histories[name] = history
 
     def add_cleanup(self, cleanup: Callable[[], None]) -> None:
         """Run *cleanup* on the way out, whatever happened. A scenario that leaves a
@@ -61,10 +78,7 @@ class Session:
     def run(self) -> int:
         reset()
         print(f'\n{self.scenario.name}: {self.scenario.title}\n', flush=True)
-        # Must stay referenced: a collected QCoreApplication tears down D-Bus
-        # dispatch, and the watcher then silently receives nothing. A second one
-        # cannot be built, so runs after the first in a process reuse it.
-        self._app = QCoreApplication.instance() or QCoreApplication(sys.argv)
+        self._app = _application()
 
         try:
             requirements.check(requirements.BASE + self.scenario.requires, kd=None)
@@ -74,12 +88,13 @@ class Session:
         self.pad = VirtualPad()
         report('virtual pad created', 'PASS', self.pad.device_path)
         self.kd = KDClient()
-        self.watcher = KWinWatcher()
+        self.windows = build_window_source()
         try:
             requirements.check(self.scenario.requires, kd=self.kd)
-            self.watcher.start(timeouts.KWIN_WATCHER)
-            report('KWin watcher installed', 'PASS',
-                   f'{len(self.watcher.last_stack())} windows in initial stack')
+            self.windows.start(timeouts.WINDOW_SOURCE)
+            report('window source installed', 'PASS',
+                   f'{type(self.windows).__name__}, '
+                   f'{len(self.windows.last_stack())} windows in the initial stack')
             shell.expect_home_view(self.kd)
             self.scenario.body(self)
         except ScenarioAborted as abort:
@@ -93,12 +108,13 @@ class Session:
         self.pad.back()   # drop the Home menu if it is still up
         for cleanup in reversed(self._cleanups):
             cleanup()
+        shell.await_no_foreground(self.kd)
         # KD minimizes itself when its gamepad goes away, so unplugging the virtual
         # pad *is* the minimize — no command channel needed.
         self.pad.close()
         shell.await_minimized(self.kd)
         self._write_artifact()
-        self.watcher.stop()
+        self.windows.stop()
 
     def _write_artifact(self) -> None:
         os.makedirs(ARTIFACTS, exist_ok=True)
@@ -106,7 +122,10 @@ class Session:
             ARTIFACTS, f'{self.scenario.name}-{time.strftime("%Y%m%d-%H%M%S")}.json')
         with open(path, 'w') as f:
             json.dump({'scenario': self.scenario.name, 'results': results,
-                       'events': self.watcher.events,
-                       'kd_snapshots': self.kd.history}, f, indent=1)
-        print(f'\nevent log: {path} ({len(self.watcher.events)} events, '
+                       'presses': self.pad.presses,
+                       'events': self.windows.events,
+                       'kd_snapshots': self.kd.history,
+                       **self._histories}, f, indent=1)
+        print(f'\nevent log: {path} ({len(self.pad.presses)} presses, '
+              f'{len(self.windows.events)} events, '
               f'{len(self.kd.history)} KD snapshots)', flush=True)

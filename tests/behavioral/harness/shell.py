@@ -106,6 +106,24 @@ def check_kd_ceded(kd: KDClient) -> None:
     report('KD ceded the screen', 'PASS')
 
 
+def expect_foreground(kd: KDClient, app: str) -> None:
+    """KD reads the foreground from the *focused* window, and the menu's cards act on
+    whatever it decides that is — so a launched app that never took focus makes "Close"
+    close something else. It once closed the terminal the run was started from.
+    """
+    try:
+        kd.wait_until(lambda s: s['foreground'] == app, timeouts.CEDE,
+                      f'KD to have {app!r} in the foreground')
+    except TimeoutError as exc:
+        foreground = kd.snapshot()['foreground']
+        report('KD has the launched app in front', 'FAIL',
+               f'KD believes {foreground!r} is in front, not {app!r} — did the app take '
+               'focus?')
+        raise ScenarioAborted(
+            f'KD would act on {foreground!r} — refusing to drive its menu') from exc
+    report('KD has the launched app in front', 'PASS', repr(app))
+
+
 def check_home_menu_over_game(kd: KDClient, pad: VirtualPad) -> None:
     time.sleep(5)   # let the engine settle past the launcher
     pad.hold_home(1.2)
@@ -244,7 +262,13 @@ def focus_menu_action(kd: KDClient, pad: VirtualPad, action: str) -> dict:
             report(f'focused {action!r} in the menu', 'FAIL',
                    f'the focus would not move off {before!r} — is KD reading the pad?')
             raise ScenarioAborted('the menu focus is stuck') from exc
+
         focused = _focused_item(snapshot)
+        if focused is None:
+            # A closed menu focuses nothing, which the wait above reads as "it moved".
+            report(f'focused {action!r} in the menu', 'FAIL',
+                   'the menu closed while the run was walking to it')
+            raise ScenarioAborted('the Home menu closed on its own')
 
     report(f'focused {action!r} in the menu', 'FAIL', 'the focus never got there')
     raise ScenarioAborted(f'could not focus {action!r}')
@@ -327,9 +351,10 @@ def expect_home_view_restored(kd: KDClient) -> None:
     report('back on the Home view', 'PASS', 'tiles, header and hint bar back, menu closed')
 
 
-def expect_confirm(kd: KDClient) -> None:
+def expect_confirm(kd: KDClient, about: str | None = None) -> None:
     """Closing an app is gated by a confirmation — and it is a *question*, so the run
-    reads which answer A is aimed at rather than pressing and finding out."""
+    reads which answer A is aimed at, and what is being asked about, rather than
+    pressing and finding out."""
     try:
         snapshot = kd.wait_until(lambda s: s['confirm']['open'], timeouts.CEDE,
                                  'the close confirmation')
@@ -338,6 +363,10 @@ def expect_confirm(kd: KDClient) -> None:
         raise ScenarioAborted('the close confirmation never appeared') from exc
 
     confirm = snapshot['confirm']
+    if about is not None and about not in confirm['question']:
+        report('closing asks first', 'FAIL',
+               f'the question is about something else: {confirm["question"]!r}')
+        raise ScenarioAborted(f'the confirmation does not name {about!r}')
     if not confirm['confirm_focused']:
         report('closing asks first', 'FAIL',
                f'{confirm["question"]!r} — but A would answer "no"')
@@ -357,6 +386,24 @@ def confirm(kd: KDClient, pad: VirtualPad) -> None:
 
 
 # ── teardown ─────────────────────────────────────────────────────────────────
+
+def await_no_foreground(kd: KDClient) -> None:
+    """Wait until KD has *noticed* the app is gone. Killing its processes does not end
+    KD's belief in it, and when that belief dies KD returns to the Home screen — inside
+    the next scenario, if this one did not wait for it."""
+    try:
+        kd.wait_until(lambda s: s['foreground'] is None, timeouts.EXIT,
+                      'Kasual Desktop to notice the app is gone')
+    except TimeoutError:
+        print(f'  Kasual Desktop still believes {kd.snapshot()["foreground"]!r} is '
+              'running — the next scenario may be interrupted by its return',
+              flush=True)
+        return
+    except KasualDesktopUnavailable as exc:
+        print(f'  KD unreachable: {exc}', flush=True)
+        return
+    print('  KD has no app in the foreground', flush=True)
+
 
 def await_minimized(kd: KDClient) -> None:
     """Unasserted, like the rest of the teardown — it only says what was left behind."""

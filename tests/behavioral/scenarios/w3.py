@@ -42,6 +42,7 @@ SCENARIO = Scenario(
     title='launch The Witcher 3 past the RED Launcher, recall the Home Menu over it',
     body=_body,
     requires=(
+        require.window_source(),
         require.command('steam'),
         require.manual('Steam is logged in, and The Witcher 3 is installed'),
         require.tile(TILE_ID),

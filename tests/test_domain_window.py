@@ -142,28 +142,41 @@ class TestActiveUnmanagedWindow:
     APPS = [App(name="Steam", command="steam")]
 
     def test_active_window_matching_no_app(self):
-        game = Window(id="g", title="Game", pid=200, active=True,
+        game = Window(id="g", title="Game", pid=200, active=True, fullscreen=True,
                       resource_class="steam_app_1")
         assert active_unmanaged_window([game], self.APPS) == game
 
+    def test_a_window_that_merely_covers_the_screen_counts(self):
+        game = Window(id="g", title="Game", pid=200, active=True, covers_screen=True,
+                      resource_class="steam_app_1")
+        assert active_unmanaged_window([game], self.APPS) == game
+
+    def test_a_focused_window_that_holds_no_screen_is_not_ours(self):
+        """The launched app never took focus and the user's terminal has it. Adopting
+        it would let the Home Overlay offer to close the terminal."""
+        terminal = Window(id="t", title="xis@host: ~", pid=300, active=True,
+                          resource_class="gnome-terminal-server")
+        assert active_unmanaged_window([terminal], self.APPS) is None
+
     def test_active_window_matching_an_app_is_managed(self):
-        own = Window(id="s", title="Steam", pid=100, active=True,
+        own = Window(id="s", title="Steam", pid=100, active=True, fullscreen=True,
                      resource_class="steam")
         assert active_unmanaged_window([own], self.APPS) is None
 
     def test_no_active_window(self):
-        win = Window(id="g", title="Game", pid=200, active=False,
+        win = Window(id="g", title="Game", pid=200, active=False, fullscreen=True,
                      resource_class="steam_app_1")
         assert active_unmanaged_window([win], self.APPS) is None
 
     def test_active_pid_zero_window_is_ignored(self):
-        win = Window(id="g", title="Game", pid=0, active=True,
+        win = Window(id="g", title="Game", pid=0, active=True, fullscreen=True,
                      resource_class="steam_app_1")
         assert active_unmanaged_window([win], self.APPS) is None
 
     def test_picks_active_among_many(self):
         bg   = Window(id="s", title="Steam", pid=100, active=False, resource_class="steam")
-        game = Window(id="g", title="Game", pid=200, active=True, resource_class="steam_app_1")
+        game = Window(id="g", title="Game", pid=200, active=True, fullscreen=True,
+                      resource_class="steam_app_1")
         assert active_unmanaged_window([bg, game], self.APPS) == game
 
 

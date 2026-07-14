@@ -53,6 +53,16 @@ const IFACE = `
     <method name="HideOverlay">
       <arg type="s" direction="in" name="wmClass"/>
     </method>
+    <method name="IsSunk">
+      <arg type="b" direction="out" name="sunk"/>
+    </method>
+    <method name="WatchWindows">
+      <arg type="b" direction="in" name="enable"/>
+    </method>
+    <signal name="WindowsChanged">
+      <arg type="s" name="reason"/>
+      <arg type="s" name="json"/>
+    </signal>
     <method name="SimulateUserActivity"/>
   </interface>
 </node>`;
@@ -81,6 +91,14 @@ function enableUnredirect(api) {
     else if (api === 'meta') Meta.enable_unredirect_for_display(global.display);
 }
 
+// Mutter tells a focus request from a focus *steal* by its timestamp: older than
+// last_focus_time and it refuses to focus, flagging the window as demanding attention
+// instead ("Window is ready"). global.get_current_time() is the last input event's time,
+// which inside a D-Bus call is whatever the user last did — stale, and refused.
+function activationTime() {
+    return global.display.get_current_time_roundtrip();
+}
+
 // Meta.Window.raise() became raise_and_make_recent() on newer Mutter.
 function raiseWindow(w) {
     if (typeof w.raise_and_make_recent === 'function') w.raise_and_make_recent();
@@ -106,6 +124,25 @@ function appIdOf(win) {
     return Shell.WindowTracker.get_default().get_window_app(win)?.get_id() || '';
 }
 
+// The window as the behavioral tests read it (tests/behavioral/harness/window_source.py).
+function windowRecord(win, area) {
+    const geo = win.get_frame_rect();
+    return {
+        id: String(win.get_id()),
+        title: win.get_title() || '',
+        app_id: win.get_wm_class() || '',
+        pid: win.get_pid(),
+        focused: win.has_focus(),
+        fullscreen: win.is_fullscreen(),
+        covers_screen: geo.width >= area.width && geo.height >= area.height,
+        minimized: win.minimized,
+        desktop_file: appIdOf(win),
+        layer: win.get_layer(),
+        above: win.is_above(),
+        geometry: [geo.x, geo.y, geo.width, geo.height],
+    };
+}
+
 // get_window_actors() documents no order; this one is defined as ascending, so
 // the first window is the lowest. Stacking decisions must not guess.
 function stackedBottomToTop(windows) {
@@ -122,6 +159,8 @@ class Helper {
         this._appClass = null;
         this._showRequested = false;
         this._ceded = false;
+        this._sunk = false;
+        this._windowWatch = false;
         this._virtualPointer = null;
         this._roles = new Map();
         this._pinned = new Set();
@@ -141,8 +180,10 @@ class Helper {
         this._attentionId = global.display.connect(
             'window-demands-attention', (_d, win) => this._muteAttention(win));
         // A ceded Desktop's depth follows the focus (see _focusIsOrdinaryWindow).
-        this._focusId = global.display.connect(
-            'notify::focus-window', () => this._scheduleSync());
+        this._focusId = global.display.connect('notify::focus-window', () => {
+            this._scheduleSync();
+            this._emitWindows('activated');
+        });
         for (const win of mappedWindows())
             this._trackWindow(win);
 
@@ -185,13 +226,20 @@ class Helper {
                 this._scheduleSync();
         };
         this._windowSignals.set(win, [
+            // An XWayland window (every Steam game) is created before its WM_CLASS
+            // arrives: this, not window-created, is where it becomes identifiable.
             win.connect('notify::wm-class', () => {
                 this._suppressScanoutForOurs(win);
                 this._scheduleSync();
+                this._emitWindows('class');
             }),
             win.connect('notify::title', syncIfOurs),
             // Fullscreen toggles change what must sit over a ceded Desktop.
-            win.connect('notify::fullscreen', () => this._scheduleSync()),
+            win.connect('notify::fullscreen', () => {
+                this._scheduleSync();
+                this._emitWindows('fullscreen');
+            }),
+            win.connect('notify::minimized', () => this._emitWindows('minimized')),
             // Qt resizes the Home surface when its menu expands; re-anchor it.
             win.connect('size-changed', () => this._scheduleAnchor(win)),
             win.connect('position-changed', () => this._scheduleAnchor(win)),
@@ -202,9 +250,11 @@ class Helper {
             this._windowSignals.delete(win);
             this._pinned.delete(win);
             this._scheduleSync();
+            this._emitWindows('removed');
         }));
         this._suppressScanoutForOurs(win);
         this._scheduleSync();
+        this._emitWindows('added');
     }
 
     _isOurs(win) {
@@ -337,7 +387,8 @@ class Helper {
             const desktop = wanted.filter(w => !this._isOverlay(w));
             for (const w of desktop)
                 w.unmake_above();
-            if (this._focusIsOrdinaryWindow())
+            this._sunk = this._focusIsOrdinaryWindow();
+            if (this._sunk)
                 this._sinkUnderWindows(desktop);
             else
                 this._floatOverWindows(desktop);
@@ -349,6 +400,7 @@ class Helper {
             return;
         }
 
+        this._sunk = false;
         this._focusPending();
         this._reassertStacking();
 
@@ -569,7 +621,7 @@ class Helper {
         const w = this._byId(id);
         if (w) {
             w.unminimize();
-            w.activate(global.get_current_time());
+            w.activate(activationTime());
         }
     }
 
@@ -613,7 +665,7 @@ class Helper {
             return;
         this._pendingFocus = null;
         win.unminimize();
-        win.activate(global.get_current_time());
+        win.activate(activationTime());
         this._reassertStacking();
     }
 
@@ -635,6 +687,31 @@ class Helper {
             this._ceded = true;
             this._sync();
         }
+    }
+
+    // Off by default: a session with nobody listening must not serialize the stack
+    // on every window event.
+    WatchWindows(enable) {
+        this._windowWatch = enable;
+        if (enable)
+            this._emitWindows('init');
+    }
+
+    _emitWindows(reason) {
+        if (!this._windowWatch)
+            return;
+        const area = global.display.get_monitor_geometry(
+            global.display.get_primary_monitor());
+        const stack = stackedBottomToTop(mappedWindows())
+            .map(w => windowRecord(w, area));
+        this._dbus.emit_signal('WindowsChanged',
+            new GLib.Variant('(ss)', [reason, JSON.stringify(stack)]));
+    }
+
+    // Kasual cannot answer this itself: the sink/float decision is made here, from
+    // the focus, and it changes without Kasual doing anything.
+    IsSunk() {
+        return this._sunk;
     }
 
     // Gamepad input never reaches Mutter (libinput ignores joysticks), so Kasual

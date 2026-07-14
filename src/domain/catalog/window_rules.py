@@ -66,9 +66,15 @@ def active_unmanaged_window(
     """The active window that belongs to no configured app — e.g. a game running
     in its own window under a launcher, so the Home Overlay names and returns to
     the game, not the launcher. Identity-based, since a Steam game's process
-    session isn't reliably attributable but never matches the ``steam`` tile."""
+    session isn't reliably attributable but never matches the ``steam`` tile.
+
+    It has to hold the screen. Focus alone would adopt whatever happens to be in
+    front — a terminal the user clicked into — and the Home Overlay would then offer
+    to close *that*."""
     active = next((w for w in windows if w.active and w.pid), None)
-    if active is None or any(active.matches_app(app) for app in apps):
+    if active is None or not (active.fullscreen or active.covers_screen):
+        return None
+    if any(active.matches_app(app) for app in apps):
         return None
     return active
 

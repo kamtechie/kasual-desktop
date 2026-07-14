@@ -39,6 +39,7 @@ from video_mode import VideoMode
 
 # ── Stałe ─────────────────────────────────────────────────────────────────────
 
+APP_ID = "kasual-file-browser"
 VIRTUAL_DEVICE_NAME = "kasual-vpad"
 PHYSICAL_DEVICE_NAME = "8BitDo Ultimate Wireless / Pro 2 Wired Controller"
 
@@ -886,6 +887,7 @@ class FileBrowserWindow(QMainWindow):
         item = self._file_list.currentItem()
         target = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
         return {
+            'pid': os.getpid(),
             'current_dir': str(self._current),
             'focused_entry': item.text() if item is not None else None,
             'focused_index': self._file_list.currentRow(),
@@ -1386,6 +1388,9 @@ class FileBrowserWindow(QMainWindow):
 
 def main() -> None:
     app = QApplication(sys.argv)
+    # Wayland takes the window's app_id from here; without it the window reports
+    # "python3" and Kasual Desktop cannot tell its own app from a foreign one.
+    app.setDesktopFileName(APP_ID)
     fa_icons.install_fontawesome5()
     sound_player.init()
 

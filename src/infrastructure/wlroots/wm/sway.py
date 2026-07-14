@@ -39,6 +39,8 @@ class SwayWindowManager(WlrootsWindowManager):
             title=node.get("name") or "",
             pid=pid,
             active=bool(node.get("focused")),
+            # 1 = fullscreen on its output, 2 = across all of them.
+            fullscreen=node.get("fullscreen_mode") in (1, 2),
             resource_class=app_id,
         )
 

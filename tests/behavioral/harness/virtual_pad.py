@@ -45,8 +45,19 @@ class VirtualPad:
             _CAPABILITIES, name=NAME,
             vendor=0x045e, product=0x028e, version=0x110,
         )
+        # Every press, for the artifact: "the press did nothing" is only a claim until
+        # it can be lined up against what the app said before and after it.
+        self.presses: list[dict] = []
         # udev needs a beat to create the node before anyone can scan it
         time.sleep(0.5)
+
+    def _record(self, what: str) -> None:
+        self.presses.append({'at': time.time(), 'press': what})
+
+    @staticmethod
+    def _name(code: int, table: dict) -> str:
+        name = table.get(code, code)
+        return name[-1] if isinstance(name, list) else str(name)
 
     @property
     def device_path(self) -> str:
@@ -62,6 +73,7 @@ class VirtualPad:
     # ── buttons ──────────────────────────────────────────────────────────────
 
     def hold(self, button: int, seconds: float) -> None:
+        self._record(f'{self._name(button, e.BTN)} for {seconds}s')
         self._ui.write(e.EV_KEY, button, 1)
         self._ui.syn()
         time.sleep(seconds)
@@ -89,6 +101,7 @@ class VirtualPad:
     # ── d-pad (hat) ──────────────────────────────────────────────────────────
 
     def _hat(self, axis: int, direction: int) -> None:
+        self._record(f'{self._name(axis, e.ABS)} {direction:+d}')
         self._ui.write(e.EV_ABS, axis, direction)
         self._ui.syn()
         time.sleep(0.08)

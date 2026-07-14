@@ -177,7 +177,9 @@ tests/behavioral/
   run.py         the entry point: a scenario name, or --list
   scenarios/     one module per scenario — nothing but the run itself
   harness/       everything the scenarios are made of
-  artifacts/     one JSON per run: the steps, KWin's events, KD's own states
+  harness/sources/  one window backend per compositor
+  artifacts/     one JSON per run: the steps, the window events, KD's own states
+  PORTING.md     what is left before the suite runs on every supported compositor
 ```
 
 Inside `harness/`:
@@ -186,12 +188,22 @@ Inside `harness/`:
   shaped like an Xbox 360 pad, so it passes `GamepadWatcher._is_gamepad` and KD
   grabs it like a real one. No screen coordinates anywhere, and precise control of
   press duration (the >1 s Home hold and its 0.5 s counter-example).
-- **Window watcher** — `kwin_watcher.py`: injects a persistent script into KWin
-  (same mechanics as `src/infrastructure/kde/wm/window_manager.py`); every event
-  (`added`/`removed`/`fullscreen`/`minimized`/`stacking`/`activated`) carries a
-  full `workspace.stackingOrder` snapshot, so nothing short-lived is missed.
-  `wait_for()` consumes events sequentially, which makes a chain of waits assert
-  the *order* of what happened.
+- **Window source** — `window_source.py` and `sources/`: every window the run does
+  not own. The port promises a *set* of windows — `{id, title, app_id, pid,
+  fullscreen, covers_screen}` — and not their z-order, which Hyprland and Sway do
+  not expose and no assertion here needs: "who covers whom" is answered from KD's
+  own state (`desktop_sunk`, `desktop_mapped`), the same on every compositor.
+  Events are pushed, never polled, so a window that lives for a moment — a splash —
+  cannot be missed; `wait_for()` consumes them sequentially, which makes a chain of
+  waits assert the *order* of what happened.
+    - `sources/kwin.py` — a script injected into KWin's `/Scripting`, reporting the
+      full `workspace.stackingOrder` on every window event.
+    - `sources/gnome.py` — the Kasual Helper extension's `WindowsChanged` signal
+      (Mutter offers clients no window API at all). The stream is off until the
+      harness asks for it, so a normal session pays nothing for it.
+    - Elsewhere: nothing yet. Scenarios that read windows declare
+      `require.window_source()` and refuse to run; the rest — the pad and KD's own
+      state — run on any compositor. See `PORTING.md`.
 - **KD introspection** — `kd_client.py`: reads the shell's state from KD's test API
   (tiles, focus, surfaces, and the Home menu's sections, cards and cursor) and keeps
   every answer for the artifact. It also checks the shape of what comes back: a KD
@@ -280,7 +292,11 @@ logged in — which are printed and left to the person at the keyboard.
 
 Every scenario needs:
 
-- KDE Plasma 6 on Wayland — the window watcher speaks KWin's scripting API.
+- A Wayland session Kasual Desktop supports. The pad and KD's own state can be read
+  anywhere; the windows of *other* apps need a backend for that compositor — KWin
+  and Mutter have one, Hyprland and Sway do not yet (`PORTING.md`). On GNOME the
+  Kasual Helper extension has to be enabled: without it KD has no window manager,
+  and a run would not fail — it would pass against a KD that is not doing its job.
 - `/dev/uinput` writable (the `input` group, or a udev rule) — as KD itself needs.
 - **[!]** No physical gamepad connected: KD grabs the first pad it finds, and it
   must find the virtual one.
@@ -384,6 +400,14 @@ And five paid for by `steam_kcd`, every one of them a press that vanished:
 
 ## Next steps
 
+- **Tiles the run brings with it.** A scenario depends on the operator's catalog — a
+  tile for `files`, for KCD, for Steam — and on which copy of a bundled app that tile
+  happens to launch. Half the preconditions below are that dependency, and one of them
+  has already cost a debugging session. Give Kasual Desktop an `--apps-dir` and the run
+  can supply its own `.desktop` files, pointing at the repo's own builds: the tile
+  requirements disappear, and so does "is /usr/share current?". (Swapping
+  `XDG_CONFIG_HOME` would do it without touching Kasual Desktop, but it takes the
+  preferences with it.)
 - A scenario for closing an app *the way a user does* (Home Menu → close → KD
   returns), kept separate from the launch scenarios on purpose.
 - MangoHud FPS as proof the game actually renders; today a fullscreen window is
