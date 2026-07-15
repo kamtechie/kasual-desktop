@@ -14,6 +14,7 @@ from typing import Protocol
 
 from PyQt6.QtCore import QCoreApplication, QEventLoop
 
+from tests.behavioral.harness import progress
 from tests.behavioral.harness.report import report
 
 
@@ -51,20 +52,22 @@ class EventLog:
         *predicate*, so a chain of waits asserts the order events arrived in, not
         merely that they did."""
         deadline = time.monotonic() + timeout_s
-        while True:
-            while self._cursor < len(self.events):
-                event = self.events[self._cursor]
-                self._cursor += 1
-                if predicate(event):
-                    return event
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError(
-                    f'timed out after {timeout_s}s waiting for: {description}')
-            QCoreApplication.processEvents(
-                QEventLoop.ProcessEventsFlag.WaitForMoreEvents,
-                int(min(remaining, 0.2) * 1000),
-            )
+        with progress.waiting(description, timeout_s) as bar:
+            while True:
+                while self._cursor < len(self.events):
+                    event = self.events[self._cursor]
+                    self._cursor += 1
+                    if predicate(event):
+                        return event
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        f'timed out after {timeout_s}s waiting for: {description}')
+                bar.tick()
+                QCoreApplication.processEvents(
+                    QEventLoop.ProcessEventsFlag.WaitForMoreEvents,
+                    int(min(remaining, 0.2) * 1000),
+                )
 
     def last_stack(self) -> list[dict]:
         return self.events[-1]['stack'] if self.events else []
@@ -93,7 +96,7 @@ def find(stack: list[dict], app_id: str | None = None,
     return out
 
 
-_BACKENDS = {'kde': 'kwin', 'gnome': 'gnome'}
+_BACKENDS = {'kde': 'kwin', 'gnome': 'gnome', 'hyprland': 'hyprland', 'sway': 'sway'}
 
 
 def backend() -> str | None:
@@ -112,6 +115,12 @@ def build_window_source() -> WindowSource:
     if name == 'gnome':
         from tests.behavioral.harness.sources.gnome import GnomeWindowSource
         return GnomeWindowSource()
+    if name == 'hyprland':
+        from tests.behavioral.harness.sources.hyprland import HyprlandWindowSource
+        return HyprlandWindowSource()
+    if name == 'sway':
+        from tests.behavioral.harness.sources.sway import SwayWindowSource
+        return SwayWindowSource()
     report('window source', 'INFO',
            'no window backend for this compositor — a scenario that reads windows '
            'will not run here (see tests/behavioral/PORTING.md)')

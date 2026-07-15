@@ -31,6 +31,11 @@ ARTIFACTS = os.path.join(
 _app: QCoreApplication | None = None
 
 
+def _compositor_name() -> str:
+    from infrastructure.linux.compositor import detect_compositor
+    return detect_compositor().value
+
+
 def _application() -> QCoreApplication:
     """One per process, and it must outlive every Session: a collected QCoreApplication
     takes Qt's D-Bus machinery with it, leaving interfaces cached across scenarios —
@@ -121,7 +126,9 @@ class Session:
         path = os.path.join(
             ARTIFACTS, f'{self.scenario.name}-{time.strftime("%Y%m%d-%H%M%S")}.json')
         with open(path, 'w') as f:
-            json.dump({'scenario': self.scenario.name, 'results': results,
+            json.dump({'scenario': self.scenario.name,
+                       'compositor': _compositor_name(),
+                       'results': results,
                        'presses': self.pad.presses,
                        'events': self.windows.events,
                        'kd_snapshots': self.kd.history,

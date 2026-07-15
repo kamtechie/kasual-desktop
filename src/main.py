@@ -93,6 +93,7 @@ def main() -> None:
     log_file = setup_logging(Path.home() / ".local" / "cache" / "kasual")
     version = get_version()
     logger.info("Running Kasual Desktop %s", version)
+    logger.info("Detected compositor: %s", detect_compositor().value)
 
     app = QApplication(sys.argv)
     app.setApplicationName("Kasual Desktop")

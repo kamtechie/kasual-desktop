@@ -34,16 +34,22 @@ class Compositor(enum.Enum):
 
 
 def detect_compositor() -> Compositor:
-    """Identify the running Wayland compositor from session env vars."""
+    """Identify the running Wayland compositor from session env vars.
+
+    A wlroots instance handle (Sway's SWAYSOCK, Hyprland's signature) is decided
+    first: it is exported only inside that compositor's own session, whereas a
+    nested Sway or Hyprland run under a KDE session inherits KDE_FULL_SESSION from
+    its parent and would otherwise be taken for KDE.
+    """
+    if os.environ.get("SWAYSOCK"):
+        return Compositor.SWAY
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return Compositor.HYPRLAND
     desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
     if os.environ.get("KDE_FULL_SESSION") or "kde" in desktop:
         return Compositor.KDE
     if "gnome" in desktop:
         return Compositor.GNOME
-    if os.environ.get("SWAYSOCK"):
-        return Compositor.SWAY
-    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
-        return Compositor.HYPRLAND
     return Compositor.UNKNOWN
 
 

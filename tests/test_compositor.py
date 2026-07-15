@@ -57,10 +57,19 @@ class TestDetectCompositor:
         clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
         assert detect_compositor() is Compositor.HYPRLAND
 
-    def test_kde_wins_over_wlroots_vars(self, clean_env):
+    def test_nested_sway_under_kde_is_sway(self, clean_env):
+        # A nested wlroots compositor inherits KDE_FULL_SESSION from its parent
+        # session; its own socket handle is the truthful signal, so it wins.
         clean_env.setenv("KDE_FULL_SESSION", "true")
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "KDE")
         clean_env.setenv("SWAYSOCK", "/run/user/1000/sway-ipc.sock")
-        assert detect_compositor() is Compositor.KDE
+        assert detect_compositor() is Compositor.SWAY
+
+    def test_nested_hyprland_under_kde_is_hyprland(self, clean_env):
+        clean_env.setenv("KDE_FULL_SESSION", "true")
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "KDE")
+        clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
+        assert detect_compositor() is Compositor.HYPRLAND
 
     def test_unknown_when_nothing_set(self, clean_env):
         assert detect_compositor() is Compositor.UNKNOWN

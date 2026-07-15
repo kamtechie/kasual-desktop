@@ -115,6 +115,28 @@ def window_source() -> Requirement:
     )
 
 
+def hyprland() -> Requirement:
+    """A Hyprland session with its CLI — the window source reads `hyprctl -j` and the
+    `socket2` stream keyed by `HYPRLAND_INSTANCE_SIGNATURE`."""
+    return Requirement(
+        'a Hyprland session (HYPRLAND_INSTANCE_SIGNATURE and hyprctl)',
+        lambda _kd: (os.environ.get('HYPRLAND_INSTANCE_SIGNATURE') is not None
+                     and shutil.which('hyprctl') is not None),
+        remedy='run this on a Hyprland session with hyprctl on PATH',
+    )
+
+
+def sway() -> Requirement:
+    """A Sway session with its CLI — the window source reads `swaymsg -t get_tree` and
+    subscribes to `window` events over `SWAYSOCK`."""
+    return Requirement(
+        'a Sway session (SWAYSOCK and swaymsg)',
+        lambda _kd: (os.environ.get('SWAYSOCK') is not None
+                     and shutil.which('swaymsg') is not None),
+        remedy='run this on a Sway session with swaymsg on PATH',
+    )
+
+
 def compositor_ready() -> Requirement:
     """On GNOME, without the Kasual Helper extension a run would not fail — it would
     pass against a Kasual Desktop that has no window manager and no way to stay on

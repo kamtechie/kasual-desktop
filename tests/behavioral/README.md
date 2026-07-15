@@ -201,9 +201,14 @@ Inside `harness/`:
     - `sources/gnome.py` — the Kasual Helper extension's `WindowsChanged` signal
       (Mutter offers clients no window API at all). The stream is off until the
       harness asks for it, so a normal session pays nothing for it.
-    - Elsewhere: nothing yet. Scenarios that read windows declare
+    - `sources/hyprland.py` — Hyprland's `socket2` event stream; and
+      `sources/sway.py` — `swaymsg -t subscribe -m`. On both the event carries no
+      window list, so each lifecycle event resnapshots from `hyprctl -j clients` /
+      `swaymsg -t get_tree`. Written but not yet run on a live session — see
+      `PORTING.md`.
+    - A compositor with no adapter: scenarios that read windows declare
       `require.window_source()` and refuse to run; the rest — the pad and KD's own
-      state — run on any compositor. See `PORTING.md`.
+      state — run anywhere.
 - **KD introspection** — `kd_client.py`: reads the shell's state from KD's test API
   (tiles, focus, surfaces, and the Home menu's sections, cards and cursor) and keeps
   every answer for the artifact. It also checks the shape of what comes back: a KD

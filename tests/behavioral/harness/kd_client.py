@@ -17,6 +17,8 @@ from pathlib import Path
 from PyQt6.QtCore import QCoreApplication, QEventLoop, QLockFile
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
+from tests.behavioral.harness import progress
+
 _SVC  = 'org.consoledesktop.KasualDesktop'
 _PATH = '/Shell'
 
@@ -98,15 +100,17 @@ class KDClient:
         """Poll the snapshot until *predicate* holds. Polling is fine here: unlike
         another app's splash, KD's own state is not short-lived — the test drives it."""
         deadline = time.monotonic() + timeout_s
-        while True:
-            snap = self.snapshot()
-            if predicate(snap):
-                return snap
-            if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    f'timed out after {timeout_s}s waiting for: {description}'
+        with progress.waiting(description, timeout_s) as bar:
+            while True:
+                snap = self.snapshot()
+                if predicate(snap):
+                    return snap
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f'timed out after {timeout_s}s waiting for: {description}'
+                    )
+                bar.tick()
+                QCoreApplication.processEvents(
+                    QEventLoop.ProcessEventsFlag.AllEvents, 50,
                 )
-            QCoreApplication.processEvents(
-                QEventLoop.ProcessEventsFlag.AllEvents, 50,
-            )
-            time.sleep(0.1)
+                time.sleep(0.1)

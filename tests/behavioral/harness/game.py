@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QCoreApplication, QEventLoop
 
-from tests.behavioral.harness import timeouts
+from tests.behavioral.harness import progress, timeouts
 from tests.behavioral.harness.report import ScenarioAborted, report
 from tests.behavioral.harness.window_source import find
 
@@ -130,19 +130,22 @@ class SteamGame:
         presses = 0
         next_press = 0.0
         deadline = time.monotonic() + timeouts.GAME_FULLSCREEN
-        while time.monotonic() < deadline:
-            stack = self._source.last_stack()
-            if self._windows(stack, fullscreen=True):
-                report(f'"Play" activated on the {what}', 'PASS',
-                       f'{presses} press(es) of A')
-                return
-            launcher_up = bool(self._windows(stack, fullscreen=False))
-            if launcher_up and presses < max_presses and time.monotonic() >= next_press:
-                self._pad.confirm()
-                presses += 1
-                next_press = time.monotonic() + settle_s
-            QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
-            time.sleep(0.2)
+        with progress.waiting(f'the {what} handing over to the game',
+                              timeouts.GAME_FULLSCREEN) as bar:
+            while time.monotonic() < deadline:
+                stack = self._source.last_stack()
+                if self._windows(stack, fullscreen=True):
+                    report(f'"Play" activated on the {what}', 'PASS',
+                           f'{presses} press(es) of A')
+                    return
+                launcher_up = bool(self._windows(stack, fullscreen=False))
+                if launcher_up and presses < max_presses and time.monotonic() >= next_press:
+                    self._pad.confirm()
+                    presses += 1
+                    next_press = time.monotonic() + settle_s
+                bar.tick()
+                QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
+                time.sleep(0.2)
 
         report(f'"Play" activated on the {what}', 'FAIL',
                f'{presses} press(es) of A, the game never went fullscreen')

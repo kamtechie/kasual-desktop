@@ -7,7 +7,9 @@ Today it means KDE only.
 Progress is tracked here. Tick a box when the thing is *proven on a live
 session*, not when the code compiles.
 
-Status: **the suite passes on GNOME (2026-07-14). Hyprland and Sway are next.**
+Status: **the suite passes on KDE and GNOME (2026-07-14). Hyprland and Sway
+window backends are written (2026-07-15) but await a live run on each — the
+adapter code is only exercisable there.**
 
 ---
 
@@ -73,7 +75,7 @@ API does not answer".
 - [x] `timeouts.KWIN_WATCHER` → `WINDOW_SOURCE`.
 - [x] KWin still works after the move: the script loads, the records come back
       normalized, `stop()` unloads it.
-- [ ] Re-run a scenario end to end on KDE (needs a KD started with the test API).
+- [x] Re-run a scenario end to end on KDE (`minimize`, 2026-07-15).
 
 ## Stage 3 — GNOME
 
@@ -118,27 +120,49 @@ XWayland window (every Steam game) first becomes identifiable.
 
 ## Stage 4 — Hyprland
 
-- [ ] `HyprlandWindowSource` — the `socket2` event stream
-      (`openwindow`/`closewindow`/`fullscreen`/`activewindow`) read on Qt's loop,
-      snapshots from `hyprctl -j clients`.
-- [ ] `require.hyprland()` — `HYPRLAND_INSTANCE_SIGNATURE` and `hyprctl`.
-- [ ] Run the suite. Expect the launch path to be where it breaks: Hyprland drops
-      `showFullScreen` on an unfocused window, so KD has to focus *and*
-      fullscreen what it launches. That is the bug these scenarios exist to catch.
+- [x] `HyprlandWindowSource` (`sources/hyprland.py`) — the `socket2` event stream read
+      through a `QSocketNotifier` on Qt's loop. Unlike KWin/GNOME the payload is not in
+      the event, so each lifecycle event (`openwindow`/`closewindow`/`movewindow`/
+      `fullscreen`/`activewindow`/`changefloatingmode`) triggers a fresh `hyprctl -j
+      clients` snapshot; the focused window comes from `hyprctl activewindow` (clients
+      carry no focus flag) and `covers_screen` from each window's monitor logical size
+      (`width / scale`), the safety net for a game whose `fullscreen` field is version-
+      dependent.
+- [x] `require.hyprland()` — `HYPRLAND_INSTANCE_SIGNATURE` and `hyprctl`. Wired into
+      `_BACKENDS`/`build_window_source`, so `require.window_source()` is satisfied on
+      Hyprland.
+- [ ] Run the suite on a live Hyprland session (unit suite green on KDE, but the
+      adapter itself is only exercisable there). Expect the launch path to be where it
+      breaks: Hyprland drops `showFullScreen` on an unfocused window, so KD has to focus
+      *and* fullscreen what it launches. That is the bug these scenarios exist to catch.
 
 ## Stage 5 — Sway
 
-- [ ] `SwayWindowSource` — `subscribe` on `SWAYSOCK` plus `get_tree`.
-- [ ] Xwayland: Sway leaves `app_id` null for X11 clients — which is every Steam
-      game. The class is in `window_properties.class`; without that fallback
-      `steam_app_<appid>` is never found.
-- [ ] `require.sway()` — `SWAYSOCK` and `swaymsg`.
-- [ ] Run the suite.
+- [x] `SwayWindowSource` (`sources/sway.py`) — `swaymsg -t subscribe -m '["window"]'`
+      streamed through a `QSocketNotifier`, resnapshotting from `swaymsg -t get_tree`
+      on the `new`/`close`/`focus`/`fullscreen_mode`/`move`/`floating` changes. Events
+      are pulled off the stream with an incremental JSON decoder, not split on newlines
+      — Sway's framing (compact vs pretty-printed) is version-dependent. `covers_screen`
+      compares each window's rect to its output's, threaded down the tree walk; focus
+      comes from the node's own `focused` flag (no second query needed).
+- [x] Xwayland: `app_id` is null for X11 clients — every Steam game — so the class
+      falls back to `window_properties.class`, mirroring the production Sway WM.
+- [x] `require.sway()` — `SWAYSOCK` and `swaymsg`. Wired into `_BACKENDS`/
+      `build_window_source`.
+- [ ] Run the suite on a live Sway session (unit suite green on KDE; the adapter is
+      only exercisable there).
 
 ---
 
 ## Not in scope here
 
+- **A per-scenario tile catalog the run brings with it** (deferred; see the
+  `--apps-dir` note under "Next steps" in `README.md`). Give Kasual Desktop an
+  `--apps-dir`, and the run generates a catalog for the duration of the session —
+  `.desktop` files pointing at the repo's own bundled builds, one tile per thing
+  the scenario needs. The `require.tile(...)` preconditions and "is /usr/share
+  current?" both disappear, and a scenario stops depending on the operator's
+  library.
 - Gherkin / pytest-bdd (deferred).
 - A pixel-level proof that the MangoHud overlay is drawn.
 - The DCOP-like control API (`Raise`/`Minimize`/`Launch`/`Status`) — a separate

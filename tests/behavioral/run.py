@@ -26,7 +26,7 @@ for path in (REPO_ROOT, REPO_ROOT / 'src'):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from tests.behavioral.harness import requirements  # noqa: E402
+from tests.behavioral.harness import progress, requirements  # noqa: E402
 from tests.behavioral.harness.session import Scenario  # noqa: E402
 
 
@@ -68,7 +68,12 @@ def main() -> int:
                         help='run only this one')
     parser.add_argument('--list', action='store_true',
                         help='list the scenarios and what each one needs, and run nothing')
+    parser.add_argument('--notify', action='store_true',
+                        help='raise a desktop notification when a long wait begins, so a '
+                             'watcher away from the terminal can decide to wait or abort')
     args = parser.parse_args()
+
+    progress.configure(notify=args.notify)
 
     if args.list:
         _print_list(scenarios)
