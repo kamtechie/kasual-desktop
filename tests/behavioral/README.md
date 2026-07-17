@@ -1,4 +1,4 @@
-# Behavioral tests (KDE Plasma 6)
+# Behavioral tests
 
 End-to-end runs of the choreography Kasual Desktop is actually made of: KD
 launches Steam, Steam launches the game, the Home Menu comes back over it. The
@@ -6,6 +6,12 @@ files are deliberately not named `test_*.py`, so pytest does not collect them �
 this suite is run by hand against a live session before a release, not in CI. It
 needs a Wayland session, a GPU and real games, and its scenarios may be hardcoded
 to one developer machine's library.
+
+It runs on every compositor Kasual Desktop supports — KDE, GNOME, Hyprland and
+Sway — each proven on a live session (2026-07-16). A scenario names the windows it
+needs and the harness picks the backend for whatever is running; see `PORTING.md`
+for how that was arrived at, and for the one place where a green run still hides a
+product gap (Sway).
 
 ## Why this exists
 
@@ -132,14 +138,13 @@ The structural signals available for the rest:
   started the game, the game never mapped a window — has a different structural
   signature.
 
-Two of the three scenarios launch a game through its KD tile, whose `.desktop` runs
+One of the three game scenarios launches through its KD tile, whose `.desktop` runs
 `steam steam://rungameid/<appid>` — the shortest path, and the one a tile is for. The
-third (`steam_kcd`) goes through Steam's UI on purpose, because that is the only way
-to prove something no tile launch can: **that the pad Kasual Desktop re-emits actually
-reaches a foreign application in the foreground.** KD grabs the physical pad
-exclusively (`EVIOCGRAB`) and re-emits it as `kasual-vpad`; `kcd` and `w3` hand the
-screen to a game and stay out of the way, so nothing there exercises that path beyond
-a single press on a launcher.
+other two (`steam_kcd`, `steam_w3`) go through Steam's UI on purpose, because that is the
+only way to prove something no tile launch can: **that the pad Kasual Desktop re-emits
+actually reaches a foreign application in the foreground.** KD grabs the physical pad
+exclusively (`EVIOCGRAB`) and re-emits it as `kasual-vpad`; `kcd` hands the screen to a
+game and stays out of the way, so nothing there exercises that path at all.
 
 Driving Big Picture blind would indeed be the most brittle step imaginable. Driving it
 with a read-back is not: Steam is asked after every press where its focus went, and a
@@ -282,10 +287,13 @@ first draft of this suite "passed" through.
   is a failure invisible from inside KD: a Desktop that believes it is minimized while
   its chrome still floats over the DE looks perfectly fine to itself, so the assertions
   are about *absence* — no tiles, no wallpaper, no header, no hint bar, no menu.
-- **`kcd`** — tile → Steam → the splash → the game → the Home Menu over it.
-- **`w3`** — tile → Steam → the RED Launcher, which has to be *used* → the game.
+- **`kcd`** — tile → Steam → the splash → the game → the Home Menu over it. The only
+  game scenario still launched from the game's own tile.
 - **`steam_kcd`** — tile → Big Picture → Steam's own UI, walked with the pad → the
-  game. The one that proves KD's re-emitted pad reaches a foreign application.
+  game. Proves KD's re-emitted pad reaches a foreign application.
+- **`steam_w3`** — the same walk through Steam's UI, but the game stops at the RED Launcher,
+  which has to be *used*: a window that maps after KD has ceded and must still be
+  reachable by the pad.
 
 ## Preconditions
 
@@ -312,14 +320,14 @@ Every scenario needs:
   packaged, menu-launched instance always is, and which nothing about it betrays
   until you notice it never answers.
 
-The game scenarios (`kcd`, `w3`) additionally need:
+`kcd` additionally needs:
 
 - Steam installed, **[!]** logged in, with the game installed.
 - A KD tile for the game (`TILE_ID` at the top of the scenario, matched against the
   `.desktop` stem or the displayed name; on a miss the error lists the tiles that
   exist).
 
-`steam_kcd` needs instead:
+`steam_kcd` and `steam_w3` need instead:
 
 - A KD tile for Steam, whose `.desktop` opens `steam://open/bigpicture` — the desktop
   UI is not pad-navigable, and this scenario is about the pad.
@@ -333,7 +341,7 @@ The list grows with the suite, and it grows in the scenarios: a YouTube scenario
 will want a logged-in session in the YT app, and it will say so in its own
 `requires`, not here.
 
-## Running it (KDE Plasma 6 / Wayland)
+## Running it (any supported compositor / Wayland)
 
 Start Kasual Desktop with the test API on, and leave it there — with no controller
 connected it holds off the screen, showing nothing:

@@ -115,13 +115,17 @@ def window_source() -> Requirement:
     )
 
 
+def _running(compositor_name: str) -> bool:
+    from infrastructure.linux.compositor import Compositor, detect_compositor
+    return detect_compositor() is Compositor(compositor_name)
+
+
 def hyprland() -> Requirement:
     """A Hyprland session with its CLI — the window source reads `hyprctl -j` and the
     `socket2` stream keyed by `HYPRLAND_INSTANCE_SIGNATURE`."""
     return Requirement(
         'a Hyprland session (HYPRLAND_INSTANCE_SIGNATURE and hyprctl)',
-        lambda _kd: (os.environ.get('HYPRLAND_INSTANCE_SIGNATURE') is not None
-                     and shutil.which('hyprctl') is not None),
+        lambda _kd: _running('hyprland') and shutil.which('hyprctl') is not None,
         remedy='run this on a Hyprland session with hyprctl on PATH',
     )
 
@@ -131,8 +135,7 @@ def sway() -> Requirement:
     subscribes to `window` events over `SWAYSOCK`."""
     return Requirement(
         'a Sway session (SWAYSOCK and swaymsg)',
-        lambda _kd: (os.environ.get('SWAYSOCK') is not None
-                     and shutil.which('swaymsg') is not None),
+        lambda _kd: _running('sway') and shutil.which('swaymsg') is not None,
         remedy='run this on a Sway session with swaymsg on PATH',
     )
 

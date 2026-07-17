@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from domain.input.vocabulary import Trigger
-from domain.lifecycle.app_lifecycle import AppLifecycle
+from domain.lifecycle.app_lifecycle import AppLifecycle, _FORWARDER_LAUNCH_TIMEOUT_MS
 from domain.lifecycle.foreground_inspector import ForegroundInspector
 from domain.catalog.app import App
 from domain.shell.foreground import ForegroundState
@@ -443,6 +443,51 @@ class TestOnAppFinished:
         assert c.view.shown == 0           # KD not bounced over the app
         c.ds.cancel.assert_not_called()    # window-gone watcher stays armed
         assert c.fg.current == AppTarget(index=0, app_id="app0", name="App")
+
+    def test_steam_forwarder_awaits_window_when_it_exits_before_the_game(self):
+        """Steam already running: the forwarder hands off and exits before the game
+        draws a window. KD must not bounce back to the Home view — the game maps a
+        moment later, and the armed window machinery cedes for it."""
+        c = _make(apps=[_steam_game_app(appid="292030", id="witcher3")], visible=False)
+        c.dh.is_armed = True
+        c.fg.set(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
+        c.wm.cached_windows.return_value = []       # the game's window is not up yet
+        c.lc.on_app_finished("witcher3")
+        c.dh.cancel.assert_not_called()             # launch machinery left armed
+        c.ds.cancel.assert_not_called()
+        c.cd.cancel.assert_not_called()
+        assert c.view.shown == 0                    # not bounced to the Home view
+        assert c.fg.current == AppTarget(index=0, app_id="witcher3", name="Witcher 3")
+        assert c.scheduler.calls[-1][0] == _FORWARDER_LAUNCH_TIMEOUT_MS
+
+    def test_steam_forwarder_returns_when_its_window_never_maps(self):
+        """The failure fallback: the grace elapses with no game window, so take the
+        screen back rather than sit ceded behind nothing."""
+        c = _make(apps=[_steam_game_app(appid="292030", id="witcher3")], visible=False)
+        c.dh.is_armed = True
+        c.fg.set(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
+        c.wm.cached_windows.return_value = []
+        c.lc.on_app_finished("witcher3")
+        c.scheduler.calls[-1][1]()                  # the grace elapses, still no window
+        c.dh.cancel.assert_called_once()
+        assert c.view.shown == 1
+        assert c.fg.is_idle()
+
+    def test_steam_forwarder_timeout_is_noop_once_the_game_is_up(self):
+        """If the game did map within the grace, the timeout must not yank the screen
+        out from under a running game."""
+        c = _make(apps=[_steam_game_app(appid="292030", id="witcher3")], visible=False)
+        c.dh.is_armed = True
+        c.fg.set(AppTarget(index=0, app_id="witcher3", name="Witcher 3"))
+        c.wm.cached_windows.return_value = []
+        c.lc.on_app_finished("witcher3")
+        c.wm.cached_windows.return_value = [
+            Window(id="w1", title="Witcher 3", pid=999, resource_class="steam_app_292030"),
+        ]
+        c.scheduler.calls[-1][1]()                  # grace fires, but the game is up
+        c.dh.cancel.assert_not_called()
+        assert c.view.shown == 0
+        assert c.fg.current == AppTarget(index=0, app_id="witcher3", name="Witcher 3")
 
 
 # ── on_app_launch_failed ────────────────────────────────────────────────────

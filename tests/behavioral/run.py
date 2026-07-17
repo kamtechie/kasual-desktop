@@ -62,8 +62,9 @@ def _run_all(scenarios: dict[str, Scenario]) -> int:
 def main() -> int:
     scenarios = _discover()
     parser = argparse.ArgumentParser(
-        description='Behavioral scenarios for Kasual Desktop (KDE Plasma 6 / Wayland). '
-                    'With no arguments, runs them all.')
+        description='Behavioral scenarios for Kasual Desktop, against the live Wayland '
+                    'session (KDE, GNOME, Hyprland or Sway). With no arguments, runs '
+                    'them all.')
     parser.add_argument('scenario', nargs='?', choices=sorted(scenarios),
                         help='run only this one')
     parser.add_argument('--list', action='store_true',

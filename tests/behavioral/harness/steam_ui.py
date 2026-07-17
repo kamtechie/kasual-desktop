@@ -5,7 +5,7 @@ DevTools Protocol — so a foreign, opaque application gains the one thing that 
 driving it honest: a read-back. Every pad press is checked against what Steam says
 has the focus, exactly as `navigation.py` checks its presses against KD.
 
-Three things are load-bearing, and none of them is a guess:
+Four things are load-bearing, and none of them is a guess:
 
 * `.Focusable` and `aria-label` survive Steam's updates. The class names beside them
   (`WYgDg9NyCcMIVuMyZ_NBC`) are per-build hashes and must never be matched against.
@@ -14,6 +14,11 @@ Three things are load-bearing, and none of them is a guess:
   `document.hasFocus()` says which.
 * The focus Steam reports is the one drawn on screen: the ring around the tile.
   Verified against a screenshot before this was trusted.
+* A game is identified by its appid, never by its name. Steam hangs `data-id` on the
+  tile's panel, above whatever the pad actually focused, and that number is the same in
+  every language and every Steam build. The label is not: Big Picture localises it, so
+  a run matching on the English name walks straight past `Wiedźmin 3: Dziki Gon` and
+  reports the game as missing. Names are for the report; appids are for the decisions.
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ import urllib.error
 import urllib.request
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import websocket
@@ -66,10 +72,17 @@ _FOCUS_JS = """
     // agrees with it, and is the fallback when Steam has not set it.
     var el = document.querySelector('.gpfocus') || document.activeElement;
     var name = el ? (labelOf(el) || el.innerText) : '';
+    // The appid sits on the tile's panel, several levels above what holds the focus.
+    var appid = '';
+    for (var node = el; node; node = node.parentElement) {
+        var id = node.getAttribute ? node.getAttribute('data-id') : null;
+        if (id && /^[0-9]+$/.test(id)) { appid = id; break; }
+    }
     return JSON.stringify({
         hasFocus: document.hasFocus(),
         focusables: document.querySelectorAll('.Focusable').length,
-        label: String(name).replace(/\\s+/g, ' ').trim().slice(0, 120)
+        label: String(name).replace(/\\s+/g, ' ').trim().slice(0, 120),
+        appid: appid
     });
 })()
 """
@@ -82,6 +95,24 @@ _WHERE_JS = """
 
 class SteamUnavailable(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class Focus:
+    """Where Steam's pad cursor sits: the appid decides, the label describes.
+
+    The label is whatever Steam calls it in the operator's language, so it belongs in
+    reports and nowhere near a comparison.
+    """
+    label: str
+    appid: str
+
+    def __str__(self) -> str:
+        if self.label and self.appid:
+            return f'{self.label!r} (app {self.appid})'
+        if self.appid:
+            return f'an unlabelled tile (app {self.appid})'
+        return repr(self.label)
 
 
 def _pump(seconds: float) -> None:
@@ -194,13 +225,13 @@ class SteamUI:
             return json.loads(self._evaluate(page, _FOCUS_JS))
         except (ValueError, OSError, websocket.WebSocketException):
             self._connections.pop(page['webSocketDebuggerUrl'], None)
-            return {'hasFocus': False, 'focusables': 0, 'label': ''}
+            return {'hasFocus': False, 'focusables': 0, 'label': '', 'appid': ''}
 
     # ── what it has focused ──────────────────────────────────────────────────
 
-    def focus(self) -> str:
-        """The accessible name of what Steam has focused, in whichever of its pages
-        holds the focus — the main menu is a page of its own.
+    def focused(self) -> Focus:
+        """What Steam has focused, in whichever of its pages holds the focus — the main
+        menu is a page of its own.
 
         Empty when no page holds it, which means Steam does not have the window focus
         and is ignoring the pad. Answering from a page that merely *had* the focus is
@@ -209,8 +240,11 @@ class SteamUI:
         for page in self._pages():
             probe = self._probe(page)
             if probe['hasFocus']:
-                return probe['label']
-        return ''
+                return Focus(probe['label'], probe.get('appid', ''))
+        return Focus('', '')
+
+    def focus(self) -> str:
+        return self.focused().label
 
     def has_window_focus(self) -> bool:
         return any(self._probe(page)['hasFocus'] for page in self._pages())
@@ -231,11 +265,11 @@ class SteamUI:
             _pump(0.5)
         return False
 
-    def step(self, move: Callable[[], None]) -> str:
+    def step(self, move: Callable[[], None]) -> Focus:
         """One press, and the focus it left behind."""
         move()
         _pump(0.4)   # the focus ring animates; read it once it has landed
-        return self.focus()
+        return self.focused()
 
     def wait_focus_in(self, wanted: frozenset[str], timeout_s: float) -> str | None:
         """Wait for the focus to land on one of *wanted*. Steam's pages animate in, so
@@ -249,30 +283,26 @@ class SteamUI:
                 return None
             _pump(0.3)
 
-    def seek(self, wanted: str, move: Callable[[], None], max_steps: int) -> bool:
-        """Press *move* until the focus lands on *wanted*, reading it back each time.
+    def seek_app(self, appid: str, move: Callable[[], None], max_steps: int) -> bool:
+        """Press *move* until the focused tile is *appid*, reading it back each time.
 
         Gives up as soon as the focus stops moving: the end of a row in Steam is
         silent, and a scan that presses on regardless is how a test comes to launch
         the wrong game.
         """
-        seen = self.focus()
-        if _same(seen, wanted):
+        seen = self.focused()
+        if seen.appid == appid:
             return True
         stuck = 0
         for _ in range(max_steps):
             landed = self.step(move)
-            if _same(landed, wanted):
+            if landed.appid == appid:
                 return True
             stuck = stuck + 1 if landed == seen else 0
             if stuck >= 3:
                 return False
             seen = landed
         return False
-
-
-def _same(focused: str, wanted: str) -> bool:
-    return focused.strip().casefold() == wanted.strip().casefold()
 
 
 # ── steps ────────────────────────────────────────────────────────────────────
@@ -300,7 +330,7 @@ def expect_window_focus(steam: SteamUI) -> None:
     raise ScenarioAborted('Steam never got the window focus')
 
 
-def focus_game(steam: SteamUI, pad: VirtualPad, name: str) -> None:
+def focus_game(steam: SteamUI, pad: VirtualPad, appid: str, name: str) -> None:
     """Walk Big Picture's home page to the game, reading the focus back each press.
 
     This is what the scenario is *for*: the pad Kasual Desktop re-emits has to reach a
@@ -310,16 +340,26 @@ def focus_game(steam: SteamUI, pad: VirtualPad, name: str) -> None:
     row below them — and until a direction is pressed, the ring on screen is not yet a
     pad cursor: the first press only engages it. So the run engages it deliberately,
     down and back up, and only then trusts what it reads.
+
+    The row opens on whichever game was played last, which the run before this one may
+    well have changed, so the target can sit on either side of the start. Hence the
+    sweep back: a failed rightward scan leaves the cursor at the far end of the row, and
+    only a leftward one long enough to cross the whole row reaches what lies left of
+    where the walk began.
+
+    *name* never decides anything — it is what the failure says out loud. The tile is
+    recognised by *appid*, which no translation of Steam's UI can move.
     """
     steam.step(pad.down)
     steam.step(pad.up)
-    if steam.seek(name, pad.right, MAX_HOME_ROW) or steam.seek(name, pad.left, MAX_HOME_ROW):
-        report('the pad reaches Steam', 'PASS', f'focus walked to {name!r}')
+    if (steam.seek_app(appid, pad.right, MAX_HOME_ROW)
+            or steam.seek_app(appid, pad.left, 2 * MAX_HOME_ROW)):
+        report('the pad reaches Steam', 'PASS', f'focus walked to {steam.focused()}')
         return
     report('the pad reaches Steam', 'FAIL',
-           f'focus never reached {name!r} (it sits on {steam.focus()!r}) — is the game '
-           'among the recent games on Big Picture\'s home page?')
-    raise ScenarioAborted(f'could not focus {name!r} in Steam')
+           f'focus never reached {name} (app {appid}); it sits on {steam.focused()} — is '
+           'the game among the recent games on Big Picture\'s home page?')
+    raise ScenarioAborted(f'could not focus app {appid} ({name}) in Steam')
 
 
 def open_game_page(steam: SteamUI, pad: VirtualPad, name: str) -> None:

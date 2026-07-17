@@ -10,6 +10,7 @@ crashing, so the app still starts (e.g. on labwc) with reduced functionality.
 import enum
 import logging
 import os
+import stat
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -33,6 +34,30 @@ class Compositor(enum.Enum):
     UNKNOWN = "unknown"
 
 
+def _is_socket(path: str) -> bool:
+    try:
+        return stat.S_ISSOCK(os.stat(path).st_mode)
+    except OSError:
+        return False
+
+
+def _in_sway_session() -> bool:
+    socket_path = os.environ.get("SWAYSOCK", "")
+    return bool(socket_path) and _is_socket(socket_path)
+
+
+def _in_hyprland_session() -> bool:
+    signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+    if not signature:
+        return False
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "")
+    return any(
+        _is_socket(os.path.join(base, "hypr", signature, ".socket.sock"))
+        for base in (runtime_dir, "/tmp")   # /tmp: Hyprland before 0.40
+        if base
+    )
+
+
 def detect_compositor() -> Compositor:
     """Identify the running Wayland compositor from session env vars.
 
@@ -40,10 +65,14 @@ def detect_compositor() -> Compositor:
     first: it is exported only inside that compositor's own session, whereas a
     nested Sway or Hyprland run under a KDE session inherits KDE_FULL_SESSION from
     its parent and would otherwise be taken for KDE.
+
+    The handle only counts while its socket is alive. Sway's packaging imports
+    SWAYSOCK into the systemd user manager, which outlives the session and hands
+    the stale value to every session that follows.
     """
-    if os.environ.get("SWAYSOCK"):
+    if _in_sway_session():
         return Compositor.SWAY
-    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+    if _in_hyprland_session():
         return Compositor.HYPRLAND
     desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
     if os.environ.get("KDE_FULL_SESSION") or "kde" in desktop:

@@ -50,20 +50,34 @@ class SteamGame:
     def _window_ids(self) -> set[str]:
         return {w['id'] for w in find(self._source.last_stack(), app_id=self.app_id)}
 
-    def wait_plain_window(self, what: str) -> dict | None:
-        """A splash or a launcher: a plain, non-fullscreen toplevel of the game."""
-        def fresh(stack: list[dict]) -> list[dict]:
-            return [w for w in self._windows(stack, fullscreen=False)
-                    if w['id'] not in self._stale]
+    def _fresh(self, stack: list[dict], *, fullscreen: bool | None = None) -> list[dict]:
+        return [w for w in find(stack, app_id=self.app_id, fullscreen=fullscreen)
+                if w['id'] not in self._stale]
 
+    def launched(self, timeout_s: float) -> bool:
+        """Whether the game opens a window on its own within *timeout_s* — the tile's
+        launch carrying through a cold Steam, as opposed to needing a push from its UI."""
+        if self._fresh(self._source.last_stack()):
+            return True
+        try:
+            self._source.wait_for(lambda e: bool(self._fresh(e['stack'])),
+                                  timeout_s, 'the game to launch on its own')
+            return True
+        except TimeoutError:
+            return False
+
+    def wait_plain_window(self, what: str,
+                          timeout_s: float | None = None) -> dict | None:
+        """A splash or a launcher: a plain, non-fullscreen toplevel of the game."""
         try:
             event = self._source.wait_for(
-                lambda e: bool(fresh(e['stack'])), timeouts.LAUNCHER,
+                lambda e: bool(self._fresh(e['stack'], fullscreen=False)),
+                timeout_s or timeouts.LAUNCHER,
                 f'non-fullscreen game toplevel ({what})')
         except TimeoutError as exc:
             report(f'{what} mapped', 'WARN', str(exc))
             return None
-        window = fresh(event['stack'])[0]
+        window = self._fresh(event['stack'], fullscreen=False)[0]
         report(f'{what} mapped', 'PASS',
                f'"{window["title"]}" ({window["app_id"]})')
         return window
@@ -71,6 +85,16 @@ class SteamGame:
     def wait_fullscreen(self) -> dict:
         stack = self._source.last_stack()
         if not self._windows(stack, fullscreen=True):
+            # The long budget is for shader compilation, which runs with a window
+            # already up; no window of the game at all means Steam never started it.
+            if not self._fresh(stack):
+                try:
+                    self._source.wait_for(
+                        lambda e: bool(self._fresh(e['stack'])),
+                        timeouts.GAME_LAUNCH, 'the game to open a window')
+                except TimeoutError as exc:
+                    report('game window fullscreen', 'FAIL', str(exc))
+                    raise ScenarioAborted('the game never launched') from exc
             try:
                 event = self._source.wait_for(
                     lambda e: bool(self._windows(e['stack'], fullscreen=True)),
@@ -166,6 +190,37 @@ class SteamGame:
             print(f'  game process (pid {pid}) '
                   f'{"closed" if closed else "still running"}', flush=True)
         _shut_down_steam()
+
+
+def warm_up_steam() -> None:
+    """Start Steam and wait for its client, so a tile's steam://rungameid runs the game.
+
+    A cold Steam started by that URL comes up in Big Picture and swallows the request;
+    an already-running one runs the game. `-silent` keeps it off the screen, so KD holds
+    the Home view while it warms.
+    """
+    if not _steam_gone():
+        report('Steam warmed up in the background', 'PASS', 'already running')
+        return
+    subprocess.Popen(['steam', '-silent'], stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+    deadline = time.monotonic() + timeouts.STEAM_UI
+    with progress.waiting('Steam warming up in the background', timeouts.STEAM_UI) as bar:
+        while time.monotonic() < deadline:
+            if _steam_client_up():
+                report('Steam warmed up in the background', 'PASS',
+                       'client is up, off the screen')
+                return
+            bar.tick()
+            QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
+            time.sleep(0.5)
+    report('Steam warmed up in the background', 'WARN',
+           'the client never reported up — launching the tile anyway')
+
+
+def _steam_client_up() -> bool:
+    return subprocess.run(['pgrep', '-x', 'steamwebhelper'],
+                          stdout=subprocess.DEVNULL).returncode == 0
 
 
 def _await_exit(is_gone: Callable[[], bool], timeout_s: float) -> bool:

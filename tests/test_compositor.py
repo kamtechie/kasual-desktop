@@ -1,5 +1,7 @@
 """Tests for compositor detection and the backend factory seam."""
 
+import socket
+
 from unittest.mock import patch
 
 import pytest
@@ -28,6 +30,27 @@ def clean_env(monkeypatch):
     return monkeypatch
 
 
+@pytest.fixture
+def live_sway_socket(clean_env, tmp_path):
+    socket_path = tmp_path / "sway-ipc.sock"
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+        listener.bind(str(socket_path))
+        clean_env.setenv("SWAYSOCK", str(socket_path))
+        yield
+
+
+@pytest.fixture
+def live_hyprland_socket(clean_env, tmp_path):
+    signature = "abc123"
+    socket_dir = tmp_path / "hypr" / signature
+    socket_dir.mkdir(parents=True)
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+        listener.bind(str(socket_dir / ".socket.sock"))
+        clean_env.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+        clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", signature)
+        yield
+
+
 class TestDetectCompositor:
     def test_kde_from_full_session(self, clean_env):
         clean_env.setenv("KDE_FULL_SESSION", "true")
@@ -49,27 +72,46 @@ class TestDetectCompositor:
         clean_env.setenv("XDG_CURRENT_DESKTOP", "ubuntu:GNOME")
         assert detect_compositor() is Compositor.GNOME
 
-    def test_sway(self, clean_env):
-        clean_env.setenv("SWAYSOCK", "/run/user/1000/sway-ipc.sock")
+    def test_sway(self, live_sway_socket):
         assert detect_compositor() is Compositor.SWAY
 
-    def test_hyprland(self, clean_env):
-        clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
+    def test_hyprland(self, live_hyprland_socket):
         assert detect_compositor() is Compositor.HYPRLAND
 
-    def test_nested_sway_under_kde_is_sway(self, clean_env):
+    def test_nested_sway_under_kde_is_sway(self, clean_env, live_sway_socket):
         # A nested wlroots compositor inherits KDE_FULL_SESSION from its parent
         # session; its own socket handle is the truthful signal, so it wins.
         clean_env.setenv("KDE_FULL_SESSION", "true")
         clean_env.setenv("XDG_CURRENT_DESKTOP", "KDE")
-        clean_env.setenv("SWAYSOCK", "/run/user/1000/sway-ipc.sock")
         assert detect_compositor() is Compositor.SWAY
 
-    def test_nested_hyprland_under_kde_is_hyprland(self, clean_env):
+    def test_nested_hyprland_under_kde_is_hyprland(self, clean_env, live_hyprland_socket):
         clean_env.setenv("KDE_FULL_SESSION", "true")
         clean_env.setenv("XDG_CURRENT_DESKTOP", "KDE")
-        clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
         assert detect_compositor() is Compositor.HYPRLAND
+
+    def test_stale_swaysock_does_not_shadow_gnome(self, clean_env, tmp_path):
+        # Sway's packaging imports SWAYSOCK into the systemd user manager, which
+        # outlives the session and hands the dead path to the next one.
+        clean_env.setenv("SWAYSOCK", str(tmp_path / "sway-ipc.gone.sock"))
+        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        assert detect_compositor() is Compositor.GNOME
+
+    def test_stale_hyprland_signature_does_not_shadow_kde(self, clean_env, tmp_path):
+        clean_env.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+        clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "long-gone")
+        clean_env.setenv("KDE_FULL_SESSION", "true")
+        assert detect_compositor() is Compositor.KDE
+
+    def test_stale_swaysock_alone_is_unknown(self, clean_env, tmp_path):
+        clean_env.setenv("SWAYSOCK", str(tmp_path / "sway-ipc.gone.sock"))
+        assert detect_compositor() is Compositor.UNKNOWN
+
+    def test_regular_file_at_swaysock_is_not_a_session(self, clean_env, tmp_path):
+        impostor = tmp_path / "sway-ipc.sock"
+        impostor.write_text("")
+        clean_env.setenv("SWAYSOCK", str(impostor))
+        assert detect_compositor() is Compositor.UNKNOWN
 
     def test_unknown_when_nothing_set(self, clean_env):
         assert detect_compositor() is Compositor.UNKNOWN
@@ -79,13 +121,11 @@ class TestFactories:
     def test_window_manager_falls_back_to_null(self, clean_env):
         assert isinstance(build_window_manager(), NullWindowManager)
 
-    def test_window_manager_is_sway_adapter(self, clean_env, qapp):
-        clean_env.setenv("SWAYSOCK", "/run/user/1000/sway-ipc.sock")
+    def test_window_manager_is_sway_adapter(self, live_sway_socket, qapp):
         from infrastructure.wlroots.wm.sway import SwayWindowManager
         assert isinstance(build_window_manager(), SwayWindowManager)
 
-    def test_window_manager_is_hyprland_adapter(self, clean_env, qapp):
-        clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
+    def test_window_manager_is_hyprland_adapter(self, live_hyprland_socket, qapp):
         from infrastructure.wlroots.wm.hyprland import HyprlandWindowManager
         assert isinstance(build_window_manager(), HyprlandWindowManager)
 
@@ -101,13 +141,11 @@ class TestFactories:
         from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
         assert isinstance(build_system_wallpaper(), KdeSystemWallpaper)
 
-    def test_wallpaper_is_sway_adapter(self, clean_env):
-        clean_env.setenv("SWAYSOCK", "/run/user/1000/sway-ipc.sock")
+    def test_wallpaper_is_sway_adapter(self, live_sway_socket):
         from infrastructure.wlroots.display.wallpaper import SwayWallpaper
         assert isinstance(build_system_wallpaper(), SwayWallpaper)
 
-    def test_wallpaper_is_hyprland_adapter(self, clean_env):
-        clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
+    def test_wallpaper_is_hyprland_adapter(self, live_hyprland_socket):
         from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
         assert isinstance(build_system_wallpaper(), HyprlandWallpaper)
 

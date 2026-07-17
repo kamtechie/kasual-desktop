@@ -29,6 +29,11 @@ from domain.shell.desktop_view import DesktopView
 
 logger = logging.getLogger(__name__)
 
+# A Steam forwarder exits the instant it hands the game to an already-running Steam;
+# the game's own window follows seconds later. This is how long to wait for that window
+# before calling the launch failed and taking the screen back.
+_FORWARDER_LAUNCH_TIMEOUT_MS = 30_000
+
 
 class AppLifecycle(AppControl):
     """Coordinates launching, restoring, closing and exit-handling of apps."""
@@ -223,6 +228,18 @@ class AppLifecycle(AppControl):
         self._view.show_error(self._prompts.launch_failed(error))
 
     def on_app_finished(self, app_id: str) -> None:
+        if self._forwarder_launch_in_flight(app_id):
+            # A Steam forwarder hands the game to a running Steam and exits before the
+            # game has drawn anything. Its exit is not the app ending: DeferredHide,
+            # DeferredShow and CedeDepth are already armed and will cede once the
+            # window maps and return once it is gone. Tearing down here would strand
+            # KD's chrome over the game that maps a moment later.
+            logger.info("%s forwarder handed off; awaiting the game's window", app_id)
+            self._scheduler.call_later(
+                _FORWARDER_LAUNCH_TIMEOUT_MS,
+                lambda: self._forwarder_launch_timed_out(app_id))
+            return
+
         logger.info("Application %s finished – returning to desktop", app_id)
         # Don't hide onto a closed app.
         self._deferred_hide.cancel()
@@ -264,6 +281,24 @@ class AppLifecycle(AppControl):
         if app is None:
             return False
         return any(w.matches_app(app) for w in self._wm.cached_windows())
+
+    def _forwarder_launch_in_flight(self, app_id: str) -> bool:
+        """A Steam-forwarder tile whose game window has not mapped yet: the forwarder
+        handed the launch to a running Steam and exited before the game drew anything,
+        so its exit says nothing about whether the game is still coming."""
+        app = next((a for a in self._apps if a.id == app_id), None)
+        return (app is not None and app.steam_app_id is not None
+                and self._deferred_hide.is_armed
+                and not self._still_windowed(app_id))
+
+    def _forwarder_launch_timed_out(self, app_id: str) -> None:
+        """The forwarder's window never came within the grace — the launch failed, so
+        take the screen back rather than sit ceded behind nothing."""
+        if self._still_windowed(app_id):
+            return
+        logger.info("%s window never mapped; returning to desktop", app_id)
+        self._deferred_hide.cancel()
+        self._return_from(app_id)
 
     def check_active_dyn_gone(self) -> None:
         """Show the Desktop if the active dynamic window was closed by its app."""

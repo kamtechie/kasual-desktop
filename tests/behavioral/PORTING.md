@@ -2,14 +2,15 @@
 
 The suite runs against a live session, so "supported compositor" has to mean the
 same thing for the tests as it does for the app: KDE, GNOME, Hyprland, Sway.
-Today it means KDE only.
+As of 2026-07-16 it does.
 
 Progress is tracked here. Tick a box when the thing is *proven on a live
 session*, not when the code compiles.
 
-Status: **the suite passes on KDE and GNOME (2026-07-14). Hyprland and Sway
-window backends are written (2026-07-15) but await a live run on each — the
-adapter code is only exercisable there.**
+Status: **the whole suite passes on all four — KDE, GNOME, Hyprland and Sway, each
+on a live session (2026-07-16).** One caveat, and it is not a small one:
+`steam_w3` passes on Sway only against a non-default Sway setting, and what that
+setting hides is a real gap in the product, not in the suite (Stage 5).
 
 ---
 
@@ -51,10 +52,12 @@ API does not answer".
 - [x] A unit test that every `DesktopSurface` adapter satisfies the port
       (`tests/test_desktop_surface_port.py`). One existed for Windows only, which is
       why this gap survived.
-- [ ] Reinstall the extension and restart GNOME Shell — `IsSunk` is new, and a
+- [x] Reinstall the extension and restart GNOME Shell — `IsSunk` is new, and a
       stale helper answers `False` to everything.
-- [ ] Read the snapshot from a live GNOME session:
-      `gdbus call --session -d org.consoledesktop.KasualDesktop -o /Shell -m org.consoledesktop.KasualDesktop.Snapshot`
+- [x] Read the snapshot from a live GNOME session (2026-07-16). Not by hand in the
+      end: the suite reads it on every assertion, and `kcd` on GNOME reports "no KD
+      surface above the splash — desktop sunk", which is `IsSunk` answering truthfully
+      about a state KD never set.
 
 ## Stage 2 — the harness stops knowing about KWin
 
@@ -91,8 +94,9 @@ XWayland window (every Steam game) first becomes identifiable.
 - [x] `require.compositor_ready()` in BASE — on GNOME, the extension must answer.
       Without it a run would not fail, it would *pass* against a KD that cannot keep
       its surfaces on screen.
-- [ ] Reinstall the extension (`./install.sh`) and re-login: `IsSunk` and
-      `WatchWindows` are new, and an old helper simply does not know them.
+- [x] Reinstall the extension (`./install.sh`) and re-login: `IsSunk` and
+      `WatchWindows` are new, and an old helper simply does not know them. Proven by
+      the runs themselves — a stale helper could not answer either, and both do.
 - [x] The whole suite runs green on GNOME.
 - [x] **The launched app did not always take focus on GNOME.** Twice, the File Browser
       came up and read the pad while the focus stayed on the terminal the run was
@@ -116,7 +120,10 @@ XWayland window (every Steam game) first becomes identifiable.
       believes in the wrong app.
 - [ ] Confirm on a live GNOME session (reinstall the extension, re-login). A green run
       is weak evidence here — the race was intermittent — but `Activation ignored for
-      pids …` in Kasual's log now names it whenever it happens.
+      pids …` in Kasual's log now names it whenever it happens. Left unticked on
+      purpose: several green GNOME runs on 2026-07-16 never showed the race, and that
+      is exactly what an intermittent race looks like when it is *not* fixed. Only the
+      log line, or a run that catches it and recovers, settles this.
 
 ## Stage 4 — Hyprland
 
@@ -131,10 +138,11 @@ XWayland window (every Steam game) first becomes identifiable.
 - [x] `require.hyprland()` — `HYPRLAND_INSTANCE_SIGNATURE` and `hyprctl`. Wired into
       `_BACKENDS`/`build_window_source`, so `require.window_source()` is satisfied on
       Hyprland.
-- [ ] Run the suite on a live Hyprland session (unit suite green on KDE, but the
-      adapter itself is only exercisable there). Expect the launch path to be where it
-      breaks: Hyprland drops `showFullScreen` on an unfocused window, so KD has to focus
-      *and* fullscreen what it launches. That is the bug these scenarios exist to catch.
+- [x] Run the suite on a live Hyprland session (2026-07-16) — green, with no changes to
+      the adapter. The launch path was expected to be where it broke: Hyprland drops
+      `showFullScreen` on an unfocused window, so KD has to focus *and* fullscreen what
+      it launches. It already does (`hyprland.py:_focus_fullscreen`), and this run is
+      what proves that workaround holds.
 
 ## Stage 5 — Sway
 
@@ -149,8 +157,35 @@ XWayland window (every Steam game) first becomes identifiable.
       falls back to `window_properties.class`, mirroring the production Sway WM.
 - [x] `require.sway()` — `SWAYSOCK` and `swaymsg`. Wired into `_BACKENDS`/
       `build_window_source`.
-- [ ] Run the suite on a live Sway session (unit suite green on KDE; the adapter is
-      only exercisable there).
+- [x] Run the suite on a live Sway session (2026-07-16). `minimize`, `file_browser`,
+      `kcd` and `steam_kcd` pass as they stand; the adapter needed no changes.
+- [ ] **`steam_w3` passes on Sway only with `for_window [class="^steam_app_[0-9]+$"] focus`
+      in the operator's Sway config. Do not read the tick above as "Sway works".**
+
+      (The evidence below was gathered on 2026-07-16, while the scenario was still
+      named `w3` and launched the game from its own tile. It now reaches the same
+      launcher through Steam's UI, which leaves the mechanism untouched: Big Picture
+      holds the screen either way.)
+
+      Sway will not focus a newly mapped window while a fullscreen one holds the
+      workspace — verified with two bare terminals: fullscreen A keeps focus, new B
+      maps `focused=false`, and an explicit `focus` on B both focuses it *and* drops
+      A's fullscreen. KWin, Mutter and Hyprland focus the new window themselves, which
+      is why the scenario passed on all three the same day and failed only here.
+
+      So Steam's Big Picture keeps the screen, the RED Launcher maps unreachable
+      behind it, and every `A` goes to Big Picture: `3 press(es) of A, the game never
+      went fullscreen`. With the rule above the launcher is focused on map and one
+      press starts the game. `kcd` hides the problem rather than escaping it — its
+      game goes fullscreen unprompted, so Sway yields the top on its own.
+
+      The gap is KD's. `DeferredHide._act_now` calls `activate_windows_for_pids`
+      exactly once, as KD hides; only Big Picture exists at that moment, and nothing
+      asks again once the launcher maps. The parts are already there —
+      `expand_pid_tree` covers Steam's children, `WlrootsWindowManager` polls — they
+      just do not run when it matters. `hyprland.py` carries its own focus workaround
+      (`_focus_fullscreen`); `sway.py:activate_window` is a bare `swaymsg focus`.
+      A stock-config Sway user cannot start The Witcher 3 from a tile today.
 
 ---
 

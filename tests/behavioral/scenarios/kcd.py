@@ -4,11 +4,15 @@ KD launches the game itself (pad → tile → A), so the run exercises the real
 choreography — DeferredHide, CedeDepth — that a bare `steam://rungameid/…` would
 bypass. Kingdom Come's splash is a plain window that comes and goes on its own, so
 the scenario only has to assert that nothing of KD sits over it.
+
+Steam is warmed up in the background first: a cold Steam started by the tile's URL
+opens in Big Picture and drops the launch, so the tile would prove nothing until the
+client is already up.
 """
 
 from tests.behavioral.harness import requirements as require
-from tests.behavioral.harness import shell
-from tests.behavioral.harness.game import SteamGame
+from tests.behavioral.harness import shell, timeouts
+from tests.behavioral.harness.game import SteamGame, warm_up_steam
 from tests.behavioral.harness.session import Scenario, Session
 
 TILE_ID = 'Kingdom Come Deliverance'
@@ -17,11 +21,17 @@ APPID = '379430'
 
 def _body(session: Session) -> None:
     game = SteamGame(session, APPID)
+
+    # A cold Steam started by the tile's steam://rungameid opens in Big Picture and
+    # drops the launch; warming it first, off the screen, leaves KD on the Home view
+    # to drive the tile from.
+    warm_up_steam()
+    shell.expect_home_view(session.kd)
     shell.launch_tile(session.kd, session.pad, TILE_ID)
 
     # The splash is passive — nobody has to click it — so KD's own state is the
     # only evidence that it was not buried under the shell.
-    if game.wait_plain_window('splash') is not None:
+    if game.wait_plain_window('splash', timeouts.GAME_LAUNCH) is not None:
         shell.check_kd_below(session.kd, 'splash')
 
     window = game.wait_fullscreen()
@@ -42,7 +52,8 @@ def _body(session: Session) -> None:
 
 SCENARIO = Scenario(
     name='kcd',
-    title='launch Kingdom Come: Deliverance from its tile, recall the Home Menu over it',
+    title='launch Kingdom Come from its tile straight into the game (Steam warmed in the '
+          'background first), recall the Home Menu over it',
     body=_body,
     requires=(
         require.window_source(),

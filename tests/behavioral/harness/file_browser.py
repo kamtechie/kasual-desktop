@@ -80,37 +80,72 @@ def expect_browser(browser: FileBrowserClient) -> dict:
     return snapshot
 
 
+def _prove_the_pad_arrives(browser: FileBrowserClient, pad: VirtualPad) -> None:
+    """Press until the cursor demonstrably moves, and only then let the run believe it.
+
+    The browser answers its test API a little before it starts reading the pad, so a
+    press that follows the launch too closely is simply lost. Retried rather than slept
+    off: a press that moves the cursor is the only thing that tells "not listening yet"
+    apart from "not listening at all", and the retry is what makes the difference
+    harmless. Without this the walk below could open on a folder, press A into an app
+    that is not listening, and blame the app for standing still.
+    """
+    deadline = time.monotonic() + timeouts.APP_START
+    presses = 0
+    while time.monotonic() < deadline:
+        presses += 1
+        before = browser.snapshot()['focused_index']
+        pad.right()
+        try:
+            browser.wait_until(lambda s, b=before: s['focused_index'] != b,
+                               timeouts.TILE_FOCUS, f'the cursor to move off entry {before}')
+        except TimeoutError:
+            continue
+        report('the pad reaches the File Browser', 'PASS',
+               f'the cursor moved off entry {before} — {presses} press(es)')
+        return
+    report('the pad reaches the File Browser', 'FAIL',
+           f'the cursor never moved: {presses} press(es) over {timeouts.APP_START:.0f}s')
+    raise ScenarioAborted('the File Browser is not reading the pad')
+
+
 def browse_folders(browser: FileBrowserClient, pad: VirtualPad) -> None:
     """Walk the listing to a folder, go into it, and come back out.
 
     Every press is read back: this is the only proof that the pad Kasual Desktop
     re-emits is reaching the app it launched, rather than being swallowed on the way.
+
+    The walk goes sideways, never down. The browser opens as an icon grid, where down
+    is a whole row — as many entries as the viewport fits across, and off the end of a
+    short listing entirely. Right is one entry in the grid, and the listing is walked
+    one entry at a time.
     """
     home = browser.snapshot()
     start = home['current_dir']
+
+    _prove_the_pad_arrives(browser, pad)
 
     for _ in range(MAX_ENTRIES):
         snapshot = browser.snapshot()
         if snapshot['focused_is_dir']:
             break
         before = snapshot['focused_index']
-        pad.down()
+        pad.right()
         try:
             browser.wait_until(lambda s, b=before: s['focused_index'] != b,
                                timeouts.TILE_FOCUS,
                                f'the cursor to move off entry {before}')
         except TimeoutError as exc:
-            report('the pad reaches the File Browser', 'FAIL',
+            report('the cursor walked to a folder', 'FAIL',
                    f'the cursor would not move off entry {before}')
-            raise ScenarioAborted('the File Browser is not reading the pad') from exc
+            raise ScenarioAborted('the File Browser stopped reading the pad') from exc
     else:
-        report('the pad reaches the File Browser', 'WARN',
+        report('the cursor walked to a folder', 'WARN',
                f'no folder among the first {MAX_ENTRIES} entries of {start}')
         return
 
     entry = browser.snapshot()['focused_entry']
-    report('the pad reaches the File Browser', 'PASS',
-           f'the cursor walked to the folder {entry!r}')
+    report('the cursor walked to a folder', 'PASS', f'the cursor is on {entry!r}')
 
     pad.confirm()
     try:
