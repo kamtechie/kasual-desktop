@@ -88,6 +88,10 @@ DE-independent.
 | **GNOME 45+ (Mutter)** | Full | Kasual Helper extension (D-Bus) | `gsettings` background (dark variant and slideshow XML understood) | Requires the [Kasual Helper extension](#gnome-the-kasual-helper-extension); Mutter has no `wlr-layer-shell`. |
 | Other wlroots (e.g. labwc) | Partial | none (no-op) | `<config>/wallpaper` static file | Starts and renders, but window switching is unavailable. |
 
+The four full backends are exercised end-to-end on live sessions by the
+[behavioral suite](tests/behavioral/README.md) — including launching real games
+and reaching a launcher that maps behind Steam's Big Picture. See [Tests](#tests).
+
 Whenever a compositor's own wallpaper source comes up empty, Kasual Desktop falls
 back to a static image at `<config>/wallpaper` (a file or a symlink into your own
 collection), and finally to the Desktop's built-in background. The wallpaper is
@@ -230,6 +234,29 @@ the bundled File Browser and YouTube apps ship inside the same package.
    fails with *"No shell integration named layer-shell found"*. The shell
    integration (`QT_WAYLAND_SHELL_INTEGRATION=layer-shell`) is requested by
    `src/main.py` only on compositors that have it — never on GNOME.
+
+### Tests
+
+Two suites, deliberately separate:
+
+- **Unit suite** — `./test.sh` (Linux) / `.\test.ps1` (Windows). Exercises the
+  shared core and adapters — parsing, filtering, command building, factory wiring,
+  port conformance — with the OS mocked. Fast, offline, CI-friendly; the bulk of
+  the coverage.
+- **Behavioral suite** — `tests/behavioral/`. End-to-end runs of the real
+  choreography (KD launches Steam, Steam launches the game, the Home Menu comes
+  back over it), driven through a virtual gamepad and asserted by reading window
+  and shell state back — without looking at pixels. Deliberately **not** named
+  `test_*.py`, so pytest never collects it: it is run by hand against a live
+  session before a release, and needs a Wayland compositor, a GPU and real games.
+  It runs on every supported compositor — KDE, GNOME, Hyprland and Sway. See
+  [tests/behavioral/README.md](tests/behavioral/README.md).
+
+  ```bash
+  KD_TEST_API=1 ./kasual.sh                 # one terminal: KD with the test API on
+  python3 tests/behavioral/run.py --list    # another: the scenarios and what they need
+  python3 tests/behavioral/run.py kcd        # run one, or omit the name for all
+  ```
 
 ### Building packages
 

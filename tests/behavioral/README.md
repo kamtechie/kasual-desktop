@@ -8,10 +8,10 @@ needs a Wayland session, a GPU and real games, and its scenarios may be hardcode
 to one developer machine's library.
 
 It runs on every compositor Kasual Desktop supports — KDE, GNOME, Hyprland and
-Sway — each proven on a live session (2026-07-16). A scenario names the windows it
-needs and the harness picks the backend for whatever is running; see `PORTING.md`
-for how that was arrived at, and for the one place where a green run still hides a
-product gap (Sway).
+Sway — each proven on a live session, the whole suite green on all four. A scenario
+names the windows it needs and the harness picks the backend for whatever is
+running; see `PORTING.md` for how that was arrived at, down to the last product gap
+it exposed (Sway would not focus a launcher behind a fullscreen window) and closed.
 
 ## Why this exists
 
@@ -209,8 +209,7 @@ Inside `harness/`:
     - `sources/hyprland.py` — Hyprland's `socket2` event stream; and
       `sources/sway.py` — `swaymsg -t subscribe -m`. On both the event carries no
       window list, so each lifecycle event resnapshots from `hyprctl -j clients` /
-      `swaymsg -t get_tree`. Written but not yet run on a live session — see
-      `PORTING.md`.
+      `swaymsg -t get_tree`.
     - A compositor with no adapter: scenarios that read windows declare
       `require.window_source()` and refuse to run; the rest — the pad and KD's own
       state — run anywhere.
@@ -306,8 +305,8 @@ logged in — which are printed and left to the person at the keyboard.
 Every scenario needs:
 
 - A Wayland session Kasual Desktop supports. The pad and KD's own state can be read
-  anywhere; the windows of *other* apps need a backend for that compositor — KWin
-  and Mutter have one, Hyprland and Sway do not yet (`PORTING.md`). On GNOME the
+  anywhere; the windows of *other* apps need a backend for that compositor — KWin,
+  Mutter, Hyprland and Sway each have one. On GNOME the
   Kasual Helper extension has to be enabled: without it KD has no window manager,
   and a run would not fail — it would pass against a KD that is not doing its job.
 - `/dev/uinput` writable (the `input` group, or a udev rule) — as KD itself needs.
@@ -453,6 +452,4 @@ And five paid for by `steam_kcd`, every one of them a press that vanished:
   Worth paying once the suite is large enough that scenarios are read more often than
   they are written — not before.
 
-- The remaining compositors (GNOME first — that is where the other half of the
-  ceding bugs lived), and an optional screen capture for what only pixels can
-  answer.
+- An optional screen capture for what only pixels can answer (see Layer 4 above).
