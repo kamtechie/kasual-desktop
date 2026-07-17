@@ -20,7 +20,7 @@ if detect_compositor() is not Compositor.GNOME:
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
-from version import get_version
+from version import get_version, is_packaged
 from session import (
     build_controller, build_tray, defer_start,
     run_onboarding_or_start, setup_logging, wire_notification_badge,
@@ -221,7 +221,7 @@ def main() -> None:
             power=power, hud=hud,
         )
 
-        if os.environ.get("KD_TEST_API") == "1":
+        if os.environ.get("KD_TEST_API") == "1" or not is_packaged():
             from infrastructure.linux.introspection import ShellIntrospectionService
             # Parented to `app` for the same reason as the monitors above.
             ShellIntrospectionService(desktop, hud, parent=app)

@@ -1,7 +1,7 @@
 # nfpm descriptor — single source for both .deb and .rpm.
 #   nfpm pkg -p deb -t dist/
 #   nfpm pkg -p rpm -t dist/
-# Version is injected from pyproject.toml by the Makefile (KASUAL_VERSION).
+# Version is derived from git tags by the Makefile (KASUAL_VERSION).
 # The whole runnable tree is staged under build/stage/usr by `make stage`, so
 # this file just packs that staging dir — keeping __file__-relative resource
 # paths (src/apps/sounds/locale all under /usr/share/kasual-desktop) intact.

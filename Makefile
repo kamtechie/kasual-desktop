@@ -6,7 +6,7 @@
 #   make stage   # populate build/stage/ (what gets packaged)
 #   make clean
 #
-# Version is the single source of truth from pyproject.toml.
+# Version is derived from git tags; pyproject.toml is a fallback for tarball builds.
 
 # Version from git tag (e.g. v0.2.0 -> 0.2.0) when HEAD is tagged (official release).
 # When HEAD is not tagged (development), use full git describe (e.g. 0.1.0-74-g9b3d5f9).

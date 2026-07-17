@@ -47,6 +47,11 @@ HOME = Path.home()
 _DLNA = object()  # sentinel for the "Network / DLNA" virtual location
 
 
+def _is_packaged() -> bool:
+    kd_root = Path(__file__).resolve().parent.parent.parent.parent
+    return (kd_root / "src" / "_version.txt").is_file()
+
+
 def _xdg_dir(key: str) -> Path:
     cfg = Path.home() / ".config" / "user-dirs.dirs"
     try:
@@ -1402,7 +1407,7 @@ def main() -> None:
     window = FileBrowserWindow()
     window.showFullScreen()
 
-    if os.environ.get("KD_TEST_API") == "1":
+    if os.environ.get("KD_TEST_API") == "1" or not _is_packaged():
         from introspection import BrowserIntrospectionService
         # Parented to `app`: a service held only by a local name is collected, and the
         # bus keeps the name while the object path quietly disappears.

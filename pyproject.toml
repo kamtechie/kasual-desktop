@@ -5,12 +5,13 @@
 # dependency list here — runtime deps are distro packages, declared in nfpm.yaml
 # (the .deb/.rpm/.pkg) and installed for development by install.sh. This file
 # exists so the minimum Python version is declared in one conventional,
-# tool-readable place (and the Makefile reads the package version from it).
+# tool-readable place.  The `version` field is a fallback for tarball builds
+# without .git; the primary source of truth is the git tag (see Makefile, src/version.py).
 #
 # Floor is 3.11: the domain layer uses enum.StrEnum (added in 3.11) and
 # typing.Self.
 [project]
 name = "kasual-desktop"
-version = "0.1.0"
+version = "0.0.0-dev"
 description = "Gamepad-first launcher/desktop for KDE Plasma 6 on Wayland."
 requires-python = ">=3.11"
