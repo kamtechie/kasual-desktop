@@ -65,7 +65,12 @@ class WlrootsWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
         self._cache = {w.id: w for w in windows}
         self._active_window_id = next((w.id for w in windows if w.active), None)
         self._windows_emitter.emit(windows)
+        self._after_refresh()
         logger.debug("Windows list: %d, active: %s", len(self._cache), self._active_window_id)
+
+    def _after_refresh(self) -> None:
+        """Extension point run on the freshly built cache; overridden where a
+        compositor needs to react to its own window changes."""
 
     # ── queries ────────────────────────────────────────────────────────────
 

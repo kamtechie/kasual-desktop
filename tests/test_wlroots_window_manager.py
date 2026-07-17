@@ -4,6 +4,7 @@ The OS layer is mocked: ``_run_json`` returns canned ``swaymsg``/``hyprctl`` JSO
 and ``_run`` captures the emitted CLI commands, so no compositor is contacted.
 """
 
+import time
 from unittest.mock import patch
 
 import pytest
@@ -115,6 +116,63 @@ class TestSwayOps:
             wm.raise_windows_for_pid_exact(1000)
         focused = {c.args[0][1] for c in run.call_args_list}
         assert focused == {"[con_id=5] focus", "[con_id=6] focus"}
+
+
+class TestSwayLauncherFocusFollow:
+    def _arm(self, wm, pids):
+        with patch("infrastructure.wlroots.wm.base.expand_pid_tree", return_value=pids), \
+             patch.object(wm, "_run"):
+            wm.activate_windows_for_pids(pids)
+
+    def _refresh_with(self, wm, windows):
+        with patch("infrastructure.wlroots.wm.base.expand_pid_tree",
+                   return_value={w.pid for w in windows}), \
+             patch.object(wm, "_enum_windows", return_value=windows), \
+             patch.object(wm, "_run") as run:
+            wm._do_refresh()
+        return run
+
+    def test_focuses_launcher_mapped_behind_fullscreen(self, qapp):
+        wm = SwayWindowManager()
+        self._arm(wm, {1000})
+        big = Window(id="5", title="Big Picture", pid=1000, active=True,
+                     fullscreen=True, resource_class="steam")
+        launcher = Window(id="9", title="REDlauncher", pid=1000,
+                          active=False, resource_class="launcher")
+        run = self._refresh_with(wm, [big, launcher])
+        run.assert_called_once_with(["swaymsg", "[con_id=9] focus"])
+        wm._stop_follow()
+
+    def test_stops_once_focus_lands_inside_app(self, qapp):
+        wm = SwayWindowManager()
+        self._arm(wm, {1000})
+        launcher = Window(id="9", title="REDlauncher", pid=1000,
+                          active=True, resource_class="launcher")
+        run = self._refresh_with(wm, [launcher])
+        run.assert_not_called()
+        assert not wm._follow_timer.isActive()
+
+    def test_waits_while_only_fullscreen_holder_present(self, qapp):
+        wm = SwayWindowManager()
+        self._arm(wm, {1000})
+        big = Window(id="5", title="Big Picture", pid=1000, active=True,
+                     fullscreen=True, resource_class="steam")
+        run = self._refresh_with(wm, [big])
+        run.assert_not_called()
+        assert wm._follow_timer.isActive()
+        wm._stop_follow()
+
+    def test_deadline_stops_follow(self, qapp):
+        wm = SwayWindowManager()
+        self._arm(wm, {1000})
+        wm._follow_deadline = time.monotonic() - 1
+        big = Window(id="5", title="Big Picture", pid=1000, active=True,
+                     fullscreen=True, resource_class="steam")
+        launcher = Window(id="9", title="REDlauncher", pid=1000,
+                          active=False, resource_class="launcher")
+        run = self._refresh_with(wm, [big, launcher])
+        run.assert_not_called()
+        assert not wm._follow_timer.isActive()
 
 
 # ── Hyprland ─────────────────────────────────────────────────────────────────

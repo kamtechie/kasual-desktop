@@ -187,6 +187,19 @@ XWayland window (every Steam game) first becomes identifiable.
       (`_focus_fullscreen`); `sway.py:activate_window` is a bare `swaymsg focus`.
       A stock-config Sway user cannot start The Witcher 3 from a tile today.
 
+      **Fix landed (awaiting live proof).** `SwayWindowManager.activate_windows_for_pids`
+      is now sticky: after the one focus KD issues at cede, the adapter keeps chasing the
+      launch's own windows on a short timer, focusing the launch's newest ordinary window
+      while one of its fullscreen windows still holds focus — the exact Sway pathology, and
+      a no-op the moment focus lands inside the app (that first focus also drops Big
+      Picture's fullscreen, after which Sway focuses maps itself). It lives entirely in the
+      Sway adapter: the domain already expresses the intent through the port, and only Sway
+      maps windows lazily enough to need the chase, so nothing runs on the other three
+      compositors. Hooked via a new `_after_refresh()` extension point on the wlroots base.
+      Covered by `tests/test_wlroots_window_manager.py::TestSwayLauncherFocusFollow`.
+      Left unticked on purpose: proof is a green `steam_w3` on a live Sway session with the
+      `for_window … focus` rule *removed* from the operator's config — nothing less settles it.
+
 ---
 
 ## Not in scope here
