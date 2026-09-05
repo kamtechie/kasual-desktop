@@ -39,7 +39,7 @@ class InfoDialog(QWidget):
         lbl.setStyleSheet("font-size: 26px; color: white; background: transparent;")
         layout.addWidget(lbl)
 
-        btn = QPushButton("✔  " + self.tr("OK"))
+        btn = QPushButton("✔  OK")
         btn.setMinimumSize(200, 80)
         btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         btn.setStyleSheet("""

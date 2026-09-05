@@ -16,7 +16,7 @@ import threading
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QPoint, QSize, QCoreApplication, QLocale, QObject, QTranslator, QT_TRANSLATE_NOOP, pyqtSignal
+from PyQt6.QtCore import Qt, QPoint, QSize, QObject, pyqtSignal
 from PyQt6.QtGui import QColor, QKeyEvent, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
@@ -65,14 +65,14 @@ def _xdg_dir(key: str) -> Path:
 
 
 BOOKMARKS = [
-    (QT_TRANSLATE_NOOP("FileBrowser", "Home"), "fa5s.home", HOME),
-    (QT_TRANSLATE_NOOP("FileBrowser", "Desktop"), "fa5s.desktop", _xdg_dir("XDG_DESKTOP_DIR")),
-    (QT_TRANSLATE_NOOP("FileBrowser", "Documents"), "fa5s.file-alt", _xdg_dir("XDG_DOCUMENTS_DIR")),
-    (QT_TRANSLATE_NOOP("FileBrowser", "Music"), "fa5s.music", _xdg_dir("XDG_MUSIC_DIR")),
-    (QT_TRANSLATE_NOOP("FileBrowser", "Pictures"), "fa5s.image", _xdg_dir("XDG_PICTURES_DIR")),
-    (QT_TRANSLATE_NOOP("FileBrowser", "Videos"), "fa5s.film", _xdg_dir("XDG_VIDEOS_DIR")),
-    (QT_TRANSLATE_NOOP("FileBrowser", "Downloads"), "fa5s.download", _xdg_dir("XDG_DOWNLOAD_DIR")),
-    (QT_TRANSLATE_NOOP("FileBrowser", "Network"), "fa5s.network-wired", _DLNA),
+    ("Home", "fa5s.home", HOME),
+    ("Desktop", "fa5s.desktop", _xdg_dir("XDG_DESKTOP_DIR")),
+    ("Documents", "fa5s.file-alt", _xdg_dir("XDG_DOCUMENTS_DIR")),
+    ("Music", "fa5s.music", _xdg_dir("XDG_MUSIC_DIR")),
+    ("Pictures", "fa5s.image", _xdg_dir("XDG_PICTURES_DIR")),
+    ("Videos", "fa5s.film", _xdg_dir("XDG_VIDEOS_DIR")),
+    ("Downloads", "fa5s.download", _xdg_dir("XDG_DOWNLOAD_DIR")),
+    ("Network", "fa5s.network-wired", _DLNA),
 ]
 
 # Sort keys
@@ -272,7 +272,7 @@ class FileBrowserWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(self.tr("File Browser"))
+        self.setWindowTitle("File Browser")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -350,10 +350,10 @@ class FileBrowserWindow(QMainWindow):
 
         self._topbar_buttons: list[QToolButton] = []
         defs = [
-            ("fa5s.home", self.tr("Home (Y)"), self.go_home),
-            ("fa5s.arrow-left", self.tr("Back (L1)"), self.go_back),
-            ("fa5s.arrow-right", self.tr("Forward (R1)"), self.go_forward),
-            ("fa5s.level-up-alt", self.tr("Up (X)"), self.go_up),
+            ("fa5s.home", "Home (Y)", self.go_home),
+            ("fa5s.arrow-left", "Back (L1)", self.go_back),
+            ("fa5s.arrow-right", "Forward (R1)", self.go_forward),
+            ("fa5s.level-up-alt", "Up (X)", self.go_up),
         ]
         for icon_name, tooltip, callback in defs:
             btn = QToolButton()
@@ -386,7 +386,7 @@ class FileBrowserWindow(QMainWindow):
         self._view_btn = QToolButton()
         self._view_btn.setFixedSize(44, 44)
         self._view_btn.setIconSize(QSize(18, 18))
-        self._view_btn.setToolTip(self.tr("Toggle view (list/icons)"))
+        self._view_btn.setToolTip("Toggle view (list/icons)")
         self._view_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._view_btn.clicked.connect(self._toggle_view_mode)
         layout.addWidget(self._view_btn)
@@ -397,7 +397,7 @@ class FileBrowserWindow(QMainWindow):
         self._sort_btn.setFixedSize(44, 44)
         self._sort_btn.setIcon(qta.icon("fa5s.sort", color="white"))
         self._sort_btn.setIconSize(QSize(18, 18))
-        self._sort_btn.setToolTip(self.tr("Sort (X)"))
+        self._sort_btn.setToolTip("Sort (X)")
         self._sort_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._sort_btn.clicked.connect(self._show_sort_overlay)
         layout.addWidget(self._sort_btn)
@@ -443,7 +443,7 @@ class FileBrowserWindow(QMainWindow):
         self._sidebar_buttons: list[QToolButton] = []
         for name, icon_name, path in BOOKMARKS:
             btn = QToolButton()
-            btn.setText("  " + QCoreApplication.translate("FileBrowser", name))
+            btn.setText("  " + name)
             btn.setIcon(qta.icon(icon_name, color=ACCENT))
             btn.setIconSize(QSize(16, 16))
             btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -616,7 +616,7 @@ class FileBrowserWindow(QMainWindow):
             return
         if not os.access(path, os.R_OK | os.X_OK):
             InfoDialog.show_message(
-                self.tr("You don't have permission to open:\n{path}").format(path=path),
+                "You don't have permission to open:\n{path}".format(path=path),
                 self,
             )
             return
@@ -721,7 +721,7 @@ class FileBrowserWindow(QMainWindow):
             prefix = "✓  " if key == sort_key else "    "
             self._sort_overlay_items[i].setText(prefix + label)
         ff_prefix = "✓  " if folders_first else "    "
-        self._sort_overlay_items[-1].setText(ff_prefix + self.tr("Folders first"))
+        self._sort_overlay_items[-1].setText(ff_prefix + "Folders first")
         self._refresh_sort_overlay_style()
 
     def _refresh_sort_overlay_style(self) -> None:
@@ -755,7 +755,7 @@ class FileBrowserWindow(QMainWindow):
             raw = [en for en in self._current.iterdir() if not en.name.startswith(".")]
             entries = _sort_entries(raw, sort_key, folders_first)
         except PermissionError:
-            self._status_lbl.setText(self.tr("Cannot read this directory"))
+            self._status_lbl.setText("Cannot read this directory")
             return
 
         self._pending_thumbs.clear()
@@ -829,7 +829,7 @@ class FileBrowserWindow(QMainWindow):
         self._refresh_nav_button_state()
         self._refresh_sidebar_style()
         self._file_list.clear()
-        self._add_placeholder_item(self.tr("Loading..."))
+        self._add_placeholder_item("Loading...")
         self._status_lbl.setText(status_text)
 
     def _on_thumbnails_ready(self, uris: list) -> None:
@@ -1000,9 +1000,7 @@ class FileBrowserWindow(QMainWindow):
         self._current = _DLNA
         self._dlna_browse_gen += 1
         self._pending_thumbs.clear()
-        self._breadcrumb.set_label(
-            QCoreApplication.translate("FileBrowser", "Network")
-        )
+        self._breadcrumb.set_label("Network")
         self._refresh_nav_button_state()
         self._refresh_sidebar_style()
 
@@ -1014,10 +1012,10 @@ class FileBrowserWindow(QMainWindow):
             self._populate_dlna_server_list(cached_servers)
             if cache_fresh:
                 return
-            self._status_lbl.setText(self.tr("DLNA  ·  Refreshing…"))
+            self._status_lbl.setText("DLNA  ·  Refreshing…")
         else:
-            self._add_placeholder_item(self.tr("Searching for DLNA servers..."))
-            self._status_lbl.setText(self.tr("Searching for DLNA servers..."))
+            self._add_placeholder_item("Searching for DLNA servers...")
+            self._status_lbl.setText("Searching for DLNA servers...")
 
         sig = _DlnaSignal()
         sig.results.connect(self._on_dlna_results)
@@ -1047,7 +1045,7 @@ class FileBrowserWindow(QMainWindow):
                     daemon=True,
                 ).start()
 
-        self._status_lbl.setText(self.tr("DLNA  ·  {n} server(s) found").format(n=len(servers)))
+        self._status_lbl.setText("DLNA  ·  {n} server(s) found".format(n=len(servers)))
         self._finalize_listing(lambda d: isinstance(d, DlnaServer) and d.name == self._focus_after)
 
     def _on_server_icon(self, row: int, data: bytes) -> None:
@@ -1068,8 +1066,8 @@ class FileBrowserWindow(QMainWindow):
         _save_dlna_cache(servers)
         self._file_list.clear()
         if not servers:
-            self._add_placeholder_item(self.tr("No DLNA servers found on your network"))
-            self._status_lbl.setText(self.tr("No DLNA servers found on your network"))
+            self._add_placeholder_item("No DLNA servers found on your network")
+            self._status_lbl.setText("No DLNA servers found on your network")
         else:
             self._populate_dlna_server_list(servers)
 
@@ -1119,8 +1117,8 @@ class FileBrowserWindow(QMainWindow):
             return
         self._file_list.clear()
         if result is None:
-            self._add_placeholder_item(self.tr("Cannot connect to server"))
-            self._status_lbl.setText(self.tr("Cannot connect to server"))
+            self._add_placeholder_item("Cannot connect to server")
+            self._status_lbl.setText("Cannot connect to server")
             return
         self._dlna_browse_gen += 1
         gen = self._dlna_browse_gen
@@ -1163,7 +1161,7 @@ class FileBrowserWindow(QMainWindow):
         )
         n = len(entries)
         self._status_lbl.setText(
-            self.tr("DLNA  ·  {n} item(s)").format(n=n) if n else self.tr("Empty directory")
+            "DLNA  ·  {n} item(s)".format(n=n) if n else "Empty directory"
         )
 
     def _on_dlna_thumb(self, row: int, gen: int, data: bytes) -> None:
@@ -1198,7 +1196,7 @@ class FileBrowserWindow(QMainWindow):
     def _update_statusbar(self) -> None:
         item = self._file_list.currentItem()
         if item is None:
-            msg = self.tr("Empty directory") if self._file_list.count() == 0 else ""
+            msg = "Empty directory" if self._file_list.count() == 0 else ""
             self._status_lbl.setText(msg)
             return
 
@@ -1211,15 +1209,15 @@ class FileBrowserWindow(QMainWindow):
             st = path.stat()
             if path.is_dir():
                 self._status_lbl.setText(
-                    self.tr("Folder  ·  {name}").format(name=path.name)
+                    "Folder  ·  {name}".format(name=path.name)
                 )
             else:
                 mime, _ = mimetypes.guess_type(str(path))
-                type_str = mime or self.tr("unknown type")
+                type_str = mime or "unknown type"
                 size_str = _fmt_size(st.st_size)
                 mtime = datetime.datetime.fromtimestamp(st.st_mtime).strftime("%d.%m.%Y  %H:%M")
                 self._status_lbl.setText(
-                    self.tr("File  ·  {name} ({type})  ·  {size}  ·  Modified: {mtime}").format(
+                    "File  ·  {name} ({type})  ·  {size}  ·  Modified: {mtime}".format(
                         name=path.name, type=type_str, size=size_str, mtime=mtime,
                     )
                 )
@@ -1398,11 +1396,6 @@ def main() -> None:
     app.setDesktopFileName(APP_ID)
     fa_icons.install_fontawesome5()
     sound_player.init()
-
-    locale_dir = str(Path(__file__).parent.parent / "locale")
-    translator = QTranslator(app)
-    if translator.load(QLocale.system(), "file_browser", "_", locale_dir, ".qm"):
-        app.installTranslator(translator)
 
     window = FileBrowserWindow()
     window.showFullScreen()
