@@ -1,6 +1,6 @@
 """Tests for TileMover — the app-tile move-mode coordinator.
 
-Pure interaction logic over a mocked TileReorderView, TileOrderStore, PadControl
+Pure interaction logic over a mocked TileBarView, TileOrderStore, PadControl
 and Feedback; no Qt. Events are plain strings (StrEnum-compatible).
 """
 

@@ -6,53 +6,16 @@ default, network kind, unread notifications) current."""
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Protocol
 
 from domain.navigation import hints as nav_hints
+from domain.navigation.bar_views import HintBarView, TopBarView
 from domain.navigation.hints import Hints
 from domain.network import view as network_view
 from domain.network.status import NetworkStatus
 from domain.notifications.center import NotificationCenter
 from domain.system.actions import ACTIONS
+from domain.shell.overlay import SectionedHomeOverlay
 from domain.system.power_preference import PowerPreference
-
-
-class HomeSurfaceView(Protocol):
-    """The persistent Home surface as the chrome coordinator drives it."""
-
-    def is_expanded(self) -> bool:
-        """Whether the menu is morphed open in place on the Home view."""
-        ...
-
-    def is_open(self) -> bool:
-        """Whether the menu is up at all — morphed open or mapped on demand."""
-        ...
-
-    def is_showing(self) -> bool:
-        """Whether the surface is mapped on demand (over an app / minimized)."""
-        ...
-
-    def expand(self) -> None: ...
-    def request_close(self) -> None: ...
-    def collapse_immediately(self) -> None: ...
-    def show_collapsed(self) -> None: ...
-    def hide(self) -> None: ...
-
-
-class HintBarSurface(Protocol):
-    """The bottom hint bar as the chrome coordinator drives it."""
-
-    def show_hints(self, hints: Hints) -> None: ...
-    def show_at_bottom(self) -> None: ...
-    def hide(self) -> None: ...
-
-
-class HeaderStatusView(Protocol):
-    """The header's live status displays."""
-
-    def set_power_icon(self, icon: str) -> None: ...
-    def set_network_icon(self, glyph: str) -> None: ...
-    def set_notification_badge(self, count: int) -> None: ...
 
 
 class HomeChrome:
@@ -68,9 +31,9 @@ class HomeChrome:
         self,
         *,
         is_desktop_visible: Callable[[], bool],
-        home_surface: HomeSurfaceView,
-        hintbar: HintBarSurface,
-        header: HeaderStatusView,
+        home_surface: SectionedHomeOverlay,
+        hintbar: HintBarView,
+        header: TopBarView,
         notifications: NotificationCenter,
         render_screen_hints: Callable[[], None],
         dismiss_overlays: Callable[[], None],

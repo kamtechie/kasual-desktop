@@ -8,7 +8,7 @@ from enum import StrEnum
 from domain.input.pad_control import PadControl
 from domain.input.vocabulary import Event
 from domain.navigation import hints
-from domain.navigation.bar_views import HintBarView, TileFocusView, TopBarView
+from domain.navigation.bar_views import HintBarView, TileBarView, TopBarView
 from domain.shared.feedback import Cue, Feedback
 
 
@@ -20,7 +20,7 @@ class _Mode(StrEnum):
 class FocusNavigator:
     def __init__(
         self,
-        tilebar: TileFocusView,
+        tilebar: TileBarView,
         topbar: TopBarView,
         on_tile_menu: Callable[[], None],
         feedback: Feedback,

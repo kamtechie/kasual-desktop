@@ -10,14 +10,14 @@ from domain.input.pad_control import PadControl
 from domain.input.vocabulary import Event
 from domain.menu.ports import TileOrderStore
 from domain.navigation import hints
-from domain.navigation.bar_views import HintBarView, TileReorderView
+from domain.navigation.bar_views import HintBarView, TileBarView
 from domain.shared.feedback import Cue, Feedback
 
 
 class TileMover:
     def __init__(
         self,
-        view: TileReorderView,
+        view: TileBarView,
         store: TileOrderStore,
         gamepad: PadControl,
         feedback: Feedback,

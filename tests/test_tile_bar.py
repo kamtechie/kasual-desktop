@@ -209,7 +209,7 @@ class TestHoverSuppression:
         assert bar._tile_index == 2
 
 
-# ── Move mode (TileReorderView) ─────────────────────────────────────────────────
+# ── Move mode (TileBarView) ─────────────────────────────────────────────────
 
 class TestSwapAppTiles:
     def test_swap_reorders_catalog_and_follows_selection(self, bar_with_tiles):

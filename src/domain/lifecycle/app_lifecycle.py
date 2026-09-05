@@ -18,7 +18,7 @@ from domain.menu.entry import CLOSE, LAUNCH, RESTORE
 from domain.menu.item import MenuItem
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.prompts import close_confirm, launch_failed
-from domain.lifecycle.tile_bar_view import TileBarView
+from domain.navigation.bar_views import TileBarView
 from domain.lifecycle.window_arranger import WindowArranger
 from domain.lifecycle.window_manager import WindowManager
 from domain.shared.feedback import Cue, Feedback

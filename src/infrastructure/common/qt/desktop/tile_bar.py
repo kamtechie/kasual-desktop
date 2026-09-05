@@ -14,7 +14,6 @@ from domain.catalog.window import Window
 from domain.catalog.window_rules import external_windows, is_app_running, resolve_recall_trigger
 from domain.lifecycle.process_manager import ProcessManager
 from infrastructure.common.qt.ui import styles
-from domain.lifecycle.tile_bar_view import TileBarView
 from .app_tile import AddTile, AppTile, TILE_H, TILE_SEL_H
 from .window_icons import WindowIconResolver
 
@@ -27,8 +26,8 @@ _SCROLL_ANIM_MS     = 220  # glide duration when centering the focused tile
 class TileBar(QScrollArea):
     """Scrollable row of tiles: configured apps first, then open-window tiles.
 
-    Implements `TileBarView` (app-lifecycle), `TileFocusView` (focus navigation) and
-    `TileReorderView` (move mode).
+    Implements the `TileBarView` used by lifecycle, navigation, movement, and
+    pinning coordinators.
 
     Navigation between the tile bar and the top bar lives in the Desktop
     coordinator; this widget only renders the highlight it is told to own via
@@ -191,7 +190,7 @@ class TileBar(QScrollArea):
         """True if the focused tile is the synthetic [＋] add-app tile."""
         return isinstance(self.current_context(), AddTileTarget)
 
-    # ── Move mode (TileReorderView) ──────────────────────────────────────────
+    # ── Move mode ────────────────────────────────────────────────────────────
 
     def app_tile_count(self) -> int:
         return len(self._tiles)

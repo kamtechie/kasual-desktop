@@ -4,12 +4,12 @@ through the store, mirror the change on the live view, report the outcome."""
 from __future__ import annotations
 
 from domain.menu.ports import AppPinning
-from domain.navigation.bar_views import TilePinView
+from domain.navigation.bar_views import TileBarView
 from domain.shared.feedback import Cue, Feedback
 
 
 class AppPinner:
-    def __init__(self, view: TilePinView, pinning: AppPinning, feedback: Feedback) -> None:
+    def __init__(self, view: TileBarView, pinning: AppPinning, feedback: Feedback) -> None:
         self._view     = view
         self._pinning  = pinning
         self._feedback = feedback
