@@ -6,23 +6,27 @@ the task manager / :mod:`window_icons` uses — by app-id filename or by
 ``StartupWMClass``), then writes a Kasual app ``.desktop`` into the catalog
 directory so the tile persists across restarts.
 
-The placement/unpin mechanics live in :class:`AppPinningBase`; this adapter
-provides freedesktop-specific window-to-``App`` source resolution.
+It also owns placement, ordering, and unpinning in Kasual's catalog.
 """
 
+import configparser
 import logging
 import os
+import re
+from dataclasses import replace
 from pathlib import Path
 
 from domain.catalog.app import App
 from domain.catalog.window import Window
-
-from infrastructure.common.catalog.pinning_base import AppPinningBase, _strip_desktop_suffix
+from domain.menu.ports import AppPinning
+from infrastructure.common.catalog.app_config import (
+    _ordered_desktop_paths, _write_desktop, apps_dir,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class DesktopAppPinning(AppPinningBase):
+class DesktopAppPinning(AppPinning):
     def pin(self, window: Window) -> App | None:
         entry = self._source_entry(window.desktop_file, window.resource_class)
         if entry is None:
@@ -50,6 +54,67 @@ class DesktopAppPinning(AppPinningBase):
         _, app = parsed
 
         return self._persist(window, app)
+
+    def unpin(self, index: int) -> None:
+        ordered = _ordered_desktop_paths()
+        if not (0 <= index < len(ordered)):
+            logger.warning("Unpin out of range: %d of %d", index, len(ordered))
+            return
+        path = ordered[index]
+        try:
+            path.unlink()
+            logger.info("Unpinned %s", path.name)
+        except OSError as exc:
+            logger.error("Unpin: cannot delete %s: %s", path, exc)
+
+    def _persist(self, window: Window, app: App) -> App | None:
+        directory = apps_dir()
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.error("Pin: cannot create apps dir %s: %s", directory, exc)
+            return None
+
+        order = self._next_order(directory)
+        path = self._unique_path(directory, window, app)
+        try:
+            _write_desktop(path, app.to_desktop_entry(order))
+        except OSError as exc:
+            logger.error("Pin: cannot write %s: %s", path, exc)
+            return None
+
+        logger.info("Pinned %r to %s", app.name, path.name)
+        return replace(app, id=path.stem)
+
+    def _next_order(self, directory: Path) -> int:
+        orders = [
+            int(value)
+            for path in directory.glob("*.desktop")
+            for value in [(self._read_entry(path) or {}).get("X-Kasual-Order")]
+            if value is not None and value.lstrip("-").isdigit()
+        ]
+        return max(orders, default=-1) + 1
+
+    def _unique_path(self, directory: Path, window: Window, app: App) -> Path:
+        base = _slugify(window.resource_class or window.desktop_file or app.name) or "app"
+        path = directory / f"{base}.desktop"
+        suffix = 2
+        while path.exists():
+            path = directory / f"{base}-{suffix}.desktop"
+            suffix += 1
+        return path
+
+    @staticmethod
+    def _read_entry(path: Path) -> dict[str, str] | None:
+        try:
+            cp = configparser.RawConfigParser()
+            cp.optionxform = str
+            cp.read(path, encoding="utf-8")
+            if not cp.has_section("Desktop Entry"):
+                return None
+            return dict(cp["Desktop Entry"])
+        except Exception:
+            return None
 
     # ── Source .desktop discovery ────────────────────────────────────────────
 
@@ -103,6 +168,18 @@ class DesktopAppPinning(AppPinningBase):
                 if entry and (entry.get("StartupWMClass") or "").lower() == want:
                     return path
         return None
+
+
+_SLUG_STRIP = re.compile(r"[^a-z0-9._-]+")
+
+
+def _strip_desktop_suffix(name: str) -> str:
+    return name[: -len(".desktop")] if name.endswith(".desktop") else name
+
+
+def _slugify(text: str) -> str:
+    text = _strip_desktop_suffix(text.strip().lower())
+    return _SLUG_STRIP.sub("-", text).strip("-")
 
 
 def _xdg_app_dirs() -> list[str]:
