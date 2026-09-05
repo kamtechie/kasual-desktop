@@ -15,7 +15,7 @@ live on the tile via *on_color_preview*; Save commits both values; Cancel (or
 B / Escape / backdrop / BTN_MODE) reverts the preview.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 
 import qtawesome as qta
 from PyQt6.QtCore import QSize, Qt
@@ -25,8 +25,10 @@ from PyQt6.QtWidgets import (
 )
 
 from domain.input.pad_control import PadControl
+from domain.catalog.tile_settings_model import (
+    ACTIONS_GROUP, COLOR_GROUP, RECALL_GROUP, SAVE_ACTION, TileSettingsModel,
+)
 from domain.input.vocabulary import Event, Trigger
-from domain.menu.grid_cursor import GridCursor
 from domain.shared.feedback import Cue, Feedback
 from domain.shared.text import truncate
 from infrastructure.common.qt.ui import styles
@@ -70,9 +72,9 @@ def _home_button_icon() -> QIcon:
     return QIcon(canvas)
 
 # Focus groups (cycled by LB/RB, clamped at the edges).
-_RECALL = 0
-_COLOR = 1
-_ACTIONS = 2
+_RECALL = RECALL_GROUP
+_COLOR = COLOR_GROUP
+_ACTIONS = ACTIONS_GROUP
 
 
 class TileSettings(BaseOverlay):
@@ -89,40 +91,14 @@ class TileSettings(BaseOverlay):
     def __init__(
         self,
         app_name: str,
-        colors: Sequence[str],
-        original_color: str | None,
-        original_trigger: str,
-        on_color_preview: Callable[[str], None],
-        on_save: Callable[[str, str], None],
-        on_cancel: Callable[[], None],
+        model: TileSettingsModel,
         gamepad: PadControl,
         feedback: Feedback,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(gamepad, self._handle_pad, feedback, parent)
-        self._colors = list(colors)
-        self._on_color_preview = on_color_preview
-        self._on_save = on_save
-        self._on_cancel = on_cancel
-        self._original_color = original_color
-        self._pending_color = original_color
-        self._pending_trigger = original_trigger
-
-        self._active_group = _RECALL
-        self._recall_index = next(
-            i for i, (_, v) in enumerate(_RECALL_OPTIONS) if v == original_trigger
-        )
-        # Action buttons: 0 = Cancel, 1 = Save. Start on Save so A commits.
-        self._action_index = 1
-
-        self._color_cursor = GridCursor(
-            count=lambda: len(self._colors),
-            columns=_MAX_PER_ROW,
-            render=self._refresh_swatches,
-            on_activate=self._stage_color,
-            on_dismiss=self._cancel,
-            feedback=feedback,
-        )
+        self._model = model
+        self._colors = model.colors
 
         # ── Build the card ───────────────────────────────────────────────────
         outer = QVBoxLayout(self)
@@ -209,9 +185,6 @@ class TileSettings(BaseOverlay):
 
         outer.addWidget(card)
 
-        start = (self._colors.index(original_color)
-                 if original_color in self._colors else 0)
-        self._color_cursor.reset(start)
         self._render_all()
         self._feedback.play(Cue.POPUP_OPEN)
         self._show()
@@ -219,58 +192,12 @@ class TileSettings(BaseOverlay):
     # ── Gamepad ──────────────────────────────────────────────────────────────
 
     def _handle_pad(self, event: str) -> None:
-        if event == Event.CANCEL:
+        outcome = self._model.handle_pad(event)
+        self._render_all()
+        if outcome == "save":
+            self._save()
+        elif outcome == "cancel":
             self._cancel()
-            return
-        if event == Event.SECTION_PREV:
-            self._switch_group(-1)
-            return
-        if event == Event.SECTION_NEXT:
-            self._switch_group(+1)
-            return
-        if event == Event.SELECT:
-            self._activate()
-            return
-        if self._active_group == _RECALL:
-            self._recall_nav(event)
-        elif self._active_group == _COLOR:
-            self._color_nav(event)
-        else:
-            self._actions_nav(event)
-
-    def _recall_nav(self, event: str) -> None:
-        if event == Event.LEFT:
-            self._stage_recall((self._recall_index - 1) % len(_RECALL_OPTIONS))
-        elif event == Event.RIGHT:
-            self._stage_recall((self._recall_index + 1) % len(_RECALL_OPTIONS))
-        elif event == Event.DOWN:
-            self._switch_group(+1)
-        elif event == Event.UP:
-            pass   # first group — clamp silently
-
-    def _color_nav(self, event: str) -> None:
-        if event == Event.UP and self._color_cursor.index < _MAX_PER_ROW:
-            self._switch_group(-1)
-            return
-        if event == Event.DOWN:
-            n = len(self._colors)
-            last_row_start = ((n - 1) // _MAX_PER_ROW) * _MAX_PER_ROW
-            if self._color_cursor.index >= last_row_start:
-                self._switch_group(+1)
-                return
-        self._color_cursor.handle_pad(event)
-
-    def _actions_nav(self, event: str) -> None:
-        if event == Event.LEFT:
-            self._action_index = (self._action_index - 1) % 2
-            self._render_actions()
-            self._feedback.play(Cue.CURSOR)
-        elif event == Event.RIGHT:
-            self._action_index = (self._action_index + 1) % 2
-            self._render_actions()
-            self._feedback.play(Cue.CURSOR)
-        elif event == Event.UP:
-            self._switch_group(-1)
 
     # ── Keyboard / mouse ─────────────────────────────────────────────────────
 
@@ -299,28 +226,16 @@ class TileSettings(BaseOverlay):
     # ── Focus groups ─────────────────────────────────────────────────────────
 
     def _switch_group(self, delta: int) -> None:
-        new = max(0, min(self._active_group + delta, _ACTIONS))
-        if new == self._active_group:
-            return
-        if new == _RECALL:
-            for i, (_, v) in enumerate(_RECALL_OPTIONS):
-                if v == self._pending_trigger:
-                    self._recall_index = i
-                    break
-        self._active_group = new
+        self._model.switch_group(delta)
         self._render_all()
-        self._feedback.play(Cue.CURSOR)
 
     def _activate(self) -> None:
-        if self._active_group == _RECALL:
-            self._stage_recall(self._recall_index)
-        elif self._active_group == _COLOR:
-            self._stage_color(self._color_cursor.index)
-        else:
-            if self._action_index == 1:
-                self._save()
-            else:
-                self._cancel()
+        outcome = self._model.activate()
+        self._render_all()
+        if outcome == "save":
+            self._save()
+        elif outcome == "cancel":
+            self._cancel()
 
     # ── Mouse hover (moves the cursor, so mouse and pad agree) ────────────────
 
@@ -331,81 +246,66 @@ class TileSettings(BaseOverlay):
         btn.enterEvent = _enter
 
     def _focus_recall(self, index: int) -> None:
-        self._move_focus(_RECALL, changed=self._recall_index != index)
-        self._recall_index = index
+        self._model.focus_recall(index)
         self._render_all()
 
     def _focus_color(self, index: int) -> None:
-        self._move_focus(_COLOR, changed=self._color_cursor.index != index)
-        self._color_cursor.index = index
+        self._model.focus_color(index)
         self._render_all()
 
     def _focus_action(self, index: int) -> None:
-        self._move_focus(_ACTIONS, changed=self._action_index != index)
-        self._action_index = index
+        self._model.focus_action(index)
         self._render_all()
-
-    def _move_focus(self, group: int, *, changed: bool) -> None:
-        if self._active_group != group or changed:
-            self._feedback.play(Cue.CURSOR)
-        self._active_group = group
 
     # ── Staging / committing ─────────────────────────────────────────────────
 
     def _stage_recall(self, index: int) -> None:
-        self._recall_index = index
-        self._pending_trigger = _RECALL_OPTIONS[index][1]
+        self._model.stage_recall(index)
         self._render_recall()
-        self._feedback.play(Cue.CURSOR)
 
     def _stage_color(self, index: int) -> None:
-        color = self._colors[index]
-        if color == self._pending_color:
-            return
-        self._pending_color = color
-        self._refresh_swatches(self._color_cursor.index)
-        self._on_color_preview(color)
-        self._feedback.play(Cue.CURSOR)
+        self._model.stage_color(index)
+        self._refresh_swatches(self._model.color_index)
 
     def _save(self) -> None:
         if self._dismiss(sound=Cue.SELECT):
-            self._on_save(self._pending_color, self._pending_trigger)
+            self._model.save()
 
     def _cancel(self) -> None:
         if self._dismiss(sound=Cue.POPUP_CLOSE):
-            self._on_cancel()
+            self._model.cancel()
 
     # ── Rendering ────────────────────────────────────────────────────────────
 
     def _render_all(self) -> None:
         self._render_recall()
-        self._refresh_swatches(self._color_cursor.index)
+        self._refresh_swatches(self._model.color_index)
         self._render_actions()
 
     def _render_recall(self) -> None:
-        focused = self._active_group == _RECALL
+        focused = self._model.active_group == _RECALL
         for i, btn in enumerate(self._recall_buttons):
-            role = "selected" if _RECALL_OPTIONS[i][1] == self._pending_trigger \
+            role = "selected" if _RECALL_OPTIONS[i][1] == self._model.pending_trigger \
                 else "secondary"
             styles.style_dialog_button(
-                btn, role=role, focused=focused and i == self._recall_index)
+                btn, role=role, focused=focused and i == self._model.recall_index)
 
     def _render_actions(self) -> None:
         # The ring shows only while this group holds the cursor, so Save keeps its
         # primary fill elsewhere instead of looking permanently focused.
-        focused = self._active_group == _ACTIONS
+        focused = self._model.active_group == _ACTIONS
         styles.style_dialog_button(
             self._btn_cancel, role="secondary",
-            focused=focused and self._action_index == 0)
+            focused=focused and self._model.action_index == 0)
         styles.style_dialog_button(
             self._btn_save, role="primary",
-            focused=focused and self._action_index == 1)
+            focused=focused and self._model.action_index == SAVE_ACTION)
 
     def _refresh_swatches(self, index: int) -> None:
-        focused = self._active_group == _COLOR
+        focused = self._model.active_group == _COLOR
         for i, (btn, color) in enumerate(zip(self._swatches, self._colors)):
             is_cursor = i == index
-            is_staged = color == self._pending_color
+            is_staged = color == self._model.pending_color
             if is_cursor and focused:
                 border = "3px solid white"
             elif is_staged:

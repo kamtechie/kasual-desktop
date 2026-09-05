@@ -13,6 +13,7 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from domain.catalog.tile_settings_model import TileSettingsModel
 from domain.input.pad_control import PadControl
 from domain.input.vocabulary import Trigger
 from domain.menu.item import MenuItem
@@ -166,14 +167,20 @@ class DialogHostController:
             if original_color is not None:
                 self._tilebar.set_app_color(index, original_color)
 
-        self._tile_settings = TileSettings(
-            app_name=self._tilebar.current_app_name() or "",
+        model = TileSettingsModel(
             colors=TILE_COLORS,
             original_color=original_color,
             original_trigger=self._tilebar.current_app_recall_trigger() or Trigger.CLICK,
+            recall_values=[Trigger.CLICK, Trigger.HOLD_1S],
             on_color_preview=_on_color_preview,
             on_save=_on_save,
             on_cancel=_on_cancel,
+            feedback=self._feedback,
+            columns=10,
+        )
+        self._tile_settings = TileSettings(
+            app_name=self._tilebar.current_app_name() or "",
+            model=model,
             gamepad=self._gamepad,
             feedback=self._feedback,
             parent=self._parent,
