@@ -323,11 +323,6 @@ class TileBar(QScrollArea):
 
     # ── Dynamic tiles (currently open windows) ─────────────────────────────
 
-    def update_windows(self, windows: list[Window]) -> None:
-        """Compatibility entry point; production reconciliation is owned by ShellRuntime."""
-        if self._model.reconcile_windows(windows):
-            self.render_reconciled_windows()
-
     def render_reconciled_windows(self) -> None:
         self._rebuild_dynamic_tiles()
         self._render_tiles()

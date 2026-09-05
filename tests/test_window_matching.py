@@ -27,6 +27,11 @@ def _win(id_="1", title="App", pid=0, desktop_file="", resource_class=""):
     )
 
 
+def _windows(bar, windows):
+    if bar._model.reconcile_windows(windows):
+        bar.render_reconciled_windows()
+
+
 @pytest.fixture
 def app_manager():
     mgr = MagicMock()
@@ -62,15 +67,15 @@ class TestIsTileRunning:
         assert bar.is_tile_running(0, bar._last_windows) is True
 
     def test_true_on_resource_class_match(self, bar):
-        bar.update_windows([_win(resource_class="Steam")])
+        _windows(bar, [_win(resource_class="Steam")])
         assert bar.is_tile_running(0, bar._last_windows) is True       # Steam tile
 
     def test_true_on_desktop_file_match(self, bar):
-        bar.update_windows([_win(resource_class="x", desktop_file="firefox.desktop")])
+        _windows(bar, [_win(resource_class="x", desktop_file="firefox.desktop")])
         assert bar.is_tile_running(1, bar._last_windows) is True       # Firefox tile
 
     def test_false_when_no_window_matches(self, bar):
-        bar.update_windows([_win(resource_class="gedit")])
+        _windows(bar, [_win(resource_class="gedit")])
         assert bar.is_tile_running(0, bar._last_windows) is False
         assert bar.is_tile_running(1, bar._last_windows) is False
 
@@ -84,20 +89,20 @@ class TestManagedWindowFiltering:
     # A class/desktopFile match only marks a window managed when it has a real
     # pid — pid==0 windows are never filtered (they always get a dynamic tile).
     def test_window_matching_app_is_excluded(self, bar):
-        bar.update_windows([_win(id_="w1", pid=9999, resource_class="Steam")])
+        _windows(bar, [_win(id_="w1", pid=9999, resource_class="Steam")])
         assert bar._dynamic_tiles == []             # represented by the static tile
 
     def test_unmatched_window_gets_a_dynamic_tile(self, bar):
-        bar.update_windows([_win(id_="w1", pid=9999, resource_class="gedit")])
+        _windows(bar, [_win(id_="w1", pid=9999, resource_class="gedit")])
         assert len(bar._dynamic_tiles) == 1
 
     def test_desktop_file_match_is_excluded(self, bar):
-        bar.update_windows([_win(id_="w1", pid=9999, desktop_file="firefox.desktop")])
+        _windows(bar, [_win(id_="w1", pid=9999, desktop_file="firefox.desktop")])
         assert bar._dynamic_tiles == []
 
     def test_pid_zero_window_is_never_managed(self, bar):
         # Even with a matching class, a pid==0 window still gets a dynamic tile.
-        bar.update_windows([_win(id_="w1", pid=0, resource_class="Steam")])
+        _windows(bar, [_win(id_="w1", pid=0, resource_class="Steam")])
         assert len(bar._dynamic_tiles) == 1
 
     def test_pgid_membership_excludes(self, bar, app_manager):
@@ -105,7 +110,7 @@ class TestManagedWindowFiltering:
         # even without a class/desktopFile match.
         app_manager.all_running_pids.return_value = [4321]
         bar._model._process_group_of = MagicMock(return_value=4321)
-        bar.update_windows([_win(id_="w1", pid=9999, resource_class="mystery")])
+        _windows(bar, [_win(id_="w1", pid=9999, resource_class="mystery")])
         assert bar._dynamic_tiles == []
 
 

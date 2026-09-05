@@ -26,6 +26,11 @@ def _win(id_: str, title: str = "App") -> Window:
     return Window(id=id_, title=title, pid=0)
 
 
+def _windows(bar, windows):
+    if bar._model.reconcile_windows(windows):
+        bar.render_reconciled_windows()
+
+
 def _swap(bar, first, second):
     if bar._model.swap_apps(first, second):
         bar.render_app_swap(first, second)
@@ -76,31 +81,31 @@ class TestSignatureGuard:
     odświeżeniu listy okien przez KWin."""
 
     def test_pierwsze_wywolanie_buduje_kafel(self, bar):
-        bar.update_windows([_win("1")])
+        _windows(bar, [_win("1")])
         assert len(bar._dynamic_tiles) == 1
 
     def test_identyczne_wywolanie_nie_przebudowuje(self, bar):
-        bar.update_windows([_win("1", "Długa nazwa")])
+        _windows(bar, [_win("1", "Długa nazwa")])
         original_tile = bar._dynamic_tiles[0][2]
 
-        bar.update_windows([_win("1", "Długa nazwa")])  # ta sama sygnatura
+        _windows(bar, [_win("1", "Długa nazwa")])  # ta sama sygnatura
 
         assert bar._dynamic_tiles[0][2] is original_tile   # ten sam obiekt AppTile
 
     def test_zmiana_tytulu_wywoluje_przebudowe(self, bar):
-        bar.update_windows([_win("1", "Stary tytuł")])
+        _windows(bar, [_win("1", "Stary tytuł")])
         original_tile = bar._dynamic_tiles[0][2]
 
-        bar.update_windows([_win("1", "Nowy tytuł")])   # inna sygnatura
+        _windows(bar, [_win("1", "Nowy tytuł")])   # inna sygnatura
 
         assert bar._dynamic_tiles[0][2] is not original_tile
 
     def test_identyczne_wywolanie_nie_emituje_sygnalu(self, bar):
-        bar.update_windows([_win("1")])
+        _windows(bar, [_win("1")])
 
         received = []
         bar.windows_changed.connect(lambda: received.append(1))
-        bar.update_windows([_win("1")])   # bez zmian
+        _windows(bar, [_win("1")])   # bez zmian
 
         assert received == []
 
@@ -116,31 +121,31 @@ class TestWindowsChangedSignal:
         received = []
         bar.windows_changed.connect(lambda: received.append(1))
 
-        bar.update_windows([_win("1")])
+        _windows(bar, [_win("1")])
 
         assert received == [1]
 
     def test_emitowany_gdy_ostatnie_okno_zamkniete(self, bar):
-        bar.update_windows([_win("1")])   # punkt startowy
+        _windows(bar, [_win("1")])   # punkt startowy
 
         received = []
         bar.windows_changed.connect(lambda: received.append(1))
-        bar.update_windows([])            # ostatnie okno zniknęło
+        _windows(bar, [])            # ostatnie okno zniknęło
 
         assert received == [1]
 
     def test_emitowany_gdy_okno_zastapione(self, bar):
-        bar.update_windows([_win("1")])
+        _windows(bar, [_win("1")])
 
         received = []
         bar.windows_changed.connect(lambda: received.append(1))
-        bar.update_windows([_win("2")])   # inne okno
+        _windows(bar, [_win("2")])   # inne okno
 
         assert received == [1]
 
     def test_dynamiczne_kafle_czyszczone_przy_pustej_liscie(self, bar):
-        bar.update_windows([_win("1")])
-        bar.update_windows([])
+        _windows(bar, [_win("1")])
+        _windows(bar, [])
 
         assert bar._dynamic_tiles == []
 
@@ -156,37 +161,37 @@ class TestDynamicTileOrder:
 
     def test_order_kept_when_z_order_reversed(self, bar):
         # First refresh establishes the order [1, 2, 3]
-        bar.update_windows([_win("1"), _win("2"), _win("3")])
+        _windows(bar, [_win("1"), _win("2"), _win("3")])
         assert self._ids(bar) == ["1", "2", "3"]
 
         # Next refresh with reversed Z-order (window 3 activated) must not
         # reshuffle the tiles — first-seen order wins.
-        bar.update_windows([_win("3"), _win("2"), _win("1")])
+        _windows(bar, [_win("3"), _win("2"), _win("1")])
         assert self._ids(bar) == ["1", "2", "3"]
 
     def test_new_window_appends_at_end(self, bar):
-        bar.update_windows([_win("1"), _win("2")])
+        _windows(bar, [_win("1"), _win("2")])
         # New window "3" appears at the end, regardless of Z-order
-        bar.update_windows([_win("3"), _win("1"), _win("2")])
+        _windows(bar, [_win("3"), _win("1"), _win("2")])
         assert self._ids(bar) == ["1", "2", "3"]
 
     def test_disappeared_window_keeps_rest_in_place(self, bar):
-        bar.update_windows([_win("1"), _win("2"), _win("3")])
+        _windows(bar, [_win("1"), _win("2"), _win("3")])
         # Window "2" disappeared — "1" and "3" keep their order
-        bar.update_windows([_win("3"), _win("1")])
+        _windows(bar, [_win("3"), _win("1")])
         assert self._ids(bar) == ["1", "3"]
 
     def test_returning_window_with_new_id_appends_at_end(self, bar):
-        bar.update_windows([_win("1"), _win("2")])
+        _windows(bar, [_win("1"), _win("2")])
         # Window "1" disappeared and returned with new id "4" — goes to the end
-        bar.update_windows([_win("2"), _win("4")])
+        _windows(bar, [_win("2"), _win("4")])
         assert self._ids(bar) == ["2", "4"]
 
     def test_empty_list_clears_order_memory(self, bar):
-        bar.update_windows([_win("1"), _win("2")])
-        bar.update_windows([])
+        _windows(bar, [_win("1"), _win("2")])
+        _windows(bar, [])
         # After clearing, new windows start fresh (don't inherit old positions)
-        bar.update_windows([_win("5"), _win("6")])
+        _windows(bar, [_win("5"), _win("6")])
         assert self._ids(bar) == ["5", "6"]
 
 
@@ -290,7 +295,7 @@ class TestPinWindow:
     def test_appends_static_tile_for_pinned_app(self, bar_with_tiles):
         bar = bar_with_tiles
         before = len(bar._tiles)
-        bar.update_windows([_win("100", "Foo")])
+        _windows(bar, [_win("100", "Foo")])
         _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert len(bar._tiles) == before + 1
         assert bar._apps[-1].name == "Foo"
@@ -298,41 +303,41 @@ class TestPinWindow:
 
     def test_pinned_window_drops_out_of_dynamic_section(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.update_windows([_win("100", "Foo")])
+        _windows(bar, [_win("100", "Foo")])
         assert len(bar._dynamic_tiles) == 1
         _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert bar._dynamic_tiles == []
 
     def test_pinned_window_stays_suppressed_on_refresh(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.update_windows([_win("100", "Foo")])
+        _windows(bar, [_win("100", "Foo")])
         _pin(bar, App(name="Foo", command="foo"), window_id="100")
         # A later KWin refresh still reporting the open window must not bring its
         # dynamic tile back (identity may not match the pinned tile).
-        bar.update_windows([_win("100", "Foo")])
+        _windows(bar, [_win("100", "Foo")])
         assert bar._dynamic_tiles == []
 
     def test_other_windows_still_get_dynamic_tiles(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.update_windows([_win("100", "Foo"), _win("200", "Bar")])
+        _windows(bar, [_win("100", "Foo"), _win("200", "Bar")])
         _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert [wid for wid, _, _ in bar._dynamic_tiles] == ["200"]
 
     def test_focus_moves_to_new_tile(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.update_windows([_win("100", "Foo")])
+        _windows(bar, [_win("100", "Foo")])
         _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert bar.current_app_index() == len(bar._tiles) - 1
 
     def test_new_tile_marked_running_immediately(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.update_windows([_win("100", "Foo")])
+        _windows(bar, [_win("100", "Foo")])
         _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert not bar._tiles[-1]._status_bar.isHidden()
 
     def test_window_for_resolves_open_window(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.update_windows([_win("100", "Foo")])
+        _windows(bar, [_win("100", "Foo")])
         assert bar._model.window_for("100").title == "Foo"
         assert bar._model.window_for("nope") is None
 
@@ -361,7 +366,7 @@ class TestUnpinApp:
     def test_running_app_returns_to_dynamic_section(self, bar_with_tiles):
         bar = bar_with_tiles
         win = Window(id="100", title="Foo", pid=0, resource_class="foo")
-        bar.update_windows([win])
+        _windows(bar, [win])
         _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert bar._dynamic_tiles == []            # suppressed while pinned
         _unpin(bar, len(bar._tiles) - 1)         # unpin the just-added tile
@@ -370,7 +375,7 @@ class TestUnpinApp:
     def test_unpinned_window_is_no_longer_suppressed(self, bar_with_tiles):
         bar = bar_with_tiles
         win = Window(id="100", title="Foo", pid=0, resource_class="foo")
-        bar.update_windows([win])
+        _windows(bar, [win])
         _pin(bar, App(name="Foo", command="foo"), window_id="100")
         _unpin(bar, len(bar._tiles) - 1)
         assert "100" not in bar._pinned_window_ids
@@ -397,7 +402,7 @@ class TestAddTile:
 
     def test_navigation_reaches_add_tile_then_windows(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.update_windows([_win("100", "Foo")])
+        _windows(bar, [_win("100", "Foo")])
         n = len(bar._tiles)
         bar._tile_index = n
         assert bar.current_context() == AddTileTarget()
