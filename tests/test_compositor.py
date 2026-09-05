@@ -1,7 +1,6 @@
-"""Tests for compositor detection and the backend factory seam."""
+"""Tests for wlroots compositor detection and backend factories."""
 
 import socket
-
 from unittest.mock import patch
 
 import pytest
@@ -16,10 +15,9 @@ from infrastructure.linux.compositor import (
 )
 
 _ENV_VARS = (
-    "KDE_FULL_SESSION",
-    "XDG_CURRENT_DESKTOP",
     "SWAYSOCK",
     "HYPRLAND_INSTANCE_SIGNATURE",
+    "XDG_RUNTIME_DIR",
 )
 
 
@@ -52,59 +50,19 @@ def live_hyprland_socket(clean_env, tmp_path):
 
 
 class TestDetectCompositor:
-    def test_kde_from_full_session(self, clean_env):
-        clean_env.setenv("KDE_FULL_SESSION", "true")
-        assert detect_compositor() is Compositor.KDE
-
-    def test_kde_from_current_desktop(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "KDE")
-        assert detect_compositor() is Compositor.KDE
-
-    def test_kde_current_desktop_case_insensitive(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "plasma:kde")
-        assert detect_compositor() is Compositor.KDE
-
-    def test_gnome_from_current_desktop(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        assert detect_compositor() is Compositor.GNOME
-
-    def test_gnome_ubuntu_variant(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "ubuntu:GNOME")
-        assert detect_compositor() is Compositor.GNOME
-
     def test_sway(self, live_sway_socket):
         assert detect_compositor() is Compositor.SWAY
 
     def test_hyprland(self, live_hyprland_socket):
         assert detect_compositor() is Compositor.HYPRLAND
 
-    def test_nested_sway_under_kde_is_sway(self, clean_env, live_sway_socket):
-        # A nested wlroots compositor inherits KDE_FULL_SESSION from its parent
-        # session; its own socket handle is the truthful signal, so it wins.
-        clean_env.setenv("KDE_FULL_SESSION", "true")
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "KDE")
-        assert detect_compositor() is Compositor.SWAY
-
-    def test_nested_hyprland_under_kde_is_hyprland(self, clean_env, live_hyprland_socket):
-        clean_env.setenv("KDE_FULL_SESSION", "true")
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "KDE")
-        assert detect_compositor() is Compositor.HYPRLAND
-
-    def test_stale_swaysock_does_not_shadow_gnome(self, clean_env, tmp_path):
-        # Sway's packaging imports SWAYSOCK into the systemd user manager, which
-        # outlives the session and hands the dead path to the next one.
+    def test_stale_swaysock_is_unknown(self, clean_env, tmp_path):
         clean_env.setenv("SWAYSOCK", str(tmp_path / "sway-ipc.gone.sock"))
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        assert detect_compositor() is Compositor.GNOME
+        assert detect_compositor() is Compositor.UNKNOWN
 
-    def test_stale_hyprland_signature_does_not_shadow_kde(self, clean_env, tmp_path):
+    def test_stale_hyprland_signature_is_unknown(self, clean_env, tmp_path):
         clean_env.setenv("XDG_RUNTIME_DIR", str(tmp_path))
         clean_env.setenv("HYPRLAND_INSTANCE_SIGNATURE", "long-gone")
-        clean_env.setenv("KDE_FULL_SESSION", "true")
-        assert detect_compositor() is Compositor.KDE
-
-    def test_stale_swaysock_alone_is_unknown(self, clean_env, tmp_path):
-        clean_env.setenv("SWAYSOCK", str(tmp_path / "sway-ipc.gone.sock"))
         assert detect_compositor() is Compositor.UNKNOWN
 
     def test_regular_file_at_swaysock_is_not_a_session(self, clean_env, tmp_path):
@@ -134,12 +92,7 @@ class TestFactories:
         from infrastructure.linux.display.wallpaper import StaticFileWallpaper
         wallpaper = build_system_wallpaper()
         assert isinstance(wallpaper, StaticFileWallpaper)
-        assert wallpaper.current() is None   # no <config>/wallpaper present
-
-    def test_wallpaper_is_kde_adapter_on_kde(self, clean_env):
-        clean_env.setenv("KDE_FULL_SESSION", "true")
-        from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
-        assert isinstance(build_system_wallpaper(), KdeSystemWallpaper)
+        assert wallpaper.current() is None
 
     def test_wallpaper_is_sway_adapter(self, live_sway_socket):
         from infrastructure.wlroots.display.wallpaper import SwayWallpaper
@@ -149,82 +102,23 @@ class TestFactories:
         from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
         assert isinstance(build_system_wallpaper(), HyprlandWallpaper)
 
-    def test_wallpaper_is_gnome_adapter(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        from infrastructure.gnome.display.wallpaper import GnomeSystemWallpaper
-        assert isinstance(build_system_wallpaper(), GnomeSystemWallpaper)
-
-    def test_window_manager_is_gnome_adapter_when_helper_present(self, clean_env, qapp):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        from infrastructure.gnome.wm.window_manager import GnomeWindowManager
-        with patch("infrastructure.gnome.helper.helper_present", return_value=True):
-            assert isinstance(build_window_manager(), GnomeWindowManager)
-
-    def test_window_manager_falls_back_to_null_without_helper(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        with patch("infrastructure.gnome.helper.helper_present", return_value=False):
-            assert isinstance(build_window_manager(), NullWindowManager)
-
-    def test_desktop_surface_is_gnome_when_helper_present(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        from infrastructure.gnome.qt.surface import GnomeSurface
-        with patch("infrastructure.gnome.helper.helper_present", return_value=True):
-            assert isinstance(build_desktop_surface(), GnomeSurface)
-
-    def test_desktop_surface_is_layer_shell_on_gnome_without_helper(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        from infrastructure.linux.wayland.surface import LayerShellSurface
-        with patch("infrastructure.gnome.helper.helper_present", return_value=False):
-            assert isinstance(build_desktop_surface(), LayerShellSurface)
-
-    def test_desktop_surface_is_layer_shell_on_kde(self, clean_env):
-        clean_env.setenv("KDE_FULL_SESSION", "true")
+    def test_desktop_surface_is_layer_shell(self, clean_env):
         from infrastructure.linux.wayland.surface import LayerShellSurface
         assert isinstance(build_desktop_surface(), LayerShellSurface)
 
 
 class TestSurfaceSizing:
-    """Only wlr-layer-shell sizes an anchored overlay before it maps; everywhere
-    else the widget must, or Mutter's after-the-fact resize blanks its buffer."""
-
     def _sized_by_compositor(self, platform: str) -> bool:
         from infrastructure.common.qt.ui import top_surface
         with patch.object(top_surface.QGuiApplication, "platformName",
                           return_value=platform):
             return top_surface.surface_sized_by_compositor()
 
-    def test_layer_shell_compositor_sizes_the_surface(self, clean_env):
-        clean_env.setenv("KDE_FULL_SESSION", "true")
+    def test_wayland_sizes_the_surface(self):
         assert self._sized_by_compositor("wayland") is True
 
-    def test_gnome_leaves_sizing_to_the_widget(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        assert self._sized_by_compositor("wayland") is False
-
-    def test_non_wayland_leaves_sizing_to_the_widget(self, clean_env):
+    def test_non_wayland_leaves_sizing_to_the_widget(self):
         assert self._sized_by_compositor("offscreen") is False
-
-
-class TestFullscreenTranslucency:
-    """Mutter blends a fullscreen surface onto opaque black and drops its alpha, so
-    a dimmed overlay backdrop must stay an ordinary screen-sized window there."""
-
-    def _loses_alpha(self, platform: str) -> bool:
-        from infrastructure.common.qt.ui import top_surface
-        with patch.object(top_surface.QGuiApplication, "platformName",
-                          return_value=platform):
-            return top_surface.fullscreen_loses_translucency()
-
-    def test_gnome_flattens_a_fullscreen_surface(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        assert self._loses_alpha("wayland") is True
-
-    def test_layer_shell_compositors_keep_the_alpha(self, clean_env):
-        clean_env.setenv("KDE_FULL_SESSION", "true")
-        assert self._loses_alpha("wayland") is False
-
-    def test_non_wayland_keeps_the_alpha(self, clean_env):
-        assert self._loses_alpha("offscreen") is False
 
 
 class TestNullWindowManager:

@@ -2,7 +2,7 @@
 Type=Application
 Name=Kasual Desktop
 GenericName=Gamepad Launcher
-Comment=Gamepad-first launcher/desktop for KDE Plasma 6 on Wayland
+Comment=Gamepad-first launcher/desktop for Sway and Hyprland
 Exec=kasual-desktop
 Icon=kasual-desktop
 Terminal=false

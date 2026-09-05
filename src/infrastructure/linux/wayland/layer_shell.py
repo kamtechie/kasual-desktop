@@ -1,4 +1,4 @@
-"""Thin ctypes bridge to KDE's LayerShellQt — turn a top-level QWidget into a
+"""Thin ctypes bridge to LayerShellQt — turn a top-level QWidget into a
 wlr-layer-shell surface (a panel/overlay anchored in a compositor layer that
 can sit above normal windows, including fullscreen).
 
@@ -6,7 +6,7 @@ PyQt6 ships no LayerShellQt bindings, so we call the C++ API directly through
 the exported (mangled) symbols of libLayerShellQtInterface.so.6. Requires the
 SYSTEM Qt (the shell-integration plugin is version-locked to it),
 QT_WAYLAND_SHELL_INTEGRATION=layer-shell set before QApplication, and a Wayland
-platform. Validated on KWin 6.5.2 / Qt 6.9.2 (see tools/spike_layershell.py).
+platform.
 
 make_layer_surface() forces native window creation itself, so call it BEFORE
 widget.show() — the layer surface is set up with our settings at first show.

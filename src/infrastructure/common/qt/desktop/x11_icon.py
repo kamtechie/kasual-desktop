@@ -1,6 +1,6 @@
 """Read a window's embedded icon (_NET_WM_ICON) from XWayland.
 
-This mirrors what the KWin/Plasma task manager falls back to when an app has
+This is the fallback when an app has
 no matching .desktop / themed icon: the ARGB pixmap the application embeds in
 its own X11 window (`_NET_WM_ICON`). Covers Steam games, Wine/Proton titles and
 other XWayland apps whose window class maps to nothing in the icon theme.

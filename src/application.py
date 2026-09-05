@@ -154,9 +154,7 @@ class Application:
     def _return_to_desktop(self) -> None:
         """Leave the running app and surface the Desktop.
 
-        Safety net: the Desktop is a `top`-layer surface, which is not
-        guaranteed to stack above an exclusive-fullscreen game, so we still
-        minimize the foreground app and raise ourselves via KWin.
+        Minimize the foreground app and ask the compositor to raise the Desktop.
         """
         pid = self._app_control.foreground_pid()
         if pid is not None:

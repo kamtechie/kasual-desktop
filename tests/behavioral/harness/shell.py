@@ -1,8 +1,7 @@
 """The steps that read and drive Kasual Desktop itself.
 
 One half of the run's truth. The other half — every window we do not own — comes
-from the compositor; KD's own surfaces cannot, because layer-shell surfaces never
-appear in KWin's stacking order.
+from the compositor; KD's own layer-shell surfaces are read through its test API.
 """
 
 from __future__ import annotations
@@ -78,11 +77,8 @@ def check_kd_below(kd: KDClient, what: str) -> None:
 def note_kd_state(kd: KDClient, what: str) -> None:
     """Record where KD is while *what* is up, and pass no verdict.
 
-    Whether a ceded-but-mapped Desktop actually covers a plain window is not
-    decidable from KD's state on KWin: it depends on what else is stacked (a focused
-    fullscreen window of the app — Steam's black launch screen — already outranks the
-    TOP layer). Where the window must be *used*, the run asserts instead that it
-    could be: an unreachable launcher fails the scenario by itself.
+    Where a window must be used, the run asserts that it is reachable rather than
+    inferring success only from KD's mapped-state bookkeeping.
     """
     s = kd.snapshot()
     report(f'KD while the {what} is up', 'INFO',

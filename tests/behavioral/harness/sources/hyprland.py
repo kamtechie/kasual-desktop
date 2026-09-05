@@ -1,6 +1,6 @@
 """WindowSource for Hyprland: the `socket2` event stream says *when* the window
 world changed, `hyprctl -j` says what it now is. Pushed, not polled — a splash that
-lives between two polls never happened — but unlike KWin/GNOME the payload is not in
+lives between two polls never happened, but the payload is not in
 the event, so each relevant event triggers a fresh `hyprctl` snapshot.
 
 `socket2` lines are `EVENT>>DATA`; only the event name is read, to decide whether to

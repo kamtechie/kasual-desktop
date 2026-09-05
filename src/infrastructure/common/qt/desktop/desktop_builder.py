@@ -16,7 +16,6 @@ from domain.catalog.live_catalog import LiveCatalog
 from domain.catalog.tile_settings_editor import TileSettingsEditor
 from domain.input.pad_control import PadControl
 from domain.lifecycle.app_lifecycle import AppLifecycle
-from domain.lifecycle.cede_depth import CedeDepth
 from domain.lifecycle.foreground_inspector import ForegroundInspector
 from domain.lifecycle.launch_hide import LaunchHide
 from domain.lifecycle.launch_show import LaunchShow
@@ -89,20 +88,6 @@ class _NoDeferredShow:
         pass
 
 
-class _NoCedeDepth:
-    """Fallback for test surfaces that unmap when ceding the screen."""
-
-    @property
-    def is_armed(self) -> bool:
-        return False
-
-    def arm(self, app) -> None:
-        pass
-
-    def cancel(self) -> None:
-        pass
-
-
 def build_desktop(
     *,
     apps: AppCatalog,
@@ -123,7 +108,6 @@ def build_desktop(
     surface: DesktopSurface | None = None,
     deferred_hide_factory: 'Callable[[WindowManager, ProcessManager, Callable[[], None]], LaunchHide] | None' = None,
     deferred_show_factory: 'Callable[[WindowManager, ProcessManager, Callable[[], None]], LaunchShow] | None' = None,
-    cede_depth_factory: 'Callable[[WindowManager, ProcessManager, Callable[[bool], None]], CedeDepth] | None' = None,
     parent_of: Callable[[int], int | None] | None = None,
     is_game_pid: Callable[[int], bool] = lambda _: False,
     app_adder: AppAdder | None = None,
@@ -198,14 +182,6 @@ def build_desktop(
         )
     else:
         deferred_show = _NoDeferredShow()
-    # Keeps the ceded Desktop under whatever the app puts on screen — a launcher or
-    # a splash would otherwise end up beneath it, unseen and unclickable.
-    if cede_depth_factory is not None:
-        cede_depth = cede_depth_factory(
-            window_manager, process_manager, widget.sink_view,
-        )
-    else:
-        cede_depth = _NoCedeDepth()
     # Read-only foreground/game introspection, split off the coordinator.
     inspector = ForegroundInspector(
         foreground=widget._foreground,
@@ -225,7 +201,6 @@ def build_desktop(
         foreground=widget._foreground,
         deferred_hide=deferred_hide,
         deferred_show=deferred_show,
-        cede_depth=cede_depth,
         tilebar=widget._tilebar,
         pad_handler=widget._handle_pad,
         scheduler=scheduler,

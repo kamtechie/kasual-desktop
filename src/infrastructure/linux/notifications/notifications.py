@@ -1,8 +1,7 @@
 """freedesktop notification source — observes `Notify` calls on the bus.
 
 Implements the domain `NotificationSource` port over the freedesktop notification
-protocol, so it works under any DE running a notification daemon (Plasma, GNOME,
-…). A notification arrives as a `Notify` *method call* to
+protocol, so it works with any compatible notification daemon. A notification arrives as a `Notify` *method call* to
 `org.freedesktop.Notifications` (the service the active daemon owns); there is no
 "new notification" signal to connect to, and a second process cannot own that
 service. So to observe them passively we monitor the session bus.
@@ -15,8 +14,7 @@ the GUI thread via a `pyqtSignal` — the same thread + signal-hop pattern the
 (rather than spawning it via `QProcess` on the GUI thread) keeps the process
 launch off the Wayland event loop entirely.
 
-Limitation: this captures notifications from when Kasual starts onward — Plasma's
-persisted history is not read (Plasma 6 does not expose it cleanly over D-Bus).
+Limitation: this captures notifications only from when Kasual starts onward.
 """
 
 from __future__ import annotations

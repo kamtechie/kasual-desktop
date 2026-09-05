@@ -1,8 +1,7 @@
 """SystemWallpaper backed by a static image the user points Kasual at.
 
-Off Plasma there is no wallpaper daemon to query, so the background is whatever
-``<config>/wallpaper`` resolves to — a copied image or a symlink into the user's
-own collection. When it is absent the Desktop renders its own background.
+The fallback background is whatever ``<config>/wallpaper`` resolves to: a copied
+image or a symlink. When absent, the Desktop renders its built-in background.
 """
 
 import logging

@@ -5,7 +5,7 @@ header + menu + hint bar always read as one composition:
 
   * **Context 1 — Home view.** The surface is permanently mapped: a collapsed
     :class:`HomeHeader` that morphs open on BTN_MODE into header + menu and
-    back, on one never-unmapped surface (so KWin adds no map/unmap animation).
+    back on one never-unmapped surface, avoiding compositor map/unmap animation.
     The Desktop drives it via :meth:`expand` / :meth:`collapse`, and hands the
     header to the FocusNavigator as the top bar.
 
@@ -38,7 +38,6 @@ from domain.system.hud import HudControl
 from domain.system.power_menu import PowerMenu
 from domain.system.volume import VolumeControl
 from infrastructure.common.qt.ui import styles
-from infrastructure.common.qt.ui.deferred_unmap import DeferredUnmap
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
 from infrastructure.common.qt.ui.top_surface import (
     promote_overlay_surface, surface_sized_by_compositor,
@@ -48,16 +47,14 @@ from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH, Home
 
 logger = logging.getLogger(__name__)
 
-# Clears the tallest DE panel we cannot stack under (GNOME's 29px top bar is
-# painted above every window).
+# Keep the header clear of compositor panels.
 TOP_MARGIN  = 32
 # Caps the expanded panel; sized for the busiest context (a game with both a
 # brightness slider and the HUD toggle, ~526px) — tighter clips row content.
 CONTENT_H   = 550
 MORPH_MS    = 180   # collapse↔expand animation duration
 # The surface is ALWAYS this tall (sized for the expanded state) and anchored to
-# the top: collapse/expand only morphs the inner content, never the surface — so
-# KWin never sees a resize/remap to animate.
+# the top: collapse/expand only morphs the inner content, never the surface.
 SURFACE_H   = TOP_MARGIN + HEADER_H + CONTENT_H + TOP_MARGIN
 
 
@@ -113,7 +110,6 @@ class HomeSurface(QWidget):
         # Mouse input is scoped by mask, not WA_TransparentForMouseEvents (which
         # would empty the Wayland input region entirely) — see _refresh_input_region.
         self._input_open_hold = False
-        self._deferred_unmap = DeferredUnmap(self)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(16, TOP_MARGIN, 16, TOP_MARGIN)
@@ -250,8 +246,7 @@ class HomeSurface(QWidget):
 
     def position_at_top(self) -> None:
         """Size the surface to the top strip of the primary screen. Skipped where
-        layer-shell anchors already do it; on GNOME the position is ignored (Mutter
-        places top-levels) but the width must be ours, set before the first map."""
+        layer-shell anchors already do it; the fallback is for offscreen tests."""
         if surface_sized_by_compositor():
             return
         screen = QGuiApplication.primaryScreen()
@@ -259,11 +254,7 @@ class HomeSurface(QWidget):
             g = screen.geometry()
             self.setGeometry(g.x(), g.y(), g.width(), SURFACE_H)
 
-    def hide(self) -> None:
-        self._deferred_unmap.hide()
-
     def show_collapsed(self) -> None:
-        self._deferred_unmap.cancel()
         self.position_at_top()
         self.show()
         self.raise_()
@@ -376,7 +367,6 @@ class HomeSurface(QWidget):
             request_hide=self.dismiss, desktop_minimized=desktop_minimized,
             header=self._header, on_power_chooser=self._on_power_chooser,
         )
-        self._deferred_unmap.cancel()
         self.position_at_top()
         self.show()
         self.raise_()

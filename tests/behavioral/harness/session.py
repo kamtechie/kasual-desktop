@@ -38,8 +38,8 @@ def _compositor_name() -> str:
 
 def _application() -> QCoreApplication:
     """One per process, and it must outlive every Session: a collected QCoreApplication
-    takes Qt's D-Bus machinery with it, leaving interfaces cached across scenarios —
-    KD's own GNOME helper client — pointing at deleted C++ objects."""
+    takes Qt's D-Bus machinery with it, leaving cached interfaces pointing at
+    deleted C++ objects."""
     global _app
     if _app is None:
         _app = QCoreApplication.instance() or QCoreApplication(sys.argv)

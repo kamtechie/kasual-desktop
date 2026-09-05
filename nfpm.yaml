@@ -13,9 +13,8 @@ section: games
 priority: optional
 maintainer: xis <xis@schowek.net>
 description: |
-  Gamepad-first launcher/desktop for Wayland: KDE Plasma 6, Sway and Hyprland via
-  wlr-layer-shell, GNOME via the bundled Kasual Helper Shell extension. Bundles the
-  File Browser couch app.
+  Gamepad-first launcher/desktop for Sway and Hyprland via wlr-layer-shell.
+  Bundles the File Browser couch app.
 vendor: Kasual Desktop
 homepage: https://github.com/thanek/kasual-desktop
 license: GPL-3.0-or-later
@@ -46,9 +45,9 @@ overrides:
       - layer-shell-qt
       - qt6-wayland
     recommends:
-      # Runtime helpers Kasual shells out to. brightnessctl is the only brightness
-      # path where KDE's Solid.PowerManagement D-Bus service is absent (Sway,
-      # Hyprland), so it stays a Recommends even though apt installs it by default
+      # Runtime helpers Kasual shells out to. brightnessctl provides the brightness
+      # path on Sway and Hyprland, so it stays a Recommends even though apt installs
+      # it by default
       # onto hosts that have no kernel backlight and will never use it.
       - pipewire-pulse | pulseaudio-utils
       - network-manager

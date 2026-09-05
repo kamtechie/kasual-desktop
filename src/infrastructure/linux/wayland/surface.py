@@ -20,18 +20,8 @@ class LayerShellSurface:
     """The widget is its own frameless top-level window, promoted to a
     wlr-layer-shell TOP-layer surface on Wayland.
 
-    Ceding the screen to a launched app (``drop_below``) keeps the surface mapped
-    and drawn so its return is a repaint, not a remap — no DE flash. How it stays
-    out of the app's way depends on the compositor's stacking, chosen at build:
-
-    - KWin stacks a *focused* fullscreen xdg-toplevel above layer-shell TOP, so
-      ceding just drops keyboard interactivity and the app covers the surface on
-      TOP. While the app hands focus to an ordinary window instead — a launcher, a
-      splash — nothing outranks TOP, and ``sink`` drops the surface to BOTTOM until
-      the app holds the screen again.
-    - wlroots (Hyprland, Sway) keeps layer-shell TOP above every window, so there
-      ceding already drops the surface to the BOTTOM layer, under the app (``sink``
-      has nothing left to do), and ``show_fullscreen`` restores it to TOP.
+    Ceding to a launched app keeps the surface mapped but drops it to the BOTTOM
+    layer. Returning restores TOP, avoiding a remap or desktop flash.
 
     ``is_visible`` is logical — "the Desktop owns input" — not Qt's mapped-state.
     ``hide`` (pause / minimize to tray) still truly unmaps.
@@ -41,12 +31,11 @@ class LayerShellSurface:
     to a plain hide.
     """
 
-    def __init__(self, *, cede_to_bottom: bool = False) -> None:
+    def __init__(self) -> None:
         self._widget: QWidget | None = None
         self._layered  = False
         self._in_front = False
         self._sunk     = False
-        self._cede_to_bottom = cede_to_bottom
 
     def install(self, widget: QWidget) -> None:
         self._widget = widget
@@ -61,8 +50,6 @@ class LayerShellSurface:
 
     def show_fullscreen(self) -> None:
         if self._layered:
-            # Unconditional: the surface may have been sunk to BOTTOM under a
-            # launcher, and a Desktop returning under the app's windows is no return.
             set_layer(self._widget, Layer.TOP)
             set_keyboard(self._widget, Keyboard.ON_DEMAND)
         self._widget.showFullScreen()
@@ -78,23 +65,16 @@ class LayerShellSurface:
     def drop_below(self) -> None:
         self._in_front = False
         if self._layered and self._widget.isVisible():
-            if self._cede_to_bottom:
-                set_layer(self._widget, Layer.BOTTOM)
+            set_layer(self._widget, Layer.BOTTOM)
             set_keyboard(self._widget, Keyboard.NONE)
             self._widget.update()
-            self._sunk = self._cede_to_bottom
+            self._sunk = True
         else:
             self._widget.hide()
             self._sunk = False
 
     def sink(self, under_windows: bool) -> None:
-        if self._cede_to_bottom or self._in_front:
-            return
-        if not self._layered or not self._widget.isVisible():
-            return
-        set_layer(self._widget, Layer.BOTTOM if under_windows else Layer.TOP)
-        self._widget.update()
-        self._sunk = under_windows
+        pass  # Ceding already places the wlroots surface on BOTTOM.
 
     def activate(self) -> None:
         self._widget.activateWindow()

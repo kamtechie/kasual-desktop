@@ -1,9 +1,6 @@
-"""Testy wygaszacza — throttling poke, inhibicja przy widocznym KD, adresy D-Bus
-i dobór per kompozytor."""
+"""Screensaver tests: poke throttling, visibility inhibition and D-Bus messages."""
 
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from PyQt6.QtDBus import QDBusMessage
 from PyQt6.QtWidgets import QWidget
@@ -14,21 +11,6 @@ from infrastructure.linux.display.screensaver import (
     ScreenSaverInhibitor, ScreenSaverWaker, VisibilityInhibitor,
     freedesktop_activity_message, inhibit_message,
 )
-
-_ENV_VARS = (
-    "KDE_FULL_SESSION",
-    "XDG_CURRENT_DESKTOP",
-    "SWAYSOCK",
-    "HYPRLAND_INSTANCE_SIGNATURE",
-)
-
-
-@pytest.fixture
-def clean_env(monkeypatch):
-    for var in _ENV_VARS:
-        monkeypatch.delenv(var, raising=False)
-    return monkeypatch
-
 
 class TestThrottle:
     def test_first_poke_sends(self):
@@ -61,16 +43,6 @@ class TestMessages:
         assert msg.path() == "/org/freedesktop/ScreenSaver"
         assert msg.interface() == "org.freedesktop.ScreenSaver"
         assert msg.member() == "SimulateUserActivity"
-
-    def test_gnome_helper_call(self):
-        from infrastructure.gnome import helper
-        with patch.object(helper.QDBusConnection, "sessionBus") as bus:
-            helper.simulate_user_activity()
-        msg = bus.return_value.asyncCall.call_args.args[0]
-        assert msg.service() == helper.SERVICE
-        assert msg.path() == helper.OBJECT_PATH
-        assert msg.member() == "SimulateUserActivity"
-
 
 def _bus_with_inhibit_reply(cookie):
     bus = MagicMock()
@@ -142,14 +114,5 @@ class TestVisibilityInhibitor:
 
 
 class TestBuilder:
-    def test_gnome_uses_helper(self, clean_env):
-        clean_env.setenv("XDG_CURRENT_DESKTOP", "GNOME")
-        from infrastructure.gnome.helper import simulate_user_activity
-        assert build_screensaver_waker()._send is simulate_user_activity
-
-    def test_kde_uses_freedesktop(self, clean_env):
-        clean_env.setenv("KDE_FULL_SESSION", "true")
-        assert build_screensaver_waker()._send is screensaver.simulate_freedesktop_activity
-
-    def test_unknown_falls_back_to_freedesktop(self, clean_env):
+    def test_uses_freedesktop_activity(self):
         assert build_screensaver_waker()._send is screensaver.simulate_freedesktop_activity

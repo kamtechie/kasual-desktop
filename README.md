@@ -2,10 +2,9 @@
 
 Kasual Desktop is an interactive, graphical "launcher/desktop" interface, designed to be operated using a controller (gamepad). The project combines application management, system overlays, and advanced input handling to create a cohesive "console-like" environment.
 
-It runs on **Linux / Wayland (KDE Plasma 6, Sway, Hyprland, GNOME)** and renders
-its UI as overlays above applications, including fullscreen games. KDE is the
-original target; Sway and Hyprland are driven through native IPC, while GNOME is
-served by a bundled Shell extension. See [Supported compositors](#-supported-compositors).
+It runs on **Linux / Wayland with Sway or Hyprland** and renders its UI as
+layer-shell surfaces above applications, including fullscreen games. Window
+management is driven through each compositor's native IPC.
 
 [![Kasual Desktop — video](https://img.youtube.com/vi/0NrV0Tr0HXA/hqdefault.jpg)](https://youtu.be/0NrV0Tr0HXA)
 
@@ -16,7 +15,7 @@ served by a bundled Shell extension. See [Supported compositors](#-supported-com
 - **Gamepad-First Interface**: Full controller navigation through `evdev`.
 - **Dynamic Launcher**: Manage applications with simple `.desktop` files in your per-user config directory.
 - **Overlay System**: Advanced support for system overlays (e.g., notifications, menus) that run on top of application windows.
-- **System Integration**: Window management for KWin, Sway, Hyprland and GNOME, plus system notifications, network, audio and brightness controls.
+- **System Integration**: Window management for Sway and Hyprland, plus system notifications, network, audio and brightness controls.
 - **First-Run Onboarding**: A provisioning picker seeds your catalog from installed apps.
 - **In-Game HUD Toggle**: Show or hide **[MangoHud](https://github.com/flightlessmango/MangoHud)** for games straight from the controller menu. See [In-Game HUD](#-in-game-hud).
 - **Advanced Audio System**: System sounds and audio feedback.
@@ -36,13 +35,8 @@ adapters**:
 - `src/infrastructure/linux/` — DE-independent Linux adapters (audio, network,
   brightness, freedesktop notifications, the generic `wayland/` layer-shell
   surface, `/proc`, and compositor detection).
-- `src/infrastructure/kde/` — KDE Plasma adapters (KWin window management, Plasma
-  wallpaper).
 - `src/infrastructure/wlroots/` — Sway and Hyprland adapters (window management
   and wallpaper via each compositor's native IPC).
-- `src/infrastructure/gnome/` — GNOME adapters (window management and overlay
-  stacking over D-Bus to the Kasual Helper Shell extension, gsettings wallpaper).
-- `packaging/gnome-extension/` — the Kasual Helper GNOME Shell extension itself.
 - `src/main.py` — application entry point.
 
 The core does not import infrastructure adapters. Compositor-specific packages
@@ -53,7 +47,7 @@ runtime from the session.
 
 - **Python 3.11+** (uses `enum.StrEnum`)
 - **PyQt6** + **qtawesome**
-- **Linux**: `wlr-layer-shell` (LayerShellQt) on KWin / Sway / Hyprland, a GJS Shell extension on GNOME, `evdev`, `python-xlib`
+- **Linux**: `wlr-layer-shell` (LayerShellQt), `swaymsg`/`hyprctl`, `evdev`, `python-xlib`
 
 ---
 
@@ -61,22 +55,17 @@ runtime from the session.
 
 ## 🖥️ Supported compositors
 
-Kasual Desktop needs a Wayland compositor that can stack its UI above fullscreen
-applications — either through `wlr-layer-shell`, or through the bundled GNOME
-Shell extension. The backend is picked automatically from the session. Window
-management, overlay stacking and wallpaper are the only DE-specific pieces —
-everything else (audio, network, brightness, notifications, gamepad, HUD) is
-DE-independent.
+Kasual Desktop needs Sway or Hyprland with `wlr-layer-shell`. The backend is
+picked automatically from the live compositor socket. Window management and
+wallpaper are compositor-specific; the remaining adapters are shared.
 
 | Compositor | Status | Window management | Wallpaper | Notes |
 |---|---|---|---|---|
-| **KDE Plasma 6 (KWin)** | Full | KWin D-Bus scripts | Plasma config, else Plasma's default wallpaper package | The original target. |
 | **Sway** | Full | `swaymsg` (i3-IPC) | `output … bg` from the Sway config | Minimize is emulated by moving windows to the scratchpad. |
 | **Hyprland** | Full | `hyprctl` | swww, hyprpaper, or HyDE's current-wallpaper file — whichever answers first | Minimize is emulated via a dedicated special workspace. |
-| **GNOME 45+ (Mutter)** | Full | Kasual Helper extension (D-Bus) | `gsettings` background (dark variant and slideshow XML understood) | Requires the [Kasual Helper extension](#gnome-the-kasual-helper-extension); Mutter has no `wlr-layer-shell`. |
 | Other wlroots (e.g. labwc) | Partial | none (no-op) | `<config>/wallpaper` static file | Starts and renders, but window switching is unavailable. |
 
-The four full backends are exercised end-to-end on live sessions by the
+Both full backends are exercised end-to-end on live sessions by the
 [behavioral suite](tests/behavioral/README.md) — including launching real games
 and reaching a launcher that maps behind Steam's Big Picture. See [Tests](#tests).
 
@@ -85,40 +74,12 @@ back to a static image at `<config>/wallpaper` (a file or a symlink into your ow
 collection), and finally to the Desktop's built-in background. The wallpaper is
 resolved on every launch, so a restart picks up a change.
 
-### GNOME: the Kasual Helper extension
-
-Mutter implements neither `wlr-layer-shell` nor any window-list protocol for
-clients, so on GNOME both jobs are done by a small Shell extension that Kasual
-Desktop talks to over D-Bus (`org.consoledesktop.GnomeHelper`). It reports the
-windows with their PIDs, activates/minimizes/closes them, and keeps Kasual
-Desktop's frameless surfaces stacked above a fullscreen game — including
-suppressing Mutter's direct scanout, which would otherwise hide any overlay drawn
-over the game.
-
-`./install.sh` installs and enables it for the current user; the packages ship it
-system-wide, where each user enables it once:
-
-```bash
-gnome-extensions enable kasual-helper@consoledesktop.org
-```
-
-GNOME Shell cannot be reloaded on Wayland, so **log out and back in** afterwards.
-
-Because window management depends on it, Kasual Desktop checks the extension on
-GNOME **before starting anything else**. If it is installed but disabled, a dialog
-offers to enable it right there; if it is missing, the dialog shows the command
-above and waits for a **Retry**. Both are gamepad-operable, so nothing on GNOME
-requires reaching for a keyboard.
-
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- **A supported Wayland compositor**: KDE Plasma 6 / KWin, Sway or Hyprland (via
-  `wlr-layer-shell`), or GNOME 45+ (via the bundled Kasual Helper Shell
-  extension). Kasual Desktop draws its UI as overlays that sit above
-  applications, including fullscreen games. See
-  [Supported compositors](#-supported-compositors).
+- **Sway or Hyprland** with `wlr-layer-shell`. Kasual Desktop draws its UI as
+  overlays above applications, including fullscreen games.
 - **Python 3.11+** (the codebase uses `enum.StrEnum`).
 - **System Qt + PyQt6 (not pip's bundled PyQt6).** The layer-shell integration
   plugin is version-locked to the system Qt build, so Kasual Desktop must run against the
@@ -143,12 +104,8 @@ requires reaching for a keyboard.
   Other distros: install the equivalent of `python3-pyqt6` (including its
   `QtMultimedia` module), `python3-qtawesome`, `python3-evdev`, `python3-xlib`,
   `layer-shell-qt` (LayerShellQt) and `qt6-wayland`.
-- **(Optional) `brightnessctl`** — brightness control. Kasual Desktop tries the
-  backends in order and keeps the first one that actually drives a screen:
-  `brightnessctl` (a kernel backlight, under any DE), then Plasma's
-  power-management D-Bus service (which also reaches external monitors over DDC).
-  A desktop with neither — no backlight, no Plasma — simply has no brightness
-  slider in the Home Overlay. Installing from a package pulls `brightnessctl` in.
+- **(Optional) `brightnessctl`** — brightness control. If it cannot find a kernel
+  backlight, Kasual Desktop simply omits the brightness slider.
 
 ### Gamepad permissions
 
@@ -220,7 +177,7 @@ the bundled File Browser ships inside the same package.
    `~/.local` ships a newer Qt without the layer-shell plugin, which otherwise
    fails with *"No shell integration named layer-shell found"*. The shell
    integration (`QT_WAYLAND_SHELL_INTEGRATION=layer-shell`) is requested by
-   `src/main.py` only on compositors that have it — never on GNOME.
+   `src/main.py`.
 
 ### Tests
 
@@ -236,7 +193,7 @@ Two suites, deliberately separate:
   and shell state back — without looking at pixels. Deliberately **not** named
   `test_*.py`, so pytest never collects it: it is run by hand against a live
   session before a release, and needs a Wayland compositor, a GPU and real games.
-  It runs on every supported compositor — KDE, GNOME, Hyprland and Sway. See
+  It runs on both supported compositors — Hyprland and Sway. See
   [tests/behavioral/README.md](tests/behavioral/README.md).
 
   ```bash

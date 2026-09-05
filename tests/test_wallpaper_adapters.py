@@ -1,4 +1,4 @@
-"""Tests for the non-Plasma wallpaper adapters: the static file fallback and the
+"""Tests for wlroots wallpaper adapters: the static file fallback and the
 Sway/Hyprland compositor sources (both resolved fresh per Kasual launch)."""
 
 import subprocess
@@ -137,39 +137,3 @@ class TestSwayWallpaper:
 
     def test_none_when_no_config(self, config_home):
         assert SwayWallpaper().current() is None
-
-
-class TestGnomeWallpaper:
-    def _wallpaper(self, monkeypatch, uri):
-        from infrastructure.gnome.display.wallpaper import GnomeSystemWallpaper
-        wp = GnomeSystemWallpaper()
-
-        def fake_gsettings(schema, key):
-            if schema == "org.gnome.desktop.interface":
-                return "default"
-            return uri
-
-        monkeypatch.setattr(wp, "_gsettings", fake_gsettings)
-        return wp
-
-    def test_direct_image_uri(self, tmp_path, monkeypatch):
-        img = _image(tmp_path)
-        wp = self._wallpaper(monkeypatch, f"file://{img}")
-        assert wp.current().image_path == str(img)
-
-    def test_resolves_image_from_slideshow_xml(self, tmp_path, monkeypatch):
-        img = _image(tmp_path, "frame.jpg")
-        xml = tmp_path / "slideshow.xml"
-        xml.write_text(
-            f"<background><static><file>{img}</file></static>"
-            f"<transition><to>/nope/missing.jpg</to></transition></background>",
-            encoding="utf-8",
-        )
-        wp = self._wallpaper(monkeypatch, f"file://{xml}")
-        assert wp.current().image_path == str(img)
-
-    def test_none_when_xml_has_no_usable_image(self, tmp_path, monkeypatch):
-        xml = tmp_path / "empty.xml"
-        xml.write_text("<background></background>", encoding="utf-8")
-        wp = self._wallpaper(monkeypatch, f"file://{xml}")
-        assert wp.current() is None

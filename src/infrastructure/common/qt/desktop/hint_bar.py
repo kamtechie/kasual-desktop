@@ -18,7 +18,6 @@ from domain.navigation.bar_views import HintBarView
 from domain.navigation.hints import Button, Direction, Hints
 from domain.shared.i18n import translate
 from infrastructure.common.qt._meta import ProtocolQtMeta
-from infrastructure.common.qt.ui.deferred_unmap import DeferredUnmap
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
 from infrastructure.common.qt.ui.top_surface import (
     promote_overlay_surface, surface_sized_by_compositor,
@@ -75,7 +74,6 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setStyleSheet("background: transparent;")
         self.setFixedHeight(SURFACE_H)
-        self._deferred_unmap = DeferredUnmap(self)
 
         outer = QVBoxLayout(self)
         # The stretch below sits above the bar, so any surplus height the
@@ -129,11 +127,7 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
     def showEvent(self, event) -> None:
         super().showEvent(event)
 
-    def hide(self) -> None:
-        self._deferred_unmap.hide()
-
     def show_at_bottom(self) -> None:
-        self._deferred_unmap.cancel()
         self.position_at_bottom()
         self.show()
         self.raise_()
@@ -143,9 +137,8 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
     def position_at_bottom(self) -> None:
         """Size the bar to the bottom strip of the primary screen.
 
-        Called by the Desktop *before* show(). Skipped where layer-shell anchors
-        already size the surface; on GNOME the position is ignored (Mutter places
-        top-levels) but the width must be ours, set before the first map."""
+        Called by the Desktop before ``show()``. Layer-shell anchors size the
+        production surface; this fallback positions offscreen/test widgets."""
         if surface_sized_by_compositor():
             return
         screen = QGuiApplication.primaryScreen()
@@ -198,7 +191,7 @@ class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
             if widget is not None:
                 # Hide now (so it stops painting immediately) but keep it parented
                 # — setParent(None) would briefly turn each old glyph into its own
-                # stray top-level window on KWin. deleteLater() then disposes it.
+                # stray top-level window. deleteLater() then disposes it.
                 widget.hide()
                 widget.deleteLater()
 

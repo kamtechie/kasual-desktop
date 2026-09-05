@@ -1,6 +1,6 @@
 """Client for Kasual Desktop's test API (KD_TEST_API=1) — read the shell's state.
 
-Layer-shell surfaces never appear in KWin's stackingOrder, so what KD has on
+Layer-shell surfaces are not part of the regular toplevel list, so what KD has on
 screen can only be learned from KD itself. The protocol makes the answers
 conclusive: the Home menu is an `overlay`-layer surface, so mapped ⇒ above every
 window, game included; the ceded Desktop sunk to `bottom` ⇒ below the app's

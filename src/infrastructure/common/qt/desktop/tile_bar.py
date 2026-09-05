@@ -75,8 +75,7 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         self._dyn_separator: QWidget | None                 = None
         # window_id → pid for dynamic tiles (used for trigger inheritance)
         self._dynamic_pids:  dict[str, int]                 = {}
-        # Last window list from KWin (as domain Windows) — used for the
-        # window-presence running check in is_tile_running.
+        # Last compositor window list, used by the running-state check.
         self._last_windows:  list[Window]                   = []
         # Lets a periodic refresh skip rebuild (and restarting a tile's marquee)
         # when the visible dynamic tiles haven't actually changed.
@@ -143,7 +142,7 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
 
     @property
     def last_windows(self) -> list[Window]:
-        """The last window list from KWin (as domain Windows)."""
+        """The last compositor window list."""
         return self._last_windows
 
     # ── Navigation / focus ──────────────────────────────────────────────────

@@ -63,7 +63,7 @@ def main() -> int:
     scenarios = _discover()
     parser = argparse.ArgumentParser(
         description='Behavioral scenarios for Kasual Desktop, against the live Wayland '
-                    'session (KDE, GNOME, Hyprland or Sway). With no arguments, runs '
+                    'session (Hyprland or Sway). With no arguments, runs '
                     'them all.')
     parser.add_argument('scenario', nargs='?', choices=sorted(scenarios),
                         help='run only this one')

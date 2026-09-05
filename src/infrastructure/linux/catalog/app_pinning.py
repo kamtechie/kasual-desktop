@@ -33,7 +33,7 @@ class DesktopAppPinning(AppPinningBase):
             return None
 
         # Carry the window's own class, or the pinned tile would never match the
-        # running window back (KWin's class often differs from the command name,
+        # running window back (its class often differs from the command name,
         # and many .desktop files omit StartupWMClass).
         wm_class = window.resource_class or entry.get("StartupWMClass") \
             or _strip_desktop_suffix(window.desktop_file)

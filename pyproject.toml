@@ -13,5 +13,5 @@
 [project]
 name = "kasual-desktop"
 version = "0.0.0-dev"
-description = "Gamepad-first launcher/desktop for KDE Plasma 6 on Wayland."
+description = "Gamepad-first launcher/desktop for Sway and Hyprland."
 requires-python = ">=3.11"

@@ -26,12 +26,12 @@
 </context><context>
     <name>ConfirmDialog</name>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/confirm_dialog.py" line="62" />
+        <location filename="../src/infrastructure/common/qt/overlays/confirm_dialog.py" line="63" />
         <source>Yes</source>
         <translation>Yes</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/confirm_dialog.py" line="63" />
+        <location filename="../src/infrastructure/common/qt/overlays/confirm_dialog.py" line="64" />
         <source>No</source>
         <translation>No</translation>
     </message>
@@ -397,51 +397,6 @@
         <translation>No notifications</translation>
     </message>
     <message>
-        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="138" />
-        <source>Kasual Desktop needs its GNOME Shell helper extension to manage windows.
-
-Enable it now?</source>
-        <translation>Kasual Desktop needs its GNOME Shell helper extension to manage windows.
-
-Enable it now?</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="143" />
-        <source>Enable</source>
-        <translation>Enable</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="144" />
-        <source>Not now</source>
-        <translation>Not now</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="155" />
-        <source>The Kasual Helper GNOME Shell extension isn't installed. Install the Kasual Desktop package, then enable it with:</source>
-        <translation>The Kasual Helper GNOME Shell extension isn't installed. Install the Kasual Desktop package, then enable it with:</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="161" />
-        <source>Kasual Desktop couldn't enable its GNOME Shell helper extension. Enable it manually with:</source>
-        <translation>Kasual Desktop couldn't enable its GNOME Shell helper extension. Enable it manually with:</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="166" />
-        <source>then retry.</source>
-        <translation>then retry.</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="169" />
-        <source>Retry</source>
-        <translation>Retry</translation>
-    </message>
-    <message>
-        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="42" />
-        <location filename="../src/infrastructure/common/qt/overlays/preflight_overlay.py" line="170" />
-        <source>Quit</source>
-        <translation>Quit</translation>
-    </message>
-    <message>
         <location filename="../src/infrastructure/common/qt/ui/tray.py" line="35" />
         <source>Show Desktop</source>
         <translation>Show Desktop</translation>
@@ -455,6 +410,11 @@ Enable it now?</translation>
         <location filename="../src/infrastructure/common/qt/ui/tray.py" line="39" />
         <source>About…</source>
         <translation>About…</translation>
+    </message>
+    <message>
+        <location filename="../src/infrastructure/common/qt/ui/tray.py" line="42" />
+        <source>Quit</source>
+        <translation>Quit</translation>
     </message>
 </context><context>
     <name>LogViewer</name>

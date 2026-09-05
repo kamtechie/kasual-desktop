@@ -12,7 +12,6 @@ from domain.shell.foreground import ForegroundState
 from domain.catalog.target import AppTarget, Target, WindowTarget
 from domain.input.pad_control import PadControl
 from domain.lifecycle.app_control import AppControl
-from domain.lifecycle.cede_depth import CedeDepth
 from domain.lifecycle.foreground_inspector import ForegroundInspector
 from domain.lifecycle.launch_hide import LaunchHide
 from domain.lifecycle.launch_show import LaunchShow
@@ -48,7 +47,6 @@ class AppLifecycle(AppControl):
         foreground: ForegroundState,
         deferred_hide: LaunchHide,
         deferred_show: LaunchShow,
-        cede_depth: CedeDepth,
         tilebar: TileBarView,
         pad_handler: Callable[[str], None],
         scheduler: Scheduler,
@@ -66,7 +64,6 @@ class AppLifecycle(AppControl):
         self._foreground    = foreground
         self._deferred_hide = deferred_hide
         self._deferred_show = deferred_show
-        self._cede_depth    = cede_depth
         self._tilebar       = tilebar
         self._pad_handler   = pad_handler
         self._scheduler     = scheduler
@@ -122,7 +119,6 @@ class AppLifecycle(AppControl):
                 # Defer the hide until the window maps, so no DE-desktop flash.
                 self._deferred_hide.arm(app)
                 self._deferred_show.arm(app)
-                self._cede_depth.arm(app)
 
     def dispatch_tile_action(self, item: MenuItem) -> None:
         if item.action in (LAUNCH, RESTORE):
@@ -137,7 +133,6 @@ class AppLifecycle(AppControl):
             self._gamepad.set_app_btn_mode_trigger(app.recall_menu_trigger)
             self._arranger.raise_app(app)
             self._deferred_show.arm(app)
-            self._cede_depth.arm(app)
         else:
             self._gamepad.set_app_btn_mode_trigger(target.trigger)
             self._wm.activate_window(target.window_id)
@@ -148,9 +143,7 @@ class AppLifecycle(AppControl):
             self._view.withdraw_view()
 
     def _target_is_fullscreen(self, target: Target) -> bool:
-        """True if the restored app's/existing window covers the screen — KWin
-        stacks such a window above layer-shell TOP, so ceding (staying mapped
-        on TOP with Keyboard.NONE) keeps the app visible."""
+        """Whether the restored target already has a screen-covering window."""
         windows = self._wm.cached_windows()
         if isinstance(target, AppTarget):
             app = self._apps[target.index]
@@ -230,9 +223,9 @@ class AppLifecycle(AppControl):
     def on_app_finished(self, app_id: str) -> None:
         if self._forwarder_launch_in_flight(app_id):
             # A Steam forwarder hands the game to a running Steam and exits before the
-            # game has drawn anything. Its exit is not the app ending: DeferredHide,
-            # DeferredShow and CedeDepth are already armed and will cede once the
-            # window maps and return once it is gone. Tearing down here would strand
+            # game has drawn anything. Its exit is not the app ending: DeferredHide
+            # and DeferredShow are already armed and will cede once the window maps
+            # and return once it is gone. Tearing down here would strand
             # KD's chrome over the game that maps a moment later.
             logger.info("%s forwarder handed off; awaiting the game's window", app_id)
             self._scheduler.call_later(
@@ -268,7 +261,6 @@ class AppLifecycle(AppControl):
     def _return_from(self, app_id: str) -> None:
         self._pending_return = None
         self._deferred_show.cancel()
-        self._cede_depth.cancel()
         self._foreground.clear_if_app(app_id)
         if not self._view.is_visible():
             self.reactivate_desktop()
@@ -340,7 +332,6 @@ class AppLifecycle(AppControl):
         """Restore Desktop input control and surface it. Idempotent. Resets the
         BTN_MODE trigger so no app-specific HOLD_1S lingers."""
         self._deferred_show.cancel()
-        self._cede_depth.cancel()
         self._gamepad.set_app_btn_mode_trigger(Trigger.CLICK)
         self._gamepad.push_handler(self._pad_handler)
         if not self._gamepad.is_connected():

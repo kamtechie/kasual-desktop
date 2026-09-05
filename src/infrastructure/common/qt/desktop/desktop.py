@@ -452,7 +452,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def changeEvent(self, event) -> None:
         super().changeEvent(event)
         if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
-            # KWin giving us focus back delegates the reactivate decision to the
+            # A compositor focus return delegates the reactivate decision to the
             # domain layer; also covers launcher-forwarder apps (e.g. `steam
             # steam://...`) whose process exits before app_finished fires.
             self._lifecycle.on_focus_gained()

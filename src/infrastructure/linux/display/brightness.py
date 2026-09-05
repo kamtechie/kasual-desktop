@@ -1,37 +1,12 @@
-"""BrightnessControl adapters — one per mechanism a desktop may expose.
-
-Why several (unlike volume's single pactl adapter): screen brightness has no
-single portable interface. Laptops expose a kernel backlight (sysfs, driven here
-via ``brightnessctl``); KDE Plasma offers a D-Bus PowerManagement service; a
-desktop with an external monitor may have no controllable backlight at all. Each
-adapter implements the same :class:`BrightnessControl` port;
-:func:`select_brightness_control` picks the first one usable on the running
-system, so the overlay, top-bar button and action catalog stay oblivious to
-which DE-specific backend is in play.
-"""
+"""Brightness control through ``brightnessctl``, with a no-op fallback."""
 
 import logging
 import shutil
 import subprocess
 
-from PyQt6.QtCore import QTimer
-
 from domain.system.brightness import Brightness, BrightnessControl
 
 logger = logging.getLogger(__name__)
-
-# Qt 6 ships the tool as ``qdbus6``; the unsuffixed ``qdbus`` is often a broken
-# Qt-version-selector wrapper ("could not find a Qt installation"). Prefer the
-# suffixed binary, falling back only if it is absent.
-_QDBUS_BINARIES = ("qdbus6", "qdbus")
-
-
-def _qdbus_binary() -> str | None:
-    for name in _QDBUS_BINARIES:
-        if shutil.which(name):
-            return name
-    return None
-
 
 class BrightnessctlBrightnessControl(BrightnessControl):
     """Generic, DE-agnostic adapter over the ``brightnessctl`` CLI."""
@@ -77,82 +52,6 @@ class BrightnessctlBrightnessControl(BrightnessControl):
         )
 
 
-class KdeBrightnessControl(BrightnessControl):
-    """Adapter over KDE Plasma's PowerManagement D-Bus service via ``qdbus``.
-
-    PowerManagement reports brightness as an absolute value against a maximum, so
-    the conversion to/from the 0–100 domain scale happens here."""
-
-    _SERVICE = "org.kde.Solid.PowerManagement"
-    _PATH    = "/org/kde/Solid/PowerManagement/Actions/BrightnessControl"
-    _IFACE   = "org.kde.Solid.PowerManagement.Actions.BrightnessControl"
-
-    _DEBOUNCE_MS = 50
-
-    def __init__(self, qdbus: str = "qdbus6") -> None:
-        self._qdbus = qdbus
-        self._max: int | None = None   # brightnessMax is fixed for the session
-        self._pending: Brightness | None = None
-        self._debounce = QTimer()
-        self._debounce.setSingleShot(True)
-        self._debounce.setInterval(self._DEBOUNCE_MS)
-        self._debounce.timeout.connect(self._flush)
-
-    def get(self) -> Brightness:
-        try:
-            current = int(self._call("brightness"))
-            maximum = self._brightness_max()
-            if maximum <= 0:
-                return Brightness(Brightness.DEFAULT)
-            return Brightness(round(current * 100 / maximum))
-        except Exception:
-            return Brightness(Brightness.DEFAULT)
-
-    def set(self, brightness: Brightness) -> None:
-        # Slider drags fire valueChanged per pixel; collapse a burst of ticks
-        # into a single D-Bus call ~50ms after the last one.
-        self._pending = brightness
-        self._debounce.start()
-
-    def _flush(self) -> None:
-        brightness = self._pending
-        if brightness is None:
-            return
-        self._pending = None
-        try:
-            maximum = self._brightness_max()
-            absolute = round(brightness.value * maximum / 100)
-            subprocess.Popen(
-                [self._qdbus, self._SERVICE, self._PATH,
-                 f"{self._IFACE}.setBrightnessSilent", str(absolute)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-        except Exception as exc:
-            logger.error("Error during brightness setting: %s", exc)
-
-    def is_controllable(self) -> bool:
-        """True if PowerManagement reports a positive maximum brightness.
-
-        A Plasma session driving only an external monitor with no controllable
-        backlight reports a zero (or unavailable) maximum — treated as 'no
-        controllable backlight'."""
-        try:
-            return self._brightness_max() > 0
-        except Exception:
-            return False
-
-    def _brightness_max(self) -> int:
-        if self._max is None:
-            self._max = int(self._call("brightnessMax"))
-        return self._max
-
-    def _call(self, method: str) -> str:
-        return subprocess.check_output(
-            [self._qdbus, self._SERVICE, self._PATH, f"{self._IFACE}.{method}"],
-            text=True, stderr=subprocess.DEVNULL,
-        ).strip()
-
-
 class NullBrightnessControl(BrightnessControl):
     """No-op fallback for systems with no controllable backlight (e.g. a desktop
     on an external monitor). Reports a fixed level and ignores changes, so the UI
@@ -169,22 +68,9 @@ class NullBrightnessControl(BrightnessControl):
 
 
 def select_brightness_control() -> BrightnessControl:
-    """Pick the best available BrightnessControl for the running system.
-
-    Prefers a real kernel backlight via ``brightnessctl`` (works under any DE),
-    then KDE's D-Bus service, and finally a no-op fallback. An installed backend
-    that drives nothing on this host is skipped rather than shadowing the next
-    one: ``brightnessctl`` ships as a package dependency even on desktops whose
-    only adjustable screen is an external monitor reachable over KDE's D-Bus.
-    This is the single DE-dependent decision; everything upstream depends only on
-    the port."""
-    candidates: list[BrightnessControl] = []
+    """Use ``brightnessctl`` when it controls a backlight, otherwise disable UI."""
     if shutil.which("brightnessctl"):
-        candidates.append(BrightnessctlBrightnessControl())
-    qdbus = _qdbus_binary()
-    if qdbus:
-        candidates.append(KdeBrightnessControl(qdbus))
-    for control in candidates:
+        control = BrightnessctlBrightnessControl()
         if control.is_controllable():
             return control
     logger.warning("No brightness backend available; brightness control disabled")

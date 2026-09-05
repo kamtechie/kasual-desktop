@@ -91,8 +91,7 @@ class SwayWindowManager(WlrootsWindowManager):
     # ── launcher focus follow ────────────────────────────────────────────────
     # Sway refuses focus to a window mapped behind a fullscreen one, so a launcher
     # (Witcher 3's REDlauncher behind Steam Big Picture) maps unfocused and every
-    # pad press goes to Big Picture. KWin, Mutter and Hyprland focus the new window
-    # themselves; Sway does not, so KD keeps chasing the launch's own windows until
+    # pad press goes to Big Picture. KD keeps chasing the launch's own windows until
     # focus lands inside the app — an explicit focus also drops the fullscreen
     # window, after which Sway focuses whatever maps next on its own.
 

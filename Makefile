@@ -23,8 +23,6 @@ VERSION := $(shell grep -oP 'version\s*=\s*"\K[^"]+' pyproject.toml)
 endif
 STAGE    := build/stage
 APPROOT  := $(STAGE)/usr/share/kasual-desktop
-EXT_UUID := kasual-helper@consoledesktop.org
-EXTROOT  := $(STAGE)/usr/share/gnome-shell/extensions/$(EXT_UUID)
 
 # What lands under /usr/share/kasual-desktop. Excludes test/dev cruft and the
 # source .ts translations (only compiled .qm ship).
@@ -54,10 +52,6 @@ stage:
 	install -Dm644 packaging/kasual-desktop.png      $(STAGE)/usr/share/icons/hicolor/256x256/apps/kasual-desktop.png
 	# evdev gamepad access — vendor udev rule, reloaded at install by postinstall.sh.
 	install -Dm644 packaging/99-kasual-desktop.rules $(STAGE)/usr/lib/udev/rules.d/99-kasual-desktop.rules
-	# GNOME Shell companion extension; inert on other compositors, and each user
-	# still has to `gnome-extensions enable $(EXT_UUID)`.
-	install -Dm644 packaging/gnome-extension/$(EXT_UUID)/metadata.json $(EXTROOT)/metadata.json
-	install -Dm644 packaging/gnome-extension/$(EXT_UUID)/extension.js  $(EXTROOT)/extension.js
 	chmod +x $(APPROOT)/apps/*/*.sh
 
 deb: stage

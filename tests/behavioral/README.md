@@ -7,11 +7,8 @@ this suite is run by hand against a live session before a release, not in CI. It
 needs a Wayland session, a GPU and real games, and its scenarios may be hardcoded
 to one developer machine's library.
 
-It runs on every compositor Kasual Desktop supports — KDE, GNOME, Hyprland and
-Sway — each proven on a live session, the whole suite green on all four. A scenario
-names the windows it needs and the harness picks the backend for whatever is
-running; see `PORTING.md` for how that was arrived at, down to the last product gap
-it exposed (Sway would not focus a launcher behind a fullscreen window) and closed.
+It runs on both supported compositors, Hyprland and Sway. A scenario names the
+windows it needs and the harness picks the backend for the current session.
 
 ## Why this exists
 
@@ -21,7 +18,7 @@ wiring) and passes 1200+ tests. It does not cover what actually broke:
 - **KD's surfaces stacked against windows we do not own.** Kingdom Come's splash
   and the Witcher 3's RED Launcher are ordinary, non-fullscreen windows that pop
   up over Steam and disappear once the engine takes the screen. They forced the
-  ceding rework (`cede_depth`) on both GNOME and KDE.
+  compositor-specific ceding behavior.
 - **Whether a piece of KD is really on screen.** A widget that is "shown" is not
   necessarily the current page of a stack; a surface that is mapped is not
   necessarily on top.
@@ -46,8 +43,8 @@ method.
   weak at driving foreign applications (Steam, the game). Expensive.
 - **dogtail / AT-SPI** — introspection through accessibility; works for Qt
   (`QT_ACCESSIBILITY=1`), but games implement no accessibility. Brittle.
-- **openQA** — conceptually the closest (it tests whole KDE/GNOME sessions in a
-  VM with screenshots and "needles"), but it is heavy machinery, and a GPU-passthrough
+- **openQA** — conceptually the closest (it tests whole desktop sessions in a VM
+  with screenshots and "needles"), but it is heavy machinery, and a GPU-passthrough
   VM for games is a project of its own. We borrow its needle model, not the tool.
 - **Playwright / Selenium** — web only. Worth noting as calibration: Playwright's
   `toBeVisible()` means "non-empty bounding box and not `display:none`" — it does
@@ -71,19 +68,10 @@ which shell surfaces are on screen. (For hands-on diagnosis there is also
 
 ### Layer 2 — the compositor's scene (our windows and everyone else's)
 
-- **KWin**: the scripting API (JS over D-Bus) gives `workspace.stackingOrder` with
-  geometries, and per-window signals to drive an event watcher. **Caveat, learned
-  the hard way: layer-shell surfaces do not appear there at all** — KWin's
-  scripting API exposes toplevels only, so KD's own Desktop, header and hint bar
-  are invisible to it. Their stacking can only come from KD itself (layer 1).
 - **Hyprland**: `hyprctl layers -j` (layer-shell surfaces per output and layer)
   plus `hyprctl clients -j` (windows, fullscreen, workspace). The layer-shell
   protocol guarantees that the *overlay* layer renders above fullscreen, so
   "mapped on overlay ⇒ above the game" is a deductively sound inference.
-- **GNOME**: the bundled Shell extension can read Clutter's actor tree — literally
-  the compositor's scene graph (`global.get_window_actors()`, and per actor its
-  visibility, opacity and paint order). The deepest introspection of the four; the
-  extension can expose a test endpoint over D-Bus.
 - **Sway**: `get_tree` has a `visible` field for toplevels, but barely exposes
   layer-shell — the shallowest of the four.
 
@@ -102,10 +90,8 @@ not come out on top; (b) that the pixels left the GPU unmangled (alpha=0, a blac
 frame); (c) **what is in a foreign window's frames** — a game's content exists only
 as pixels.
 
-When needed: capture from the compositor (it must include layer-shell!) — `grim` /
-`wf-recorder` on wlroots, `spectacle -b -n -o` or the `org.kde.KWin.ScreenShot2`
-D-Bus API on KDE, the Shell's D-Bus API on GNOME; universally, a PipeWire stream
-through the ScreenCast portal. Assertions by template matching (OpenCV
+When needed, capture from the compositor with `grim` / `wf-recorder`, or use a
+PipeWire stream through the ScreenCast portal. Assertions by template matching (OpenCV
 `cv2.matchTemplate`, threshold ~0.95) against reference crops kept in the repo
 (openQA's needle model). For fleeting things such as splashes, record the whole run
 and analyse frames afterwards ("there exists a frame in which the needle matches"),
@@ -126,9 +112,7 @@ The structural signals available for the rest:
 
 - **Window identity and lifecycle**: a toplevel's `app_id` — Steam games get
   `steam_app_<appid>` (KCD: `steam_app_379430`, W3: `steam_app_292030`) — plus
-  title, geometry, fullscreen. Event sources: KWin scripting signals (KDE),
-  wlr-foreign-toplevel-management (wlroots), Mutter/Clutter signals in the
-  extension (GNOME).
+  title, geometry and fullscreen state from the compositor's native IPC.
 - **Proof of rendering**: MangoHud (already integrated in KD) sits in the game's
   render loop and logs FPS to CSV (`MANGOHUD_LOG`), so "the game has been rendering
   >0 FPS for ≥5 s" is assertable without a single pixel. Not wired into the harness
@@ -169,11 +153,8 @@ things follow.
    proof that the ceded Desktop sank under it — a functional assertion that
    subsumes the structural one.
 
-That third point is not just elegance. Whether a *ceded but still mapped* Desktop
-covers a plain window turns out **not to be decidable from KD's state alone** on
-KWin: a focused fullscreen window belonging to the app (Steam's black launch
-screen) already outranks the TOP layer, so the answer depends on what else is in
-the stack. Where a window must be used, we assert that it could be.
+Where a window must be used, the harness asserts that it could actually be used
+rather than relying only on mapped-state bookkeeping.
 
 ## The harness
 
@@ -201,11 +182,6 @@ Inside `harness/`:
   Events are pushed, never polled, so a window that lives for a moment — a splash —
   cannot be missed; `wait_for()` consumes them sequentially, which makes a chain of
   waits assert the *order* of what happened.
-    - `sources/kwin.py` — a script injected into KWin's `/Scripting`, reporting the
-      full `workspace.stackingOrder` on every window event.
-    - `sources/gnome.py` — the Kasual Helper extension's `WindowsChanged` signal
-      (Mutter offers clients no window API at all). The stream is off until the
-      harness asks for it, so a normal session pays nothing for it.
     - `sources/hyprland.py` — Hyprland's `socket2` event stream; and
       `sources/sway.py` — `swaymsg -t subscribe -m`. On both the event carries no
       window list, so each lifecycle event resnapshots from `hyprctl -j clients` /
@@ -304,11 +280,8 @@ logged in — which are printed and left to the person at the keyboard.
 
 Every scenario needs:
 
-- A Wayland session Kasual Desktop supports. The pad and KD's own state can be read
-  anywhere; the windows of *other* apps need a backend for that compositor — KWin,
-  Mutter, Hyprland and Sway each have one. On GNOME the
-  Kasual Helper extension has to be enabled: without it KD has no window manager,
-  and a run would not fail — it would pass against a KD that is not doing its job.
+- A Hyprland or Sway session. The windows of other applications are read through
+  that compositor's native backend.
 - `/dev/uinput` writable (the `input` group, or a udev rule) — as KD itself needs.
 - **[!]** No physical gamepad connected: KD grabs the first pad it finds, and it
   must find the virtual one.
@@ -380,12 +353,6 @@ a coda to this one.
 - `QCoreApplication(sys.argv)` left unassigned is garbage-collected: the service
   name stays on the bus, the object path vanishes, and the watcher receives
   nothing — with no error anywhere.
-- KWin 6.5 has no `workspace.stackingOrderChanged` (the signal is per-window). A
-  JS error kills the whole script silently; the only trace is
-  `journalctl --user -b | grep kwin_scripting`.
-- `loadScript` answers `-1` as a **successful** reply when a script under that
-  plugin name is still loaded after a crashed run — clear it with `qdbus6
-  org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript behavioral_watcher`.
 - A launcher is its own process and outlives the game: killing the game's pid
   leaves it running, and next run it is still on screen, ready to be mistaken for
   a fresh one.

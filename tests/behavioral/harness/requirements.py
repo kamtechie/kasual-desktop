@@ -140,29 +140,9 @@ def sway() -> Requirement:
     )
 
 
-def compositor_ready() -> Requirement:
-    """On GNOME, without the Kasual Helper extension a run would not fail — it would
-    pass against a Kasual Desktop that has no window manager and no way to stay on
-    screen."""
-    def session_is_equipped(_kd: KDClient | None) -> bool:
-        from infrastructure.linux.compositor import Compositor, detect_compositor
-        if detect_compositor() is not Compositor.GNOME:
-            return True
-        from infrastructure.gnome.helper import helper_present
-        return helper_present()
-
-    return Requirement(
-        'the compositor is equipped (on GNOME: the Kasual Helper extension answers)',
-        session_is_equipped,
-        remedy='enable it: gnome-extensions enable kasual-helper@consoledesktop.org '
-               '(a freshly installed extension needs a re-login on Wayland)',
-    )
-
-
 BASE: tuple[Requirement, ...] = (
     kd_running(),
     kd_test_api(),
-    compositor_ready(),
     writable('/dev/uinput',
              '/dev/uinput is writable (the `input` group, or a udev rule)'),
     manual('no physical gamepad is connected — Kasual Desktop grabs the first pad '

@@ -27,8 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 class Compositor(enum.Enum):
-    KDE = "kde"
-    GNOME = "gnome"
     SWAY = "sway"
     HYPRLAND = "hyprland"
     UNKNOWN = "unknown"
@@ -61,12 +59,8 @@ def _in_hyprland_session() -> bool:
 def detect_compositor() -> Compositor:
     """Identify the running Wayland compositor from session env vars.
 
-    A wlroots instance handle (Sway's SWAYSOCK, Hyprland's signature) is decided
-    first: it is exported only inside that compositor's own session, whereas a
-    nested Sway or Hyprland run under a KDE session inherits KDE_FULL_SESSION from
-    its parent and would otherwise be taken for KDE.
-
-    The handle only counts while its socket is alive. Sway's packaging imports
+    A wlroots instance handle (Sway's SWAYSOCK, Hyprland's signature) only counts
+    while its socket is alive. Sway's packaging imports
     SWAYSOCK into the systemd user manager, which outlives the session and hands
     the stale value to every session that follows.
     """
@@ -74,11 +68,6 @@ def detect_compositor() -> Compositor:
         return Compositor.SWAY
     if _in_hyprland_session():
         return Compositor.HYPRLAND
-    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
-    if os.environ.get("KDE_FULL_SESSION") or "kde" in desktop:
-        return Compositor.KDE
-    if "gnome" in desktop:
-        return Compositor.GNOME
     return Compositor.UNKNOWN
 
 
@@ -138,23 +127,12 @@ class NullWindowManager(WindowManager):
 def build_window_manager() -> WindowManager:
     """Construct the WindowManager adapter for the detected compositor."""
     compositor = detect_compositor()
-    if compositor is Compositor.KDE:
-        from infrastructure.kde.wm.window_manager import KWinWindowManager
-        return KWinWindowManager()
     if compositor is Compositor.SWAY:
         from infrastructure.wlroots.wm.sway import SwayWindowManager
         return SwayWindowManager()
     if compositor is Compositor.HYPRLAND:
         from infrastructure.wlroots.wm.hyprland import HyprlandWindowManager
         return HyprlandWindowManager()
-    if compositor is Compositor.GNOME:
-        from infrastructure.gnome.helper import helper_present
-        if helper_present():
-            from infrastructure.gnome.wm.window_manager import GnomeWindowManager
-            return GnomeWindowManager()
-        logger.warning(
-            "GNOME session without the Kasual Helper extension; window switching disabled")
-        return NullWindowManager()
     logger.warning(
         "No window-manager backend for compositor %s; window switching disabled",
         compositor.value,
@@ -165,53 +143,25 @@ def build_window_manager() -> WindowManager:
 def build_system_wallpaper() -> SystemWallpaper:
     """Construct the SystemWallpaper adapter for the detected compositor."""
     compositor = detect_compositor()
-    if compositor is Compositor.KDE:
-        from infrastructure.kde.display.wallpaper import KdeSystemWallpaper
-        return KdeSystemWallpaper()
     if compositor is Compositor.SWAY:
         from infrastructure.wlroots.display.wallpaper import SwayWallpaper
         return SwayWallpaper()
     if compositor is Compositor.HYPRLAND:
         from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
         return HyprlandWallpaper()
-    if compositor is Compositor.GNOME:
-        from infrastructure.gnome.display.wallpaper import GnomeSystemWallpaper
-        return GnomeSystemWallpaper()
     from infrastructure.linux.display.wallpaper import StaticFileWallpaper
     return StaticFileWallpaper()
 
 
 def build_screensaver_waker() -> "ScreenSaverWaker":
-    """Construct the gamepad-activity → screensaver wake for the detected compositor.
-
-    GNOME's freedesktop ScreenSaver proxy only handles Inhibit, so the poke goes
-    through the Kasual Helper extension there; everywhere else the standard
-    ``SimulateUserActivity`` is used (a harmless no-op where unimplemented)."""
+    """Construct the standard gamepad-activity → screensaver wake adapter."""
     from infrastructure.linux.display.screensaver import (
         ScreenSaverWaker, simulate_freedesktop_activity,
     )
-    if detect_compositor() is Compositor.GNOME:
-        from infrastructure.gnome.helper import simulate_user_activity
-        return ScreenSaverWaker(simulate_user_activity)
     return ScreenSaverWaker(simulate_freedesktop_activity)
 
 
 def build_desktop_surface() -> "DesktopSurface":
-    """Construct the DesktopSurface adapter for the detected compositor.
-
-    Layer-shell compositors (KWin, Sway, Hyprland) promote the Desktop to a
-    wlr-layer-shell surface; GNOME (no layer-shell) uses a frameless window that
-    the Kasual Helper extension pins above the foreground app.
-    """
-    compositor = detect_compositor()
-    if compositor is Compositor.GNOME:
-        from infrastructure.gnome.helper import helper_present
-        if helper_present():
-            from infrastructure.gnome.qt.surface import GnomeSurface
-            return GnomeSurface()
+    """Construct the wlroots layer-shell Desktop surface."""
     from infrastructure.linux.wayland.surface import LayerShellSurface
-    # wlroots keeps layer-shell TOP above every window, so there the Desktop
-    # cedes by dropping to the BOTTOM layer; KWin lets a fullscreen app cover TOP.
-    return LayerShellSurface(
-        cede_to_bottom=compositor in (Compositor.HYPRLAND, Compositor.SWAY)
-    )
+    return LayerShellSurface()

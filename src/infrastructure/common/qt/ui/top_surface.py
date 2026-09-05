@@ -1,18 +1,9 @@
-"""Promote a top-level overlay widget above applications on Wayland.
-
-Layer-shell compositors use an OVERLAY-layer surface. On GNOME, the bundled Shell
-extension pins the plain frameless surface. Offscreen tests leave it unchanged.
-"""
-
-import logging
+"""Promote a top-level overlay widget to a wlroots layer-shell surface."""
 
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QWidget
 
 from .layer_shell import Anchor, Keyboard, Layer
-
-logger = logging.getLogger(__name__)
-
 
 def surface_sized_by_compositor() -> bool:
     """Whether the windowing system gives an anchored overlay its geometry.
@@ -20,23 +11,7 @@ def surface_sized_by_compositor() -> bool:
     wlr-layer-shell sizes a surface from its anchors before it is ever mapped.
     Everywhere else the widget must size itself: a compositor-driven resize after
     the fact leaves the client with a buffer it never repaints."""
-    if QGuiApplication.platformName() != "wayland":
-        return False
-    from infrastructure.linux.compositor import Compositor, detect_compositor
-    return detect_compositor() is not Compositor.GNOME
-
-
-def fullscreen_loses_translucency() -> bool:
-    """Whether a fullscreen surface is composited over opaque black.
-
-    Mutter blends a fullscreen window onto black and drops its alpha channel, so a
-    dimming backdrop would hide the screen instead of shading it. A screen-sized
-    ordinary window keeps its alpha. Measured: painting rgba(255,0,0,100) fullscreen
-    reads back as rgba(100,0,0,255)."""
-    if QGuiApplication.platformName() != "wayland":
-        return False
-    from infrastructure.linux.compositor import Compositor, detect_compositor
-    return detect_compositor() is Compositor.GNOME
+    return QGuiApplication.platformName() == "wayland"
 
 
 def promote_overlay_surface(
@@ -49,26 +24,10 @@ def promote_overlay_surface(
 ) -> None:
     """Lift *widget* above everything using the platform's mechanism. Call before
     the widget is shown."""
-    platform = QGuiApplication.platformName()
-    if platform == "wayland":
-        from infrastructure.linux.compositor import Compositor, detect_compositor
-        if detect_compositor() is Compositor.GNOME:
-            # Mutter has no layer-shell; the Kasual Helper extension pins Kasual's
-            # surfaces above the foreground app (a plain frameless top-level here)
-            # and applies the layer/anchors itself, keyed by the window title.
-            from infrastructure.gnome.helper import (
-                helper_present, set_surface_role, show_overlay,
-            )
-            if helper_present():
-                set_surface_role(widget.windowTitle(), layer, anchors)
-                show_overlay()
-            return
-        # The LayerShellQt binding is the Wayland adapter; imported lazily so this
-        # shared dispatcher carries no eager dependency on it (the enums above are
-        # the platform-neutral vocabulary).
-        from infrastructure.linux.wayland.layer_shell import make_layer_surface
-        make_layer_surface(
-            widget, layer=layer, anchors=anchors,
-            exclusive_zone=exclusive_zone, keyboard=keyboard,
-        )
-    # Offscreen tests leave the widget as an ordinary top-level window.
+    if QGuiApplication.platformName() != "wayland":
+        return
+    from infrastructure.linux.wayland.layer_shell import make_layer_surface
+    make_layer_surface(
+        widget, layer=layer, anchors=anchors,
+        exclusive_zone=exclusive_zone, keyboard=keyboard,
+    )

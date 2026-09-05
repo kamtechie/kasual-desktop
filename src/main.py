@@ -5,17 +5,14 @@ import sys
 from pathlib import Path
 
 from infrastructure.linux.compositor import (
-    Compositor, build_desktop_surface, build_screensaver_waker,
+    build_desktop_surface, build_screensaver_waker,
     build_system_wallpaper, build_window_manager, detect_compositor,
 )
 
-# The platform and the shell integration must be selected before QApplication is
-# created; setdefault lets the environment override (e.g. tests force offscreen).
-# Mutter has no layer-shell, and naming the missing integration makes the wayland
-# plugin itself fail to load — there Kasual is a plain window the extension pins.
+# Select Wayland layer-shell before QApplication is created; setdefault lets the
+# environment override it for offscreen tests.
 os.environ.setdefault("QT_QPA_PLATFORM", "wayland")
-if detect_compositor() is not Compositor.GNOME:
-    os.environ.setdefault("QT_WAYLAND_SHELL_INTEGRATION", "layer-shell")
+os.environ.setdefault("QT_WAYLAND_SHELL_INTEGRATION", "layer-shell")
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
@@ -29,7 +26,6 @@ from infrastructure.common.audio.feedback import SoundFeedback
 from infrastructure.common.single_instance import SingleInstanceGuard
 from infrastructure.linux.input.gamepad_watcher import GamepadWatcher
 from infrastructure.common.qt.desktop import build_desktop
-from infrastructure.linux.qt.desktop.cede_depth import CedeDepthWatcher
 from infrastructure.linux.qt.desktop.deferred_hide import DeferredHide
 from infrastructure.linux.qt.desktop.deferred_show import DeferredShow
 from infrastructure.common.qt.cursor_auto_hide import CursorAutoHide
@@ -63,27 +59,6 @@ from infrastructure.common.qt.i18n import install_translations
 logger = logging.getLogger(__name__)
 
 
-def _preflight_gate(app, gamepad, feedback, proceed) -> None:
-    """On GNOME, ensure the helper extension is active before any subsystem starts;
-    everywhere else there is nothing to gate."""
-    if detect_compositor() is not Compositor.GNOME:
-        proceed()
-        return
-    from domain.preflight.extension_gate import ExtensionGate
-    from infrastructure.gnome.extension import (
-        GnomeExtensionActivator, GnomeExtensionProbe,
-    )
-    from infrastructure.common.qt.overlays.preflight_overlay import QtPreflightView
-
-    gate = ExtensionGate(
-        GnomeExtensionProbe(),
-        GnomeExtensionActivator(),
-        QtPreflightView(gamepad, feedback),
-        on_quit=app.quit,
-    )
-    gate.ensure(proceed)
-
-
 def main() -> None:
     # Restore default Ctrl+C handling: Qt's Wayland event loop swallows SIGINT
     # (Python's handler never runs while app.exec() blocks), leaving the app
@@ -97,8 +72,7 @@ def main() -> None:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Kasual Desktop")
-    # Deterministic Wayland app_id: the wm_class the GNOME Helper extension pins by,
-    # and the .desktop the compositor associates the window with.
+    # Deterministic Wayland app_id for compositor/window association.
     app.setDesktopFileName("kasual-desktop")
     app.setApplicationVersion(version)
     app.setQuitOnLastWindowClosed(False)
@@ -181,12 +155,9 @@ def main() -> None:
             power_preference=power_preference,
             deferred_hide_factory=lambda wm_, pm_, on_cede, on_hide:
                 DeferredHide(wm_, pm_, on_cede=on_cede, on_hide=on_hide,
-                             always_cede=detect_compositor()
-                             in (Compositor.HYPRLAND, Compositor.SWAY)),
+                             always_cede=True),
             deferred_show_factory=lambda wm_, pm_, on_show:
                 DeferredShow(wm_, pm_, on_show=on_show),
-            cede_depth_factory=lambda wm_, pm_, on_sink:
-                CedeDepthWatcher(wm_, pm_, on_sink=on_sink),
         )
         # Subscribed after `record` above, so the count is already updated when
         # this runs; delivered on the GUI thread by the monitor's signal hop.
@@ -238,7 +209,7 @@ def main() -> None:
         run_onboarding_or_start(
             provisioning, provisioning_uc, gamepad, feedback, start_session)
 
-    _preflight_gate(app, gamepad, feedback, start)
+    start()
 
     QTimer.singleShot(0, feedback.init)
 

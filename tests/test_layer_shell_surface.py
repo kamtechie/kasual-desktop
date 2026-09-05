@@ -1,17 +1,8 @@
-"""Tests for LayerShellSurface — the keyboard-cede/return logic.
-
-The layer-shell bindings are monkeypatched (no Wayland in tests); the widget is
-a plain fake recording show/hide/update calls. What matters is the strategy:
-drop_below stays mapped on TOP but drops keyboard interactivity, show_fullscreen
-restores keyboard ON_DEMAND, is_visible reports the logical in-front state, and
-every degraded path falls back to a real hide.
-"""
-
-import pytest
+"""Tests for the wlroots layer-shell Desktop surface."""
 
 import infrastructure.linux.wayland.surface as surface_mod
+from infrastructure.common.qt.ui.layer_shell import Keyboard, Layer
 from infrastructure.linux.wayland.surface import LayerShellSurface
-from infrastructure.common.qt.ui.layer_shell import Keyboard
 
 
 class FakeWidget:
@@ -39,94 +30,74 @@ class FakeWidget:
         self.activated += 1
 
 
-def _make(monkeypatch, layered=True, cede_to_bottom=False):
-    calls = {"keyboard": []}
+def _make(monkeypatch, layered=True):
+    calls = {"keyboard": [], "layer": []}
     monkeypatch.setattr(surface_mod, "make_layer_surface",
                         lambda *_a, **_k: layered)
-
-    def fake_set_keyboard(_w, kbd):
-        calls["keyboard"].append(kbd)
-        return True
-
-    monkeypatch.setattr(surface_mod, "set_keyboard", fake_set_keyboard)
-    surface = LayerShellSurface(cede_to_bottom=cede_to_bottom)
+    monkeypatch.setattr(
+        surface_mod, "set_keyboard",
+        lambda _widget, keyboard: calls["keyboard"].append(keyboard) or True,
+    )
+    monkeypatch.setattr(
+        surface_mod, "set_layer",
+        lambda _widget, layer: calls["layer"].append(layer) or True,
+    )
+    surface = LayerShellSurface()
     widget = FakeWidget()
     surface.install(widget)
     return surface, widget, calls
 
 
 class TestLayeredPath:
-    def test_show_fullscreen_grabs_keyboard(self, monkeypatch):
+    def test_show_fullscreen_restores_top_and_keyboard(self, monkeypatch):
         surface, widget, calls = _make(monkeypatch)
         surface.show_fullscreen()
         assert widget.visible is True
         assert surface.is_visible() is True
+        assert calls["layer"][-1] == Layer.TOP
         assert calls["keyboard"][-1] == Keyboard.ON_DEMAND
 
-    def test_drop_below_keeps_widget_mapped(self, monkeypatch):
+    def test_drop_below_keeps_widget_mapped_on_bottom(self, monkeypatch):
         surface, widget, calls = _make(monkeypatch)
         surface.show_fullscreen()
         surface.drop_below()
-        assert widget.visible is True          # still mapped on TOP
-        assert surface.is_visible() is False   # logically ceded (no keyboard)
+        assert widget.visible is True
+        assert surface.is_visible() is False
+        assert surface.is_sunk() is True
+        assert calls["layer"][-1] == Layer.BOTTOM
         assert calls["keyboard"][-1] == Keyboard.NONE
 
     def test_return_from_drop_below(self, monkeypatch):
-        surface, widget, calls = _make(monkeypatch)
+        surface, _, calls = _make(monkeypatch)
         surface.show_fullscreen()
         surface.drop_below()
         surface.show_fullscreen()
         assert surface.is_visible() is True
-        assert calls["keyboard"][-1] == Keyboard.ON_DEMAND
+        assert surface.is_sunk() is False
+        assert calls["layer"][-1] == Layer.TOP
 
-    def test_hide_truly_unmaps(self, monkeypatch):
+    def test_hide_truly_unmaps_and_clears_state(self, monkeypatch):
         surface, widget, _ = _make(monkeypatch)
         surface.show_fullscreen()
+        surface.drop_below()
         surface.hide()
         assert widget.visible is False
         assert surface.is_visible() is False
+        assert surface.is_sunk() is False
 
     def test_drop_below_before_first_show_hides(self, monkeypatch):
-        surface, widget, calls = _make(monkeypatch)
+        surface, widget, _ = _make(monkeypatch)
         surface.drop_below()
         assert widget.visible is False
 
-
-class TestSunkState:
-    """is_sunk reports whether the ceded surface sits under the app's ordinary
-    windows — what a behavioral test asserts on when a splash is up."""
-
-    def test_ceded_surface_is_not_sunk_until_it_sinks(self, monkeypatch):
-        surface, _, _ = _make(monkeypatch)
+    def test_sink_is_noop_because_cede_is_already_bottom(self, monkeypatch):
+        surface, _, calls = _make(monkeypatch)
         surface.show_fullscreen()
         surface.drop_below()
-        assert surface.is_sunk() is False
-        surface.sink(True)
-        assert surface.is_sunk() is True
+        layers = list(calls["layer"])
         surface.sink(False)
-        assert surface.is_sunk() is False
-
-    def test_returning_to_the_front_unsinks(self, monkeypatch):
-        surface, _, _ = _make(monkeypatch)
-        surface.show_fullscreen()
-        surface.drop_below()
-        surface.sink(True)
-        surface.show_fullscreen()
-        assert surface.is_sunk() is False
-
-    def test_ceding_to_bottom_is_already_sunk(self, monkeypatch):
-        surface, _, _ = _make(monkeypatch, cede_to_bottom=True)
-        surface.show_fullscreen()
-        surface.drop_below()
+        assert calls["layer"] == layers
         assert surface.is_sunk() is True
-
-    def test_hide_clears_sunk(self, monkeypatch):
-        surface, _, _ = _make(monkeypatch)
-        surface.show_fullscreen()
-        surface.drop_below()
-        surface.sink(True)
-        surface.hide()
-        assert surface.is_sunk() is False
 
 
 class TestDegradedPaths:
@@ -141,5 +112,4 @@ class TestDegradedPaths:
         surface, _, _ = _make(monkeypatch, layered=False)
         surface.show_fullscreen()
         surface.drop_below()
-        surface.sink(True)
         assert surface.is_sunk() is False

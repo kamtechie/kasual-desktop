@@ -96,7 +96,7 @@ def find(stack: list[dict], app_id: str | None = None,
     return out
 
 
-_BACKENDS = {'kde': 'kwin', 'gnome': 'gnome', 'hyprland': 'hyprland', 'sway': 'sway'}
+_BACKENDS = {'hyprland': 'hyprland', 'sway': 'sway'}
 
 
 def backend() -> str | None:
@@ -109,12 +109,6 @@ def backend() -> str | None:
 
 def build_window_source() -> WindowSource:
     name = backend()
-    if name == 'kwin':
-        from tests.behavioral.harness.sources.kwin import KWinWindowSource
-        return KWinWindowSource()
-    if name == 'gnome':
-        from tests.behavioral.harness.sources.gnome import GnomeWindowSource
-        return GnomeWindowSource()
     if name == 'hyprland':
         from tests.behavioral.harness.sources.hyprland import HyprlandWindowSource
         return HyprlandWindowSource()

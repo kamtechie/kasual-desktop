@@ -179,7 +179,7 @@ class NMNetworkMonitor(_NmDbusMixin, QObject, NetworkMonitor, metaclass=Protocol
     @staticmethod
     def _iface_ipv4(ifname: str) -> str | None:
         """The interface's IPv4 via SIOCGIFADDR — avoids NM's nested IP4Config
-        D-Bus structure. Linux-specific (KD only targets Linux/KDE)."""
+        D-Bus structure."""
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             packed = struct.pack("256s", ifname[:15].encode())

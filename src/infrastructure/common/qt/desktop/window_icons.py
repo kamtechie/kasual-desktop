@@ -1,7 +1,6 @@
 """Resolving application icons and names for open windows.
 
-Mirrors how the KWin/Plasma task manager finds an icon for a window, layered
-from most to least authoritative:
+Resolves an icon from most to least authoritative source:
 
   1. The window's .desktop entry — matched by desktop-file id, by
      ``StartupWMClass`` (KService's main hook), or by ``<class>.desktop`` name.

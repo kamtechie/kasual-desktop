@@ -1,11 +1,10 @@
 """Tests for the BrightnessControl adapters and the DE-dependent selector."""
 
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from domain.system.brightness import Brightness
 from infrastructure.linux.display.brightness import (
     BrightnessctlBrightnessControl,
-    KdeBrightnessControl,
     NullBrightnessControl,
     select_brightness_control,
 )
@@ -59,62 +58,6 @@ class TestBrightnessctlIsControllable:
             assert BrightnessctlBrightnessControl().is_controllable() is False
 
 
-class TestKdeBrightnessControl:
-    def test_get_scales_absolute_to_percent(self):
-        with patch.object(KdeBrightnessControl, "_call", side_effect=["400", "1000"]):
-            assert KdeBrightnessControl().get().value == 40
-
-    def test_get_default_when_max_zero(self):
-        with patch.object(KdeBrightnessControl, "_call", side_effect=["0", "0"]):
-            assert KdeBrightnessControl().get() == Brightness(Brightness.DEFAULT)
-
-    def test_set_scales_percent_to_absolute(self):
-        with patch.object(KdeBrightnessControl, "_call", return_value="1000"), \
-             patch("infrastructure.linux.display.brightness.subprocess.Popen") as popen:
-            control = KdeBrightnessControl()
-            control.set(Brightness(40))
-            control._flush()   # debounced — fires ~50ms later in real use
-        assert popen.call_args[0][0][-1] == "400"
-
-    def test_uses_given_qdbus_binary(self):
-        with patch.object(KdeBrightnessControl, "_call", return_value="1000"), \
-             patch("infrastructure.linux.display.brightness.subprocess.Popen") as popen:
-            control = KdeBrightnessControl("qdbus6")
-            control.set(Brightness(40))
-            control._flush()
-        assert popen.call_args[0][0][0] == "qdbus6"
-
-    def test_set_debounces_rapid_calls_into_one(self):
-        with patch.object(KdeBrightnessControl, "_call", return_value="1000"), \
-             patch("infrastructure.linux.display.brightness.subprocess.Popen") as popen:
-            control = KdeBrightnessControl()
-            for pct in (10, 20, 30):
-                control.set(Brightness(pct))
-            control._flush()
-        assert popen.call_count == 1
-        assert popen.call_args[0][0][-1] == "300"   # only the last value wins
-
-    def test_caches_brightness_max_across_calls(self):
-        with patch.object(KdeBrightnessControl, "_call", return_value="1000") as mock_call:
-            control = KdeBrightnessControl()
-            control.get()
-            control.get()
-        assert mock_call.call_args_list.count(call("brightness")) == 2       # read fresh each time...
-        assert mock_call.call_args_list.count(call("brightnessMax")) == 1   # ...but max only once
-
-    def test_is_controllable_true_when_max_positive(self):
-        with patch.object(KdeBrightnessControl, "_call", return_value="1000"):
-            assert KdeBrightnessControl().is_controllable() is True
-
-    def test_is_controllable_false_when_max_zero(self):
-        with patch.object(KdeBrightnessControl, "_call", return_value="0"):
-            assert KdeBrightnessControl().is_controllable() is False
-
-    def test_is_controllable_false_on_error(self):
-        with patch.object(KdeBrightnessControl, "_call", side_effect=OSError):
-            assert KdeBrightnessControl().is_controllable() is False
-
-
 class TestNullBrightnessControl:
     def test_get_returns_default(self):
         assert NullBrightnessControl().get() == Brightness(Brightness.DEFAULT)
@@ -127,46 +70,20 @@ class TestNullBrightnessControl:
 
 
 class TestSelector:
-    def _which(self, *installed: str):
-        return lambda name: f"/usr/bin/{name}" if name in installed else None
-
-    def test_prefers_brightnessctl(self):
+    def test_uses_controllable_brightnessctl(self):
         with patch("infrastructure.linux.display.brightness.shutil.which",
-                   side_effect=self._which("brightnessctl", "qdbus6")), \
-             patch.object(BrightnessctlBrightnessControl, "is_controllable", return_value=True), \
-             patch.object(KdeBrightnessControl, "is_controllable", return_value=True):
+                   return_value="/usr/bin/brightnessctl"), \
+             patch.object(BrightnessctlBrightnessControl, "is_controllable",
+                          return_value=True):
             assert isinstance(select_brightness_control(), BrightnessctlBrightnessControl)
-
-    def test_skips_installed_brightnessctl_without_backlight(self):
-        # A desktop whose only adjustable screen is an external monitor: brightnessctl
-        # is installed (package dependency) but drives nothing; KDE's D-Bus does.
-        with patch("infrastructure.linux.display.brightness.shutil.which",
-                   side_effect=self._which("brightnessctl", "qdbus6")), \
-             patch.object(BrightnessctlBrightnessControl, "is_controllable", return_value=False), \
-             patch.object(KdeBrightnessControl, "is_controllable", return_value=True):
-            assert isinstance(select_brightness_control(), KdeBrightnessControl)
-
-    def test_falls_back_to_kde_with_qdbus6(self):
-        with patch("infrastructure.linux.display.brightness.shutil.which", side_effect=self._which("qdbus6")), \
-             patch.object(KdeBrightnessControl, "is_controllable", return_value=True):
-            adapter = select_brightness_control()
-        assert isinstance(adapter, KdeBrightnessControl)
-        assert adapter._qdbus == "qdbus6"
-
-    def test_kde_falls_back_to_unsuffixed_qdbus(self):
-        with patch("infrastructure.linux.display.brightness.shutil.which", side_effect=self._which("qdbus")), \
-             patch.object(KdeBrightnessControl, "is_controllable", return_value=True):
-            adapter = select_brightness_control()
-        assert isinstance(adapter, KdeBrightnessControl)
-        assert adapter._qdbus == "qdbus"
 
     def test_falls_back_to_null_when_nothing_installed(self):
         with patch("infrastructure.linux.display.brightness.shutil.which", return_value=None):
             assert isinstance(select_brightness_control(), NullBrightnessControl)
 
-    def test_falls_back_to_null_when_no_backend_controls_anything(self):
+    def test_falls_back_to_null_when_brightnessctl_controls_nothing(self):
         with patch("infrastructure.linux.display.brightness.shutil.which",
-                   side_effect=self._which("brightnessctl", "qdbus6")), \
-             patch.object(BrightnessctlBrightnessControl, "is_controllable", return_value=False), \
-             patch.object(KdeBrightnessControl, "is_controllable", return_value=False):
+                   return_value="/usr/bin/brightnessctl"), \
+             patch.object(BrightnessctlBrightnessControl, "is_controllable",
+                          return_value=False):
             assert isinstance(select_brightness_control(), NullBrightnessControl)

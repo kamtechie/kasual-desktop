@@ -3,11 +3,9 @@
 Compositors never see pad input (libinput ignores joysticks and we grab the
 device exclusively), so the session keeps idling during play. Two mechanisms:
 
-- ``ScreenSaverInhibitor`` — prevention: holds a freedesktop ScreenSaver
-  inhibition while KD is on screen (KDE, GNOME and hypridle all honour it).
-- ``ScreenSaverWaker`` — cure: pokes user activity on pad input, waking an
-  already-active screensaver. The wake call is compositor-specific and injected
-  as ``send`` — see ``build_screensaver_waker`` in ``infrastructure.linux.compositor``.
+- ``ScreenSaverInhibitor`` holds a freedesktop ScreenSaver inhibition while KD
+  is on screen.
+- ``ScreenSaverWaker`` pokes user activity on pad input to wake an active saver.
 """
 
 import logging
@@ -23,7 +21,6 @@ logger = logging.getLogger(__name__)
 _SCREENSAVER_SVC  = "org.freedesktop.ScreenSaver"
 _SCREENSAVER_PATH = "/org/freedesktop/ScreenSaver"
 
-# KDE's shortest idle timeout (dim / autolock) is one minute.
 THROTTLE_SECONDS = 30.0
 
 
@@ -51,8 +48,7 @@ def freedesktop_activity_message() -> QDBusMessage:
 
 
 def simulate_freedesktop_activity() -> None:
-    """KDE: resets the compositor idle timers and dismisses a passwordless locker.
-    Fire-and-forget, so a desktop without the service costs a no-op message."""
+    """Reset idle timers through the freedesktop service, fire-and-forget."""
     QDBusConnection.sessionBus().asyncCall(freedesktop_activity_message())
 
 
