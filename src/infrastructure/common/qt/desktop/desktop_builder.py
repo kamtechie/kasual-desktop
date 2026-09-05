@@ -107,8 +107,6 @@ def build_desktop(
         wallpaper=wallpaper,
         feedback=feedback,
         process_manager=process_manager,
-        notifications=notifications,
-        network_control=network_control,
         overlays=overlays,
         app_adder=app_adder,
     )
@@ -176,7 +174,8 @@ def build_desktop(
     dialogs = DialogHostController(
         gamepad, feedback, overlays, widget._hintbar, nav,
         widget._surface, widget._tilebar,
-        TileSettingsEditor(live_apps, settings_store), widget,
+        TileSettingsEditor(live_apps, settings_store),
+        notifications, network_control, widget,
         on_tile_select=lambda item: tile_menu.dispatch(item),
         sync_hint_visibility=lambda: chrome.sync(),
     )

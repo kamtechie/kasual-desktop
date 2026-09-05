@@ -9,13 +9,7 @@ from domain.catalog.tile_bar_model import TileBarModel
 from domain.shell.desktop_state import DesktopState
 from domain.input.vocabulary import Event
 from domain.input.pad_control import PadControl
-from domain.navigation import hints as home_hints
 from infrastructure.common.qt.overlays.info_dialog import InfoDialog
-from infrastructure.common.qt.overlays.notifications_overlay import NotificationsOverlay
-from infrastructure.common.qt.overlays.network_overlay import NetworkOverlay
-from domain.notifications.center import NotificationCenter
-from domain.notifications.list_model import NotificationListModel
-from domain.network.control import NetworkControl
 from domain.network.status import NetworkStatus
 from domain.lifecycle.app_control import AppControl
 from domain.lifecycle.process_manager import ProcessManager
@@ -75,8 +69,6 @@ class Desktop(QWidget):
         wallpaper: SystemWallpaper,
         feedback: Feedback,
         process_manager: ProcessManager,
-        notifications: NotificationCenter,
-        network_control: NetworkControl,
         overlays: OpenOverlays,
         app_adder: AppAdder,
     ):
@@ -87,8 +79,6 @@ class Desktop(QWidget):
         self._system_wallpaper = wallpaper
         self._feedback    = feedback
         self._app_manager = process_manager
-        self._notifications = notifications
-        self._network_control = network_control
         # System-action overlays (volume/brightness/…) and the dialog/popover
         # handles (confirm, tile settings, tile popover) are tracked as a group
         # in this shared registry.
@@ -503,20 +493,10 @@ class Desktop(QWidget):
         self._chrome.update_network_status(status)
 
     def open_network_overlay(self) -> None:
-        overlay = NetworkOverlay(
-            self._gamepad, self._chrome.network_status, self._network_control,
-            self._feedback, parent=self, dim=False,
-        )
-        self._dialogs.present(overlay)
-        self._hintbar.show_hints(home_hints.NETWORK)
+        self._dialogs.show_network(self._chrome.network_status)
 
     def open_notifications_overlay(self) -> None:
         self._chrome.open_notifications()
 
     def _show_notifications_view(self) -> None:
-        model = NotificationListModel(self._notifications, self._feedback)
-        overlay = NotificationsOverlay(
-            self._gamepad, model, self._feedback, parent=self, dim=False,
-        )
-        self._dialogs.present(overlay)
-        self._hintbar.show_hints(home_hints.NOTIFICATIONS)
+        self._dialogs.show_notifications()

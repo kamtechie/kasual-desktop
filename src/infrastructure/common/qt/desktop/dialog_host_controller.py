@@ -20,10 +20,16 @@ from domain.menu.item import MenuItem
 from domain.menu.palette import TILE_COLORS
 from domain.menu.tile import tile_menu_for
 from domain.navigation import hints as home_hints
+from domain.network.control import NetworkControl
+from domain.network.status import NetworkStatus
+from domain.notifications.center import NotificationCenter
+from domain.notifications.list_model import NotificationListModel
 from domain.shared.feedback import Feedback
 from domain.shell.open_overlays import OpenOverlays
 from infrastructure.common.qt.overlays.base_overlay import BaseOverlay
 from infrastructure.common.qt.overlays.confirm_dialog import ConfirmDialog
+from infrastructure.common.qt.overlays.network_overlay import NetworkOverlay
+from infrastructure.common.qt.overlays.notifications_overlay import NotificationsOverlay
 from infrastructure.common.qt.overlays.tile_popover import TilePopoverMenu
 from infrastructure.common.qt.overlays.tile_settings import TileSettings
 
@@ -52,6 +58,8 @@ class DialogHostController:
         surface: LayerShellSurface,
         tilebar: TileBar,
         tile_settings_editor: TileSettingsEditor,
+        notifications: NotificationCenter,
+        network_control: NetworkControl,
         parent: QWidget,
         on_tile_select: Callable[[MenuItem], None],
         sync_hint_visibility: Callable[[], None],
@@ -64,6 +72,8 @@ class DialogHostController:
         self._surface = surface
         self._tilebar = tilebar
         self._tile_settings_editor = tile_settings_editor
+        self._notifications = notifications
+        self._network_control = network_control
         self._parent = parent
         self._on_tile_select = on_tile_select
         self._sync_hint_visibility = sync_hint_visibility
@@ -232,6 +242,22 @@ class DialogHostController:
         self._nav.render()   # restore the tiles-screen hints
 
     # ── Generic top-bar overlays (Network / Notifications) ─────────────────
+
+    def show_network(self, status: NetworkStatus) -> None:
+        overlay = NetworkOverlay(
+            self._gamepad, status, self._network_control,
+            self._feedback, parent=self._parent, dim=False,
+        )
+        self.present(overlay)
+        self._hintbar.show_hints(home_hints.NETWORK)
+
+    def show_notifications(self) -> None:
+        model = NotificationListModel(self._notifications, self._feedback)
+        overlay = NotificationsOverlay(
+            self._gamepad, model, self._feedback, parent=self._parent, dim=False,
+        )
+        self.present(overlay)
+        self._hintbar.show_hints(home_hints.NOTIFICATIONS)
 
     def present(self, overlay: BaseOverlay) -> None:
         """Track a freshly opened top-bar overlay; return focus to the bar when
