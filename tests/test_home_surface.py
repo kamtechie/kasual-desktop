@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import QApplication
 from domain.catalog.target import AppTarget
 from domain.input.vocabulary import Event
 from domain.menu.entry import POWER, RETURN_TO_APP, RETURN_TO_DESKTOP
+from domain.menu.home_menu_model import HomeMenuModel
 from domain.system.actions import NETWORK
 from domain.system.brightness import Brightness
 from domain.system.volume import Volume
@@ -109,9 +110,10 @@ def _surface(qapp, gamepad=None, spy=None):
     from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
     spy = spy or Spy()
     header = HomeHeader(spy.on_header_activate, CARD_WIDTH)
+    feedback = MagicMock()
+    menu_model = HomeMenuModel(feedback, FakeVolume(), FakeBrightness(), FakePowerMenu())
     surface = HomeSurface(
-        gamepad or MagicMock(), MagicMock(),
-        FakeVolume(), FakeBrightness(), FakePowerMenu(), header,
+        gamepad or MagicMock(), feedback, menu_model, header,
         on_action=spy.on_action,
         on_power_chooser=spy.on_power_chooser,
         begin_hints=spy.begin_hints,
@@ -300,7 +302,7 @@ class TestDispatch:
         content = surface._content
         self._focus_header_power(content)
         content.handle_pad(Event.SELECT)
-        assert content._power.activated == 1
+        assert content._model._power.activated == 1
         assert spy.power_choosers == 0
         assert spy.actions == []
         assert surface.is_expanded() is False
@@ -314,7 +316,7 @@ class TestDispatch:
         self._focus_header_power(content)
         content.handle_pad(Event.CLOSE)
         assert spy.power_choosers == 1
-        assert content._power.activated == 0
+        assert content._model._power.activated == 0
         assert spy.actions == []
         assert surface.is_expanded() is True       # menu stays open behind chooser
 

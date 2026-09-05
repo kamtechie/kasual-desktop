@@ -30,13 +30,11 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGraphicsOpacityEffect
 
 from domain.catalog.target import Target
 from domain.input.pad_control import PadControl
+from domain.menu.home_menu_model import HomeMenuModel
 from domain.menu.item import MenuItem
 from domain.shared.event_emitter import Unsubscribe
 from domain.shared.feedback import Cue, Feedback
-from domain.system.brightness import BrightnessControl
 from domain.system.hud import HudControl
-from domain.system.power_menu import PowerMenu
-from domain.system.volume import VolumeControl
 from infrastructure.common.qt.ui import styles
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
 from infrastructure.common.qt.ui.top_surface import (
@@ -80,9 +78,7 @@ class HomeSurface(QWidget):
         self,
         gamepad: PadControl,
         feedback: Feedback,
-        volume: VolumeControl,
-        brightness: BrightnessControl,
-        power: PowerMenu,
+        menu_model: HomeMenuModel,
         header: HomeHeader,
         *,
         on_action: Callable[[MenuItem], None],
@@ -132,7 +128,7 @@ class HomeSurface(QWidget):
         )
         panel_col = QVBoxLayout(self._panel)
         panel_col.setContentsMargins(28, 22, 28, 22)
-        self._content = HomeMenuContent(feedback, volume, brightness, power)
+        self._content = HomeMenuContent(menu_model)
         panel_col.addWidget(self._content)
         outer.addWidget(self._panel, alignment=Qt.AlignmentFlag.AlignHCenter)
         outer.addStretch(1)

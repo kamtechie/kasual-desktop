@@ -21,6 +21,7 @@ from domain.lifecycle.foreground_inspector import ForegroundInspector
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.window_manager import WindowManager
 from domain.menu.dispatcher import TileMenuDispatcher
+from domain.menu.home_menu_model import HomeMenuModel
 from domain.menu.ports import AppPinning, TileSettingsStore, TileOrderStore
 from domain.navigation.focus_navigator import FocusNavigator
 from domain.navigation.tile_mover import TileMover
@@ -179,9 +180,9 @@ def build_desktop(
         make_action_confirm(widget.show_confirm),
     )
     home_actions = HomeActions(action_runner, power_menu)
+    home_menu_model = HomeMenuModel(feedback, volume, brightness, power_menu)
     home_surface = HomeSurface(
-        gamepad, feedback, volume, brightness, power_menu,
-        widget._home_header,
+        gamepad, feedback, home_menu_model, widget._home_header,
         on_action=home_actions.menu_pick,
         on_power_chooser=lambda: power_popover.open_header_chooser(),
         begin_hints=lambda: chrome.begin_overlay_hints(),
