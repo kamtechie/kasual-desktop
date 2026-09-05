@@ -35,6 +35,7 @@ from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
 from domain.shell.home_header_model import HomeHeaderModel
 from domain.shell.home_surface_controller import HomeSurfaceController
+from domain.shell.input_router import DesktopInputRouter, DesktopOverlayPolicy
 from domain.shell.open_overlays import OpenOverlays
 from domain.shell.runtime import ShellRuntime
 from domain.shell.wallpaper import SystemWallpaper
@@ -222,6 +223,21 @@ def build_desktop(
         widget._tilebar.render_reconciled_windows, widget.is_visible,
     )
 
+    input_router = DesktopInputRouter(
+        nav,
+        tile_popover_is_open=lambda: dialogs.tile_popover_open,
+        show_tile_popover=dialogs.show_tile_popover,
+        menu_is_open=home_surface.is_open,
+        menu_hover_header=home_surface.hover_header,
+        menu_activate_header=home_surface.activate_header,
+        menu_context_header=home_surface.context_header,
+        topbar_trigger=widget._topbar.trigger,
+        show_topbar_menu=power_popover.show_topbar,
+    )
+    overlay_policy = DesktopOverlayPolicy(
+        overlays, dialogs.cancel, widget._app_add.cancel, tile_mover.cancel,
+    )
+
     tile_menu = TileMenuDispatcher(
         dispatch_lifecycle=lifecycle.dispatch_tile_action,
         mover=tile_mover,
@@ -242,5 +258,7 @@ def build_desktop(
         home_surface=home_surface,
         power_popover=power_popover,
         runtime=runtime,
+        input_router=input_router,
+        overlay_policy=overlay_policy,
     )
     return widget

@@ -31,6 +31,7 @@ from domain.shared.feedback import Feedback
 from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
 from domain.shell.home_header_model import HomeHeaderModel
+from domain.shell.input_router import DesktopInputRouter, DesktopOverlayPolicy
 from domain.shell.introspection import (
     HEADER, TILES, ConfirmSnapshot, FocusSnapshot, HomeMenuSnapshot, MenuItemSnapshot,
     MenuSectionSnapshot, ShellSnapshot, TileSnapshot,
@@ -163,6 +164,8 @@ class Desktop(QWidget):
         self._home_surface:  'HomeSurface | None'             = None
         self._power_popover: 'PowerPopoverController | None'  = None
         self._runtime:       'ShellRuntime | None'             = None
+        self._input_router:  'DesktopInputRouter | None'       = None
+        self._overlay_policy: 'DesktopOverlayPolicy | None'    = None
 
         self._status_timer = QTimer(self)
         self._status_timer.timeout.connect(self._tilebar.refresh_status)
@@ -188,6 +191,8 @@ class Desktop(QWidget):
         home_surface: 'HomeSurface',
         power_popover: 'PowerPopoverController',
         runtime: 'ShellRuntime',
+        input_router: 'DesktopInputRouter',
+        overlay_policy: 'DesktopOverlayPolicy',
     ) -> None:
         """Inject the domain coordinators assembled by build_desktop and wire the
         orchestration signals. Called once, before the Desktop is ever shown, so
@@ -203,7 +208,9 @@ class Desktop(QWidget):
         self._tile_menu     = tile_menu
         self._home_surface  = home_surface
         self._power_popover = power_popover
-        self._runtime       = runtime
+        self._runtime        = runtime
+        self._input_router   = input_router
+        self._overlay_policy = overlay_policy
 
         self._tilebar.activated.connect(self._runtime.activate_tile)
 
@@ -300,11 +307,7 @@ class Desktop(QWidget):
         over): the registry tears down the group; the confirm handle is among
         them, so its slot just needs clearing. Move mode is not a registered
         overlay (it owns a pushed pad handler), so it is cancelled explicitly."""
-        self._overlays.cancel()
-        self._dialogs.cancel()
-        self._app_add.cancel()
-        if self._tile_mover is not None:
-            self._tile_mover.cancel()
+        self._overlay_policy.dismiss_all()
 
     def resume(self) -> None:
         """Restore the Desktop after reconnecting the gamepad — without resetting state."""
@@ -458,45 +461,26 @@ class Desktop(QWidget):
     # ── Tile actions ───────────────────────────────────────────────────────
 
     def _on_tile_hovered(self, _idx: int) -> None:
-        if self._dialogs.tile_popover_open:
-            return
-        self._nav.hover_tiles()
-
-    def _menu_owns_header(self) -> bool:
-        """True while the expanded Home menu is up: the header is then its navigable
-        zone 0, so header mouse events drive the menu, not the collapsed-view nav."""
-        return self._home_surface.is_open()
+        self._input_router.tile_hovered()
 
     def _on_topbar_hovered(self, idx: int) -> None:
-        if self._menu_owns_header():
-            self._home_surface.hover_header(idx)
-        else:
-            self._nav.hover_topbar(idx)
+        self._input_router.header_hovered(idx)
 
     def _on_topbar_activated(self, idx: int) -> None:
         """A mouse click on a top-bar button: move focus onto it and fire it,
         matching the gamepad A path (Network/Notifications open their overlay,
         Power runs the current default). While the menu is expanded the header is
         its zone 0, so the click dispatches through the menu instead."""
-        if self._menu_owns_header():
-            self._home_surface.activate_header(idx)
-        else:
-            self._nav.hover_topbar(idx)
-            self._topbar.trigger(idx)
+        self._input_router.header_activated(idx)
 
     def _on_topbar_context_menu(self, idx: int) -> None:
         """A right-click on a top-bar button opens its dropdown — only Power has one
         (the Sleep/Restart/Shut Down chooser), matching the gamepad X path. Mirrors
         a right-click on a tile opening its popover."""
-        if self._menu_owns_header():
-            self._home_surface.context_header(idx)
-        else:
-            self._nav.hover_topbar(idx)
-            self._show_topbar_power_menu(idx)
+        self._input_router.header_context_requested(idx)
 
     def _on_tile_context_menu(self) -> None:
-        self._nav.focus_tiles()
-        self._show_tile_popover()
+        self._input_router.tile_context_requested()
 
     def _show_tile_popover(self) -> None:
         self._dialogs.show_tile_popover()
