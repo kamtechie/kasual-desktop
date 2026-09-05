@@ -28,11 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class PadButton(Enum):
-    """A physical gamepad button, independent of the platform key code.
-
-    Each adapter translates its raw code (evdev ``BTN_*`` / pygame button index)
-    into one of these, so the button→Event mapping lives once, in this base.
-    """
+    """A physical gamepad button independent of its evdev code."""
 
     SOUTH  = auto()   # A
     EAST   = auto()   # B
@@ -154,9 +150,8 @@ class BaseGamepadWatcher(
     ) -> tuple[_AxisEdge, str | None]:
         """Classify a bipolar stick/analog-stick axis sample.
 
-        Shared by both adapters; the raw value scale differs (evdev ±32768 vs
-        pygame ±1.0) so the thresholds are injected. Returns the edge and, for a
-        PRESS, the direction Event that just became active.
+        Thresholds are injected for the device's raw value scale. Returns the edge
+        and, for a PRESS, the direction Event that just became active.
         """
         if value < -threshold and current != neg_event:
             return _AxisEdge.PRESS, neg_event

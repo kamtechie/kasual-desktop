@@ -59,8 +59,8 @@ def run_onboarding_or_start(
     """First run shows the picker; otherwise goes straight to `start_session`.
 
     Confirming with zero apps still marks the catalog provisioned, so onboarding
-    won't nag on next launch. `keep_alive` lets Windows park the overlay in its
-    `_refs` bookkeeping — Linux's closures already keep it alive.
+    won't nag on next launch. ``keep_alive`` allows composition roots to retain
+    an explicit overlay reference when needed.
     """
     if needs_provisioning(provisioning):
         logger.info("First run — showing onboarding")

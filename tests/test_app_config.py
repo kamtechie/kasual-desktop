@@ -11,7 +11,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "linux",
-    reason="Tests Linux XDG_CONFIG_HOME path handling; Windows uses %APPDATA%",
+    reason="Tests Linux XDG_CONFIG_HOME path handling",
 )
 
 from domain.catalog.app import App

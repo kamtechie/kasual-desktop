@@ -6,7 +6,6 @@ guarding it through the public TileBar surface afterwards. The pure rules get
 their own focused unit tests in test_domain_window.py once extracted.
 """
 
-import os
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -94,10 +93,7 @@ class TestManagedWindowFiltering:
 
     def test_pgid_membership_excludes(self, bar, app_manager):
         # A window whose process group is one of our launched apps is managed,
-        # even without a class/desktopFile match. POSIX-only: os.getpgid
-        # doesn't exist on Windows.
-        if not hasattr(os, "getpgid"):
-            pytest.skip("os.getpgid is POSIX-only")
+        # even without a class/desktopFile match.
         app_manager.all_running_pids.return_value = [4321]
         with patch("infrastructure.common.qt.desktop.tile_bar.os.getpgid", return_value=4321):
             bar.update_windows([_win(id_="w1", pid=9999, resource_class="mystery")])

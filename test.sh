@@ -1,13 +1,8 @@
 #!/bin/bash
 # Test runner. On Linux uses the SYSTEM Python + PyQt6 (no venv) — install the
 # dev deps with ./install.sh (pulls python3-pytest / python3-pytest-qt too).
-# On macOS uses ./venv if present (pip-installed PyQt6 + pytest-qt).
-#
-# OS-specific tests are skipped via skipif markers in the test files:
-#   - Linux-only:  skipif(sys.platform != "linux")
-#   - Windows-only: skipif(sys.platform != "win32")
-# So on macOS both families are skipped automatically; only cross-platform
-# tests run.
+# On macOS uses ./venv if present (pip-installed PyQt6 + pytest-qt); Linux-only
+# adapter tests skip themselves there.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"

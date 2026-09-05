@@ -13,10 +13,9 @@ from padbackend import (
 )
 from adblocker import AdBlocker, JS_PATCH
 
-# On Linux, Kasual grabs the physical gamepad and exposes a virtual
-# "kasual-vpad" device; the app reads from it because the physical pad is
-# exclusive-grabbed and BTN_MODE is filtered. On Windows the controller is
-# cooperative, so padbackend reads it directly via pygame.
+# Kasual grabs the physical gamepad and exposes a virtual "kasual-vpad" device;
+# the app reads from it because the physical pad is exclusive-grabbed and
+# BTN_MODE is filtered.
 APP_ID = "kasual-youtube"
 VIRTUAL_DEVICE_NAME = "kasual-vpad"
 PHYSICAL_DEVICE_NAME = '8BitDo Ultimate Wireless / Pro 2 Wired Controller'

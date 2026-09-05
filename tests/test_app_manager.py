@@ -11,9 +11,8 @@ Tests:
   - _force_kill(proc) — SIGKILL only when THIS process is still tracked
   - running_pid / all_running_pids / is_running
 
-Subprocess.Popen and threading.Thread are always mocked — tests don't
-start any real processes or threads. Skipped on Windows — Windows uses
-WindowsAppManager (ShellExecuteEx/subprocess) with its own behaviour.
+Subprocess.Popen and threading.Thread are always mocked, so tests don't
+start any real processes or threads.
 """
 
 import signal
@@ -24,7 +23,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "linux",
-    reason="Tests the Linux POSIX AppManager; Windows uses WindowsAppManager",
+    reason="Tests the Linux POSIX AppManager",
 )
 
 

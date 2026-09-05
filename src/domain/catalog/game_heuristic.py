@@ -26,8 +26,7 @@ _LAUNCHER_KEYWORDS = (
 
 
 def looks_like_game(app: App) -> bool:
-    """True if *app* is a game or a known launcher. The name/command fallback is
-    the only signal for Windows ``.lnk`` apps, which carry no category."""
+    """True if *app* is categorized as a game or resembles a known launcher."""
     if app.is_game:
         return True
     hay = f"{app.name} {app.command}".lower()

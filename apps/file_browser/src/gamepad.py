@@ -1,9 +1,7 @@
-"""Gamepad input for File Browser — context-aware: browse mode and media mode.
+"""Gamepad input for File Browser through the virtual ``kasual-vpad`` device.
 
-Platform-dispatched: on Linux reads the virtual ``kasual-vpad`` evdev device and
-emits keyboard events via UInput; on Windows reads the controller via pygame and
-emits keyboard events via Win32 SendInput. The browse/media mode mapping is
-platform-agnostic (string button codes + Key constants from keyinput).
+Translates evdev events into context-aware keyboard controls for browse and media
+modes.
 """
 
 import threading
@@ -16,10 +14,8 @@ from padbackend import (
 )
 
 _TRIGGER_THRESHOLD = 200   # evdev LT/RT raw value (0..255)
-_PG_TRIGGER_THRESHOLD = 0.3  # pygame LT/RT normalized (0..1)
 _REPEAT_DELAY = 0.35
 _REPEAT_INTERVAL = 0.08
-_IS_WINDOWS = __import__("sys").platform == "win32"
 
 
 class PadListener(_PadListener):
@@ -145,10 +141,7 @@ class PadListener(_PadListener):
                 press(Key.KEY_EQUAL)
             self._trigger_active[ABS_RZ] = active
 
-    # ── Axis value interpretation (platform-normalised) ──────────────────────
-    # D-pad: evdev gives -1/0/1, pygame gives -1/0/1 — same convention.
-    # Triggers: evdev gives 0..255, pygame gives 0..1 (with sign flip on some
-    # drivers, hence the abs()). The thresholds are platform-specific.
+    # ── Axis value interpretation ────────────────────────────────────────────
 
     @staticmethod
     def _hat_left(value) -> bool:
@@ -168,8 +161,4 @@ class PadListener(_PadListener):
 
     @staticmethod
     def _trigger_pressed(value) -> bool:
-        if _IS_WINDOWS:
-            # pygame XInput: triggers are -1 (rest) .. 1 (pressed).
-            return value > _PG_TRIGGER_THRESHOLD
-        # evdev: triggers are 0..255.
         return value > _TRIGGER_THRESHOLD

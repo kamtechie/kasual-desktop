@@ -1,12 +1,8 @@
-"""Shared base for the *Pin to menu* adapters across platforms.
+"""Shared placement mechanics for the Linux *Pin to menu* adapter.
 
-Pinning turns a dynamic open-window tile into a configured app by writing a Kasual
-app ``.desktop`` into the catalog directory. The *placement* mechanics — choosing
-the next sort order, a unique filename, reading an entry back, and unpinning — are
-identical on every platform and live here. Only how a window is resolved to a
-launchable :class:`App` differs (Linux looks up the freedesktop ``.desktop``;
-Windows derives it from the window's process), so each platform's adapter
-subclasses this and implements :meth:`pin`.
+Pinning turns a dynamic window tile into a configured app by writing a ``.desktop``
+file. This base owns ordering, unique filenames, read-back, and unpinning; the
+Linux adapter resolves the window to its freedesktop application.
 """
 
 import configparser
@@ -25,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class AppPinningBase(AppPinning):
-    """Platform-neutral placement/unpin mechanics; subclasses implement ``pin``."""
+    """Placement/unpin mechanics; subclasses implement ``pin``."""
 
     def pin(self, window: Window) -> App | None:  # pragma: no cover - abstract
         raise NotImplementedError

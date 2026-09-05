@@ -207,9 +207,8 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._home_surface  = home_surface
         self._power_popover = power_popover
 
-        # Platform reactivation seam: where the surface itself detects the Desktop
-        # should return (Windows polls the foreground window), route it through the
-        # same idempotent domain entry point used by changeEvent on Linux.
+        # Surface reactivation events use the same idempotent domain entry point
+        # as the widget's activation-change handling.
         self._surface.on_reactivate(self._lifecycle.reactivate_desktop)
 
         self._tilebar.activated.connect(self._activate_tile)

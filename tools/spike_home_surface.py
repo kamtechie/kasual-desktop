@@ -33,15 +33,6 @@ Obiektywna weryfikacja (że to wciąż JEDNA powierzchnia):
 Dokładnie jeden `get_layer_surface` i ZERO `destroy` przez cały cykl =
 powierzchnia trwała (morph, nie remap).
 
-Parytet Windows (NA PAPIERZE — nie testowane w tym środowisku Wayland/KDE)
--------------------------------------------------------------------------
-Windows nie ma layer-shell. Odpowiednik: jeden top-level z WS_EX_TOPMOST
-(jak promote_overlay_surface dla "windows"), zakotwiczony do górnej krawędzi
-ekranu o **stałej** geometrii = stan rozwinięty; ten sam wewnętrzny morph
-content (maximumHeight + opacity). DWM nie animuje, bo okno nie zmienia
-rozmiaru ani nie jest map/unmap. Klucz przenośności: trzymać powierzchnię
-stałą, morphować wnętrze — identycznie jak tu. Tryb SPIKE_RESIZE odradzany na
-obu platformach.
 """
 
 import ctypes

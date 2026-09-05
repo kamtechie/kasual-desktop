@@ -54,8 +54,8 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         self._app_manager   = app_manager
         self._icon_resolver = WindowIconResolver()
         # Parent-PID lookup for recall-trigger inheritance (a dynamic window
-        # owned by a launcher inherits its trigger). Linux injects the /proc
-        # reader; platforms without a process tree (Windows) pass a no-op.
+        # owned by a launcher inherits its trigger). Production injects the
+        # /proc reader; tests may use the no-op default.
         self._parent_of     = parent_of or (lambda _pid: None)
 
         self._tile_index = 0
@@ -81,8 +81,7 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         # Lets a periodic refresh skip rebuild (and restarting a tile's marquee)
         # when the visible dynamic tiles haven't actually changed.
         self._dyn_signature: tuple | None                   = None
-        # Stabilises tile order across refreshes — needed on Windows, where
-        # EnumWindows returns Z-order; a no-op on KWin's already-stable order.
+        # Stabilises tile order if a compositor changes enumeration order.
         self._dyn_order: list[str]                          = []
 
         self.setFixedHeight(TILE_SEL_H + 100)
@@ -133,9 +132,7 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
             if not themed.isNull():
                 qicon = themed
         if qicon is None and not app.icon:
-            # No glyph/theme icon (e.g. a Windows .desktop whose command is a
-            # .lnk/exe): fall back to the OS shell icon. No-op on Linux, where the
-            # command is a shell name rather than a file path.
+            # No glyph/theme icon: try the desktop's icon for a file command.
             from infrastructure.common.qt.icons import shell_icon
             qicon = shell_icon(app.command)
         tile = AppTile(name=app.name, icon_name=qta_name, color=app.color, qicon=qicon)
@@ -391,12 +388,9 @@ class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclas
         running_pids = set(self._app_manager.all_running_pids())
 
         def _owned_by_running_group(window: Window) -> bool:
-            # os.getpgid is Unix-only (absent on Windows → AttributeError); the
-            # process-group rule simply doesn't apply there, so fall through to
-            # False and let matches_app / pinned-id filtering stand on its own.
             try:
                 return bool(running_pids) and os.getpgid(window.pid) in running_pids
-            except (OSError, AttributeError):
+            except OSError:
                 return False
 
         extern_windows = external_windows(windows, self._apps, _owned_by_running_group)

@@ -10,8 +10,7 @@ Tests:
   - _is_gamepad (device filtering)
 
 The _loop thread is always blocked by the mock_gamepad fixture,
-so no evdev or UInput hardware is needed. Skipped on Windows —
-Windows uses WindowsGamepadWatcher (pygame) with its own tests.
+so no evdev or UInput hardware is needed.
 """
 
 import sys
@@ -21,7 +20,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "linux",
-    reason="Tests the Linux evdev GamepadWatcher; Windows uses WindowsGamepadWatcher (pygame)",
+    reason="Tests the Linux evdev GamepadWatcher",
 )
 
 from evdev import ecodes

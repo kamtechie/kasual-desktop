@@ -6,9 +6,8 @@ the task manager / :mod:`window_icons` uses — by app-id filename or by
 ``StartupWMClass``), then writes a Kasual app ``.desktop`` into the catalog
 directory so the tile persists across restarts.
 
-The placement/unpin mechanics are shared with the Windows adapter via
-:class:`AppPinningBase`; only the window→``App`` *source resolution* below is
-freedesktop-specific.
+The placement/unpin mechanics live in :class:`AppPinningBase`; this adapter
+provides freedesktop-specific window-to-``App`` source resolution.
 """
 
 import logging

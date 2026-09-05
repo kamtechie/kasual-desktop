@@ -1,21 +1,11 @@
-"""Promote a top-level overlay widget to an always-on-top surface, per platform.
+"""Promote a top-level overlay widget above applications on Wayland.
 
-Overlays (ConfirmDialog, the tile popover, Volume/Brightness/…, the Home Overlay)
-are standalone top-level windows that must sit above the Desktop, normal windows,
-and fullscreen apps. *How* a window achieves that differs by windowing system:
-
-  - Wayland/KWin → a wlr-layer-shell OVERLAY-layer surface (above everything);
-  - Windows      → the WS_EX_TOPMOST extended style, which lifts the window above
-                   the (non-topmost) foreground app once it is shown;
-  - X11/offscreen → left as an ordinary top-level window (the pre-existing fallback).
-
-This is the overlay counterpart of the Desktop's ``DesktopSurface`` seam, keeping
-the overlays themselves shared across platforms.
+Layer-shell compositors use an OVERLAY-layer surface. On GNOME, the bundled Shell
+extension pins the plain frameless surface. Offscreen tests leave it unchanged.
 """
 
 import logging
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QWidget
 
@@ -81,9 +71,4 @@ def promote_overlay_surface(
             widget, layer=layer, anchors=anchors,
             exclusive_zone=exclusive_zone, keyboard=keyboard,
         )
-    elif platform.startswith("windows"):
-        # Qt-managed WS_EX_TOPMOST: set via the window flag rather than raw
-        # SetWindowLong, which Qt resets when it shows the window. Added to the
-        # existing flags (the overlay is already FramelessWindowHint).
-        widget.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-    # else: X11 / offscreen — leave as an ordinary top-level window (unchanged).
+    # Offscreen tests leave the widget as an ordinary top-level window.

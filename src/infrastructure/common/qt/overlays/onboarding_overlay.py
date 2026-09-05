@@ -196,8 +196,8 @@ class OnboardingOverlay(BaseOverlay, ProvisioningView, metaclass=ProtocolQtMeta)
     @staticmethod
     def _candidate_icon(candidate: CandidateApp) -> QIcon | None:
         """The row icon for a candidate, mirroring the tile bar's resolution: the
-        Font Awesome glyph or themed ``Icon`` when set, else — for apps whose
-        command is a real file (e.g. a Windows ``.lnk``/exe) — the OS shell icon."""
+        Font Awesome glyph or themed ``Icon`` when set, otherwise the desktop
+        icon for a command that names a real file."""
         app = candidate.app
         if app.icon:
             return qta.icon(app.icon, color="white")

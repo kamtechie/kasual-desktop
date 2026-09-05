@@ -119,8 +119,7 @@ class TestWindowsChangedSignal:
 # ── Stable dynamic-tile order (first-seen order) ───────────────────────────────
 
 class TestDynamicTileOrder:
-    """Dynamic-tile order must stay stable across Z-order changes
-    (Windows EnumWindows returns windows in Z-order, KWin in creation order).
+    """Dynamic-tile order must stay stable if backend enumeration order changes.
     A new window appends to the end; a disappearing window doesn't shift the rest."""
 
     def _ids(self, bar) -> list[str]:

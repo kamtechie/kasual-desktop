@@ -1,9 +1,7 @@
-"""Template-method base for platform `ProcessManager` adapters.
+"""Lifecycle bookkeeping shared by process-manager implementations.
 
-Both platform app managers track processes in an ``app_id -> proc`` dict, keyed
-by each app's stable id rather than its tile position — a reorder or unpin
-never touches this dict, and cleanup on process exit resolves the id back from
-the dict itself. Subclasses implement only the spawn/kill/wait mechanics.
+Processes are tracked in an ``app_id -> proc`` dict keyed by stable app id, so a
+tile reorder or unpin never invalidates lifecycle state.
 """
 
 from __future__ import annotations
@@ -25,7 +23,7 @@ from infrastructure.common.qt._meta import ProtocolQtMeta
 logger = logging.getLogger(__name__)
 
 
-# Popen, or the Windows _WinHandle wrapper exposing the same pid/poll/wait/terminate surface.
+# A Popen-compatible process exposing pid/poll/wait/terminate.
 Proc = Any
 
 

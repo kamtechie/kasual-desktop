@@ -1,18 +1,7 @@
-"""Surface strategy for the Desktop widget — how its fullscreen, always-on-top
-surface is established and driven, per windowing system.
+"""Surface strategy for the fullscreen Desktop widget.
 
-The Desktop QWidget itself is platform-neutral; the *only* part that differs by
-OS is how it becomes (and is driven as) a fullscreen, stay-on-top surface:
-
-  - Wayland → the widget is promoted to a wlr-layer-shell TOP-layer surface
-    (``infrastructure.linux.wayland.surface.LayerShellSurface``);
-  - Windows → there is no layer-shell, so the widget is made its own frameless
-    WS_EX_TOPMOST top-level window (the Windows infra's ``WindowsDesktopSurface``).
-
-Capturing that one difference behind this small port lets the rest of the UI
-(HomeHeader, TileBar, overlays, the whole Desktop widget) stay shared across both
-platforms instead of being forked. This module holds the platform-neutral port
-plus a plain fallback; each platform's concrete surface lives in its own package.
+Production injects a compositor-specific Wayland surface. ``PlainSurface`` is a
+small fallback used by offscreen tests and unsupported windowing systems.
 """
 
 from collections.abc import Callable
@@ -66,9 +55,8 @@ class PlainSurface:
     """Fallback surface: an ordinary frameless, fullscreen top-level window with no
     compositor-specific promotion.
 
-    Used when the composition root injects no platform surface (e.g. offscreen
-    tests, or an unknown windowing system). The real platforms inject their own:
-    Linux ``LayerShellSurface`` (Wayland), Windows ``WindowsDesktopSurface``.
+    Used when the composition root injects no platform surface, such as in
+    offscreen tests. Production injects a compositor-specific Wayland surface.
     """
 
     def __init__(self) -> None:

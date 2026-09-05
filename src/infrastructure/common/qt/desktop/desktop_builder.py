@@ -90,8 +90,7 @@ class _NoDeferredShow:
 
 
 class _NoCedeDepth:
-    """Fallback ``CedeDepth``: for surfaces whose cede is a plain unmap (Windows,
-    tests), there is no ceded surface left to sink under the app's windows."""
+    """Fallback for test surfaces that unmap when ceding the screen."""
 
     @property
     def is_armed(self) -> bool:
@@ -135,9 +134,8 @@ def build_desktop(
     ``parent_of`` is the /proc parent-PID reader injected for recall-trigger
     inheritance (a game window inherits its launcher tile's BTN_MODE trigger).
 
-    ``is_game_pid`` is the platform predicate that decides whether a foreground
-    pid is a game (gates the in-game HUD toggle). KDE wires ``kde.proc.is_game_pid``
-    (graphics-API maps check + launcher ancestry); Windows wires the RTSS signal.
+    ``is_game_pid`` decides whether a foreground pid is a game, using graphics-
+    API maps and launcher ancestry, and gates the in-game HUD toggle.
 
     ``power_preference`` also gates the power-driven chrome: without it (bare
     test builds) no PowerMenu, Home surface or Power popover is built, and the

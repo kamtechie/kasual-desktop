@@ -2,8 +2,7 @@
 
 Filesystem-backed: each test points XDG_DATA_* at a temp ``applications`` dir
 holding source ``.desktop`` files and XDG_CONFIG_HOME at a temp Kasual config, so
-no real system entries are read or written. Skipped on Windows — Windows uses
-WindowsAppPinning (Win32 version-info resolution) with its own behaviour.
+no real system entries are read or written.
 """
 
 import configparser
@@ -13,7 +12,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "linux",
-    reason="Tests the Linux XDG DesktopAppPinning; Windows uses WindowsAppPinning",
+    reason="Tests Linux XDG desktop integration",
 )
 
 from domain.catalog.window import Window

@@ -6,11 +6,8 @@ from unittest.mock import MagicMock, patch
 # If the variable is already set (e.g. DISPLAY), don't override it.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-# Mock evdev on platforms where it's not available (Windows). The Linux gamepad
-# watcher imports evdev at module level; many tests use the mock_gamepad fixture
-# which imports GamepadWatcher. Without this mock, every test using mock_gamepad
-# would fail with ModuleNotFoundError on Windows. The apps' conftest.py files
-# already do the same thing.
+# Mock evdev when unavailable so shared and offscreen tests can still collect.
+# The apps' conftest.py files do the same thing.
 try:
     import evdev  # noqa: F401
 except ImportError:

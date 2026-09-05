@@ -109,12 +109,6 @@ class WindowIconResolver:
             if image is not None and not image.isNull():
                 return self._icon_from_image(image)
 
-        # 4. Windows: the process executable's shell icon, by PID.
-        if pid:
-            icon = _windows_pid_icon(pid)
-            if icon is not None:
-                return icon
-
         return None
 
     @staticmethod
@@ -239,14 +233,3 @@ class WindowIconResolver:
             os.path.expanduser('~/.local/share/flatpak/exports/share'),
         ]
         return [os.path.join(d, 'applications') for d in [home] + system + extra]
-
-
-def _windows_pid_icon(pid: int):
-    """A dynamic window's icon on Windows: the shell (jumbo) icon of the process's
-    executable, resolved from its PID. No-op off Windows."""
-    if os.name != 'nt' or not pid:
-        return None
-    from infrastructure.windows.wm.window_manager import _get_exe_path
-    from infrastructure.common.qt.icons import shell_icon
-    exe = _get_exe_path(pid)
-    return shell_icon(exe) if exe else None
