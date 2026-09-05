@@ -17,6 +17,7 @@ from domain.catalog.target import AppTarget
 from domain.input.vocabulary import Event
 from domain.menu.entry import POWER, RETURN_TO_APP, RETURN_TO_DESKTOP
 from domain.menu.home_menu_model import HomeMenuModel
+from domain.shell.home_header_model import HomeHeaderModel
 from domain.system.actions import NETWORK
 from domain.system.brightness import Brightness
 from domain.system.volume import Volume
@@ -109,7 +110,7 @@ def _surface(qapp, gamepad=None, spy=None):
     from infrastructure.common.qt.overlays.home_header import HomeHeader
     from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
     spy = spy or Spy()
-    header = HomeHeader(spy.on_header_activate, CARD_WIDTH)
+    header = HomeHeader(HomeHeaderModel(spy.on_header_activate), CARD_WIDTH)
     feedback = MagicMock()
     menu_model = HomeMenuModel(feedback, FakeVolume(), FakeBrightness(), FakePowerMenu())
     surface = HomeSurface(
@@ -345,7 +346,7 @@ class TestHeaderAsTopBar:
         from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
         from domain.navigation.focus_navigator import FocusNavigator
         activated = []
-        header = HomeHeader(activated.append, CARD_WIDTH)
+        header = HomeHeader(HomeHeaderModel(activated.append), CARD_WIDTH)
         tilebar = MagicMock()
         tilebar.move.return_value = True
         tilebar.current_is_add.return_value = False
@@ -388,7 +389,7 @@ class TestHeaderAsTopBar:
     def test_set_power_icon_changes_glyph(self, qapp):
         from infrastructure.common.qt.overlays.home_header import HomeHeader
         from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
-        header = HomeHeader(lambda a: None, CARD_WIDTH)
+        header = HomeHeader(HomeHeaderModel(lambda a: None), CARD_WIDTH)
         before = header.power_button().icon().cacheKey()
         header.set_power_icon("fa5s.moon")
         assert header.power_button().icon().cacheKey() != before
@@ -602,7 +603,7 @@ class TestGrabHandle:
     def _header(self):
         from infrastructure.common.qt.overlays.home_header import HomeHeader
         from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
-        return HomeHeader(lambda a: None, CARD_WIDTH)
+        return HomeHeader(HomeHeaderModel(lambda a: None), CARD_WIDTH)
 
     def test_handle_click_requests_toggle(self, qapp):
         header = self._header()

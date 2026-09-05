@@ -30,6 +30,7 @@ from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Feedback
 from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
+from domain.shell.home_header_model import HomeHeaderModel
 from domain.shell.introspection import (
     HEADER, TILES, ConfirmSnapshot, FocusSnapshot, HomeMenuSnapshot, MenuItemSnapshot,
     MenuSectionSnapshot, ShellSnapshot, TileSnapshot,
@@ -67,6 +68,7 @@ class Desktop(QWidget):
         self,
         apps: LiveCatalog,
         tile_model: TileBarModel,
+        header_model: HomeHeaderModel,
         gamepad: PadControl,
         window_manager: WindowManager,
         wallpaper: SystemWallpaper,
@@ -112,7 +114,7 @@ class Desktop(QWidget):
         # The top bar is the Home surface's collapsed header, created here (the
         # builder later builds the surface around it) and handed to the
         # FocusNavigator as the TopBarView.
-        self._home_header = HomeHeader(self._open_system_action, CARD_WIDTH)
+        self._home_header = HomeHeader(header_model, CARD_WIDTH)
         # Mouse parity with the tile bar: hover moves the highlight, a click
         # activates the button — routed through the same navigator slots gamepad A
         # follows.

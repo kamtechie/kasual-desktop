@@ -33,6 +33,7 @@ from domain.shared.scheduler import Scheduler
 from domain.shell.desktop import Desktop as DesktopCoordinator
 from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
+from domain.shell.home_header_model import HomeHeaderModel
 from domain.shell.open_overlays import OpenOverlays
 from domain.shell.wallpaper import SystemWallpaper
 from domain.system.action_view import make_action_confirm
@@ -92,9 +93,12 @@ def build_desktop(
     # deferred hide too.
     live_apps = LiveCatalog(apps)
     tile_model = TileBarModel(live_apps, process_manager, parent_of, os.getpgid)
+    home_actions: HomeActions | None = None
+    header_model = HomeHeaderModel(lambda action: home_actions.open_header_action(action))
     widget = Desktop(
         apps=live_apps,
         tile_model=tile_model,
+        header_model=header_model,
         gamepad=gamepad,
         window_manager=window_manager,
         wallpaper=wallpaper,

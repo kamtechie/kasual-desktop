@@ -20,23 +20,19 @@ Both roles ultimately open the same Network / Notifications overlay, so a single
 """
 
 import qtawesome as qta
-from collections.abc import Callable
-
 from PyQt6.QtCore import Qt, QSize, QTimer, QLocale, QPoint, QRectF, QEvent, pyqtSignal
 from PyQt6.QtGui import QCursor, QColor, QPainter
 from datetime import datetime
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
 from domain.menu.item import MenuItem
-from domain.menu.entry import POWER
-from domain.system.actions import ACTIONS, NETWORK, NOTIFICATIONS
+from domain.shell.home_header_model import HomeHeaderModel
 
 HEADER_H = 80    # matches the old top bar / hint bar height
 _BTN     = 56
 # Far right is Power: a chooser for the default sleep/restart/shutdown action.
 # It carries the abstract POWER key; the host opens the dropdown.
-_NAV_KEYS  = (NETWORK, NOTIFICATIONS, POWER)
-_POWER_GLYPH = "fa5s.power-off"
+_POWER_GLYPH = HomeHeaderModel.POWER_GLYPH
 
 # The focused-button look — a light translucent fill behind a thin accent border.
 # The whole header wears it too (its resting background), so bar and buttons read
@@ -168,10 +164,9 @@ class HomeHeader(QWidget):
     button_context_menu = pyqtSignal(int)   # right-click → the button's dropdown (Power)
     toggle_requested    = pyqtSignal()      # grab-handle click → open/close the menu
 
-    def __init__(self, on_activate: Callable[[str], None], width: int) -> None:
+    def __init__(self, model: HomeHeaderModel, width: int) -> None:
         super().__init__()
-        self._on_activate = on_activate
-        self._selected: int | None = None
+        self._model = model
 
         self.setObjectName("homeheader")
         self.setFixedHeight(HEADER_H)
@@ -280,9 +275,7 @@ class HomeHeader(QWidget):
         return btn
 
     def set_menu_open(self, open_: bool) -> None:
-        """Lights the grab handle in the focused look while the Home menu it
-        toggles is showing, so the handle reads as "pressed" for as long as the
-        menu it opened stays up."""
+        self._model.menu_open = open_
         self._handle.set_focused(open_)
 
     def power_button(self) -> QPushButton:
@@ -292,14 +285,17 @@ class HomeHeader(QWidget):
     # ── Status setters (driven by the Desktop, like the old top bar) ──────────
 
     def set_network_icon(self, glyph: str) -> None:
+        self._model.network_glyph = glyph
         self._net_btn.setIcon(qta.icon(glyph, color="white"))
 
     def set_power_icon(self, glyph: str) -> None:
         """Mirror the persisted default action on the Power button (e.g. a moon
         glyph when A would sleep), so the icon reads what a press will do."""
+        self._model.power_glyph = glyph
         self._power_btn.setIcon(qta.icon(glyph, color="white"))
 
     def set_notification_badge(self, count: int) -> None:
+        self._model.notification_count = count
         if count <= 0:
             self._notif_badge.hide()
             return
@@ -311,31 +307,30 @@ class HomeHeader(QWidget):
 
     @property
     def count(self) -> int:
-        return len(_NAV_KEYS)
+        return self._model.count
 
     @property
     def default_index(self) -> int:
         """Entering the header lands on Power (the primary action), not the
         left-most Network button."""
-        return _NAV_KEYS.index(POWER)
+        return self._model.default_index
 
     def set_selected(self, index: int | None) -> None:
-        self._selected = index
+        self._model.select(index)
         for i, btn in enumerate(self._buttons):
             btn.setStyleSheet(_btn_style(i == index))
 
     def trigger(self, index: int) -> None:
-        if 0 <= index < len(_NAV_KEYS):
-            self._on_activate(_NAV_KEYS[index])
+        self._model.activate(index)
 
     def has_menu_at(self, index: int) -> bool:
         """Whether the button at *index* opens a dropdown on X — only Power does
         (A runs the current default; X opens the chooser), so the navigator
         advertises "Options" there."""
-        return self.action_key_at(index) == POWER
+        return self._model.has_menu_at(index)
 
     def action_key_at(self, index: int) -> str | None:
-        return _NAV_KEYS[index] if 0 <= index < len(_NAV_KEYS) else None
+        return self._model.action_key_at(index)
 
     def button_at(self, index: int):
         return self._buttons[index] if 0 <= index < len(self._buttons) else None
@@ -346,15 +341,7 @@ class HomeHeader(QWidget):
         """The header buttons as menu items, so the expanded menu can navigate into
         the header as its zone 0 and act on a selection (Network / Notifications
         dispatch; Power opens the chooser)."""
-        return [self._nav_item(key) for key in _NAV_KEYS]
-
-    @staticmethod
-    def _nav_item(key: str) -> MenuItem:
-        # POWER is abstract (no entry in ACTIONS); the others carry their action's
-        # label + icon.
-        if key == POWER:
-            return MenuItem("Power", POWER, _POWER_GLYPH)
-        return MenuItem(ACTIONS[key].label, key, ACTIONS[key].icon)
+        return self._model.nav_items()
 
     # ── Clock ─────────────────────────────────────────────────────────────────
 
