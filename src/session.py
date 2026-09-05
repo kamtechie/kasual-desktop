@@ -103,7 +103,7 @@ def build_controller(*, gamepad, desktop, tray, wm, power, hud) -> Application:
         action_deps=ActionDeps(desktop=desktop, power=power),
         tray=tray,
         wm=wm,
-        overlay_factory=desktop.home_overlay_factory(),
+        home_overlay=desktop.home_overlay(),
         hud=hud,
     )
 

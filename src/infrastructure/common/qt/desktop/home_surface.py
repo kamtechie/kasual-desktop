@@ -404,10 +404,6 @@ class HomeSurface(QWidget):
         self.closed.connect(handler)
         return Unsubscribe(lambda: self.closed.disconnect(handler))
 
-    def dispose(self) -> None:
-        """No-op: the surface is persistent and reused across presses (unlike the
-        per-press overlay it stands in for), so it is never deleted."""
-
     # ── Shared helpers ────────────────────────────────────────────────────────
 
     def refresh_hints(self) -> None:
@@ -433,16 +429,3 @@ class HomeSurface(QWidget):
 
     def set_notification_badge(self, count: int) -> None:
         self._header.set_notification_badge(count)
-
-
-class PersistentOverlayFactory:
-    """A SectionedOverlayFactory that always yields the one persistent HomeSurface
-    (contexts 2/3), instead of a fresh overlay per press. The surface's
-    :meth:`HomeSurface.dispose` is a no-op, so the controller's create/dispose
-    lifecycle leaves the reused surface intact."""
-
-    def __init__(self, surface: HomeSurface) -> None:
-        self._surface = surface
-
-    def create_home_overlay(self) -> HomeSurface:
-        return self._surface

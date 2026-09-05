@@ -1,8 +1,8 @@
 """Tests for the Application controller — wiring over domain ports only.
 
 The controller is pure wiring (no Qt): it subscribes to the gamepad through the
-`GamepadSignals` port, creates overlays through the `SectionedOverlayFactory`
-port, and routes activated menu items. Here we drive it entirely over fakes.
+`GamepadSignals` port, drives the home overlay, and routes activated menu items.
+Here we drive it entirely over fakes.
 """
 
 from application import Application
@@ -53,7 +53,6 @@ class FakeOverlay:
         self.shown_with = None
         self._showing = False
         self.closed_handler = None
-        self.disposed = False
         self.on_cancel = None
 
     def show_for_context(self, foreground, foreground_is_game, hud,
@@ -88,21 +87,8 @@ class FakeOverlay:
         self.closed_handler = handler
         return lambda: None
 
-    def dispose(self):
-        self.disposed = True
-
     def refresh_hints(self):
         pass
-
-
-class FakeOverlayFactory:
-    def __init__(self):
-        self.created: list[FakeOverlay] = []
-
-    def create_home_overlay(self):
-        overlay = FakeOverlay()
-        self.created.append(overlay)
-        return overlay
 
 
 class FakeDesktop:
@@ -213,10 +199,10 @@ class FakeHud:
     def disable(self): self.enabled = False
 
 
-def make_app(desktop=None, gamepad=None, factory=None, tray=None, wm=None, hud=None):
+def make_app(desktop=None, gamepad=None, overlay=None, tray=None, wm=None, hud=None):
     desktop = desktop or FakeDesktop()
     gamepad = gamepad or FakeGamepad()
-    factory = factory or FakeOverlayFactory()
+    overlay = overlay or FakeOverlay()
     tray = tray or FakeTray()
     wm = wm or FakeWM()
     hud = hud or FakeHud()
@@ -227,63 +213,58 @@ def make_app(desktop=None, gamepad=None, factory=None, tray=None, wm=None, hud=N
         action_deps=ActionDeps(desktop=desktop, power=FakePower()),
         tray=tray,
         wm=wm,
-        overlay_factory=factory,
+        home_overlay=overlay,
         hud=hud,
     )
-    return controller, desktop, gamepad, factory, tray, wm
+    return controller, desktop, gamepad, overlay, tray, wm
 
 
 # ── BTN_MODE → overlay lifecycle ─────────────────────────────────────────────
 
 class TestBtnModeOverlay:
-    def test_press_creates_and_shows_overlay(self):
-        controller, _, gamepad, factory, _, _ = make_app()
+    def test_press_shows_overlay(self):
+        controller, _, gamepad, overlay, _, _ = make_app()
         gamepad.fire_btn_mode()
-        assert len(factory.created) == 1
-        overlay = factory.created[0]
         assert overlay.is_showing()
         items, on_select, _ = overlay.shown_with
         assert on_select == controller._dispatch_home
 
     def test_second_press_while_showing_hides(self):
-        _, _, gamepad, factory, _, _ = make_app()
+        _, _, gamepad, overlay, _, _ = make_app()
         gamepad.fire_btn_mode()   # show
         gamepad.fire_btn_mode()   # toggle off
-        assert len(factory.created) == 1
-        assert not factory.created[0].is_showing()
+        assert not overlay.is_showing()
 
     def test_toggle_off_over_an_app_returns_to_it(self):
         # A user dismiss via BTN_MODE is the same close as B: it returns to the
         # running app, so every dismiss gesture behaves identically.
         app = App(name="Steam", command="steam")
-        _, desktop, gamepad, factory, _, _ = make_app(desktop=FakeDesktop(current=app))
+        _, desktop, gamepad, _, _, _ = make_app(desktop=FakeDesktop(current=app))
         gamepad.fire_btn_mode()   # show over Steam
         gamepad.fire_btn_mode()   # toggle off → back to Steam
         assert desktop.restored == [app]
 
-    def test_press_after_hide_disposes_old_and_creates_fresh(self):
-        _, _, gamepad, factory, _, _ = make_app()
-        gamepad.fire_btn_mode()   # show #0
-        gamepad.fire_btn_mode()   # hide #0
-        gamepad.fire_btn_mode()   # fresh #1
-        assert len(factory.created) == 2
-        assert factory.created[0].disposed
-        assert factory.created[1].is_showing()
+    def test_press_after_hide_reuses_persistent_overlay(self):
+        _, _, gamepad, overlay, _, _ = make_app()
+        gamepad.fire_btn_mode()
+        gamepad.fire_btn_mode()
+        gamepad.fire_btn_mode()
+        assert overlay.is_showing()
 
     def test_cancel_restores_app_when_one_is_foreground(self):
         app = App(name="Steam", command="steam")
         desktop = FakeDesktop(current=app)
-        _, desktop, gamepad, factory, _, _ = make_app(desktop=desktop)
+        _, desktop, gamepad, overlay, _, _ = make_app(desktop=desktop)
         gamepad.fire_btn_mode()
-        _, _, on_cancel = factory.created[0].shown_with
+        _, _, on_cancel = overlay.shown_with
         assert on_cancel is not None
         on_cancel()
         assert desktop.restored == [app]
 
     def test_cancel_is_none_on_bare_desktop(self):
-        _, _, gamepad, factory, _, _ = make_app(desktop=FakeDesktop(current=None))
+        _, _, gamepad, overlay, _, _ = make_app(desktop=FakeDesktop(current=None))
         gamepad.fire_btn_mode()
-        _, _, on_cancel = factory.created[0].shown_with
+        _, _, on_cancel = overlay.shown_with
         assert on_cancel is None
 
     def test_raising_overlay_dismisses_other_overlays(self):
@@ -374,23 +355,17 @@ class TestConnection:
         assert tray.states == [False]
 
     def test_disconnect_dismisses_open_overlay(self):
-        _, _, gamepad, factory, _, _ = make_app()
+        _, _, gamepad, overlay, _, _ = make_app()
         gamepad.fire_btn_mode()             # overlay open
         gamepad.fire_disconnected()
-        assert not factory.created[0].is_showing()
+        assert not overlay.is_showing()
 
 
 # ── shutdown ─────────────────────────────────────────────────────────────────
 
 class TestShutdown:
     def test_unsubscribes_from_gamepad(self):
-        controller, _, gamepad, factory, _, _ = make_app()
+        controller, _, gamepad, overlay, _, _ = make_app()
         controller.shutdown()
         gamepad.fire_btn_mode()
-        assert factory.created == []   # no longer reacting
-
-    def test_disposes_open_overlay(self):
-        controller, _, gamepad, factory, _, _ = make_app()
-        gamepad.fire_btn_mode()
-        controller.shutdown()
-        assert factory.created[0].disposed
+        assert not overlay.is_showing()

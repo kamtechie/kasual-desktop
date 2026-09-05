@@ -466,12 +466,6 @@ class TestOnDemand:
         assert cancelled == [1]
         assert surface.is_showing() is False
 
-    def test_dispose_is_noop(self, qapp):
-        surface, _ = _surface(qapp)
-        surface.dispose()        # persistent surface — must not raise or delete
-        self._show_over_app(surface)
-        assert surface.is_showing() is True
-
     def test_return_to_desktop_tears_down_the_on_demand_overlay(self, qapp):
         # The reported bug: picking "Return to Home screen" over an app must close
         # the on-demand overlay, not leave its (stale) app-context menu mapped.

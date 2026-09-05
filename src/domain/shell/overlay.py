@@ -1,4 +1,4 @@
-"""The Home Overlay port the controller drives on BTN_MODE — and its factory."""
+"""The Home Overlay port the controller drives on BTN_MODE."""
 
 from collections.abc import Callable
 from typing import Protocol
@@ -35,7 +35,6 @@ class SectionedHomeOverlay(Dismissable, Protocol):
 
     def is_showing(self) -> bool: ...
     def on_closed(self, handler: Callable[[], None]) -> Unsubscribe: ...
-    def dispose(self) -> None: ...
 
     def refresh_hints(self) -> None:
         """Re-push the overlay's own hint set for its current zone."""
@@ -46,9 +45,3 @@ class SectionedHomeOverlay(Dismissable, Protocol):
         cancel so it plays the close cue and returns to the app, like B does —
         unlike ``hide_overlay``, the silent mechanical hide used on disconnect."""
         ...
-
-
-class SectionedOverlayFactory(Protocol):
-    """Creates Home Overlay surfaces on demand (one per BTN_MODE press)."""
-
-    def create_home_overlay(self) -> SectionedHomeOverlay: ...

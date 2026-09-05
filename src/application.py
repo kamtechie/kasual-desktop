@@ -1,7 +1,7 @@
 """Application controller — wiring between gamepad, desktop, overlay, and tray.
 
-Depends only on domain ports (gamepad events, desktop control, the overlay
-factory, the session collaborators) — no `infrastructure.*` imports.
+Depends only on domain ports (gamepad events, desktop control, the home overlay,
+and session collaborators) — no `infrastructure.*` imports.
 """
 
 import logging
@@ -13,7 +13,7 @@ from domain.input.gamepad_signals import GamepadSignals
 from domain.lifecycle.app_control import AppControl
 from domain.lifecycle.window_manager import WindowManager
 from domain.shell.desktop_control import DesktopControl
-from domain.shell.overlay import SectionedHomeOverlay, SectionedOverlayFactory
+from domain.shell.overlay import SectionedHomeOverlay
 from domain.shell.session import SessionPolicy
 from domain.shell.session_collaborators import ConnectionIndicator
 from domain.system.actions import ActionDeps
@@ -38,18 +38,17 @@ class Application:
         action_deps:     ActionDeps,
         tray:            ConnectionIndicator,
         wm:              WindowManager,
-        overlay_factory: SectionedOverlayFactory,
+        home_overlay:    SectionedHomeOverlay,
         hud:             HudControl,
     ) -> None:
         self._desktop         = desktop
         self._app_control     = app_control
         self._tray            = tray
         self._wm              = wm
-        self._overlay_factory = overlay_factory
+        self._home_overlay    = home_overlay
         self._hud             = hud
-        # BTN_MODE opens the sectioned Home Overlay: the factory yields a
-        # SectionedHomeOverlay that composes its own zones; the controller hands it
-        # only the foreground context plus the dispatch/cancel/hint callbacks.
+        # The persistent Home Overlay composes its own zones; the controller hands
+        # it only the foreground context plus the dispatch/cancel/hint callbacks.
         self._overlay: SectionedHomeOverlay | None = None
         self._session         = SessionPolicy(view=desktop, indicator=tray)
         # System actions (sleep/shutdown/…) run through the domain ActionRunner,
@@ -69,9 +68,7 @@ class Application:
     # ── Event handling ─────────────────────────────────────────────────────
 
     def _close_overlay(self) -> None:
-        if self._overlay is not None:
-            self._overlay.dispose()
-            self._overlay = None
+        self._overlay = None
 
     def _on_btn_mode(self) -> None:
         """BTN_MODE: show the Home Overlay over whatever is on screen.
@@ -105,7 +102,7 @@ class Application:
             if current is not None else None
         )
 
-        self._overlay = self._overlay_factory.create_home_overlay()
+        self._overlay = self._home_overlay
         self._overlay.on_closed(self._on_overlay_closed)
 
         # The overlay composes its own sections (it holds the controls and the

@@ -39,6 +39,7 @@ from .app_add_controller import AppAddController
 from .dialog_host_controller import DialogHostController
 from .hint_bar import HintBar
 from .home_surface import HomeSurface
+from .home_surface import HomeSurface
 from .power_popover_controller import PowerPopoverController
 from .tile_bar import TileBar
 from infrastructure.common.qt.overlays.home_header import HomeHeader
@@ -519,20 +520,14 @@ class Desktop(QWidget):
         if self._home_actions is not None:
             self._home_actions.open_header_action(action_type)
 
-    def home_overlay_factory(self) -> 'PersistentOverlayFactory':
-        """The SectionedOverlayFactory the controller uses in persistent-surface
-        mode: every BTN_MODE over an app / minimized Kasual (contexts 2/3) reuses
-        this one surface instead of mapping a fresh overlay.
-
-        Fail fast without the Home surface — the factory dereferences it, and
-        build_desktop only builds it when given a power preference."""
+    def home_overlay(self) -> HomeSurface:
+        """The persistent surface used for BTN_MODE over apps and minimized Kasual."""
         if self._home_surface is None:
             raise RuntimeError(
-                "home_overlay_factory() needs the Home surface — build_desktop() "
-                "builds it only when a power_preference is provided."
+                "home_overlay() needs the Home surface — build_desktop() builds it "
+                "only when a power_preference is provided."
             )
-        from .home_surface import PersistentOverlayFactory
-        return PersistentOverlayFactory(self._home_surface)
+        return self._home_surface
 
     def try_toggle_home_surface(self) -> bool:
         return self._chrome.try_toggle()
