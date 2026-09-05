@@ -24,10 +24,8 @@ from PyQt6.QtCore import QObject, pyqtSlot
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage, QDBusObjectPath
 
 from domain.network.control import NetworkControl
-from domain.network.monitor import NetworkMonitor
 from domain.network.status import NetworkKind, NetworkStatus
 from domain.shared.event_emitter import EventEmitter, Unsubscribe
-from infrastructure.common.qt._meta import ProtocolQtMeta
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +80,7 @@ class _NmDbusMixin:
         return [p.path() if isinstance(p, QDBusObjectPath) else str(p) for p in value]
 
 
-class NMNetworkMonitor(_NmDbusMixin, QObject, NetworkMonitor, metaclass=ProtocolQtMeta):
+class NMNetworkMonitor(_NmDbusMixin, QObject):
     """`NetworkMonitor` over NetworkManager's system-bus D-Bus API."""
 
     def __init__(self, parent: QObject | None = None) -> None:

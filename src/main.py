@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from infrastructure.linux.compositor import (
-    build_desktop_surface, build_screensaver_waker,
     build_system_wallpaper, build_window_manager, detect_compositor,
 )
 
@@ -26,8 +25,6 @@ from infrastructure.common.audio.feedback import SoundFeedback
 from infrastructure.common.single_instance import SingleInstanceGuard
 from infrastructure.linux.input.gamepad_watcher import GamepadWatcher
 from infrastructure.common.qt.desktop import build_desktop
-from infrastructure.linux.qt.desktop.deferred_hide import DeferredHide
-from infrastructure.linux.qt.desktop.deferred_show import DeferredShow
 from infrastructure.common.qt.cursor_auto_hide import CursorAutoHide
 from infrastructure.common.qt.icons import install_fontawesome5
 from infrastructure.common.catalog.app_config import (
@@ -46,7 +43,8 @@ from infrastructure.linux.power.power import SystemdPowerControl
 from infrastructure.linux.audio.volume import PactlVolumeControl
 from infrastructure.linux.display.brightness import select_brightness_control
 from infrastructure.linux.display.screensaver import (
-    ScreenSaverInhibitor, VisibilityInhibitor,
+    ScreenSaverInhibitor, ScreenSaverWaker, VisibilityInhibitor,
+    simulate_freedesktop_activity,
 )
 from infrastructure.common.qt.scheduler import QtScheduler
 from infrastructure.linux.hud.mangohud import MangoHudControl
@@ -91,7 +89,7 @@ def main() -> None:
     install_translations(app, str(Path(__file__).parent.parent / "locale"))
 
     gamepad = GamepadWatcher()
-    screensaver_waker = build_screensaver_waker()
+    screensaver_waker = ScreenSaverWaker(simulate_freedesktop_activity)
     gamepad.on_activity(screensaver_waker.poke)
     feedback = SoundFeedback()
 
@@ -148,16 +146,10 @@ def main() -> None:
             order_store=DesktopTileOrderStore(),
             settings_store=DesktopTileSettingsStore(),
             app_pinning=DesktopAppPinning(),
-            surface=build_desktop_surface(),
             parent_of=parent_pid,
             is_game_pid=is_game_pid,
             app_adder=app_adder,
             power_preference=power_preference,
-            deferred_hide_factory=lambda wm_, pm_, on_cede, on_hide:
-                DeferredHide(wm_, pm_, on_cede=on_cede, on_hide=on_hide,
-                             always_cede=True),
-            deferred_show_factory=lambda wm_, pm_, on_show:
-                DeferredShow(wm_, pm_, on_show=on_show),
         )
         # Subscribed after `record` above, so the count is already updated when
         # this runs; delivered on the GUI thread by the monitor's signal hop.

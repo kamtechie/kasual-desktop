@@ -1,12 +1,7 @@
 """Wayland Desktop surface — promote the Desktop widget to a wlr-layer-shell
 TOP-layer surface so it sits above normal and fullscreen windows.
 
-The platform-neutral port (:class:`DesktopSurface`) and the plain fallback live in
-``infrastructure.common.qt.desktop.surface``; this is the Wayland adapter the Linux
-composition root injects.
 """
-
-from collections.abc import Callable
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget
@@ -73,9 +68,6 @@ class LayerShellSurface:
             self._widget.hide()
             self._sunk = False
 
-    def sink(self, under_windows: bool) -> None:
-        pass  # Ceding already places the wlroots surface on BOTTOM.
-
     def activate(self) -> None:
         self._widget.activateWindow()
 
@@ -84,6 +76,3 @@ class LayerShellSurface:
 
     def is_sunk(self) -> bool:
         return self._sunk
-
-    def on_reactivate(self, callback: Callable[[], None]) -> None:
-        pass   # Linux drives reactivation from the widget's changeEvent instead

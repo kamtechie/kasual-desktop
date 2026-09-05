@@ -18,7 +18,7 @@ from domain.network.status import NetworkStatus
 from domain.lifecycle.app_control import AppControl
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.window_manager import WindowManager
-from .surface import DesktopSurface, PlainSurface
+from infrastructure.linux.wayland.surface import LayerShellSurface
 from domain.shell.desktop import Desktop as DesktopCoordinator
 from domain.lifecycle.app_lifecycle import AppLifecycle
 from domain.menu.dispatcher import TileMenuDispatcher
@@ -26,8 +26,6 @@ from domain.navigation.focus_navigator import FocusNavigator
 from domain.navigation.tile_mover import TileMover
 from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Feedback
-from domain.shell.desktop_view import DesktopView
-from domain.shell.desktop_control import DesktopControl
 from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
 from domain.shell.introspection import (
@@ -35,9 +33,7 @@ from domain.shell.introspection import (
     MenuSectionSnapshot, ShellSnapshot, TileSnapshot,
 )
 from domain.shell.open_overlays import OpenOverlays
-from domain.system.desktop_shell import DesktopShell
 from domain.shell.wallpaper import SystemWallpaper
-from infrastructure.common.qt._meta import ProtocolQtMeta
 from infrastructure.common.qt.ui.nav_key_map import nav_key_map
 from .app_add_controller import AppAddController
 from .dialog_host_controller import DialogHostController
@@ -61,7 +57,7 @@ _KEY_MAP = {
 }
 
 
-class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=ProtocolQtMeta):
+class Desktop(QWidget):
     """Main environment window — always fullscreen."""
 
     def __init__(
@@ -75,7 +71,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         notifications: NotificationCenter,
         network_control: NetworkControl,
         overlays: OpenOverlays,
-        surface: DesktopSurface | None = None,
         parent_of: 'Callable[[int], int | None] | None' = None,
         app_adder: AppAdder | None = None,
     ):
@@ -95,10 +90,7 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         # The add-app use-case behind the [＋] tile. Optional so offscreen test
         # builds can omit it — the [＋] tile then simply does nothing.
         self._app_adder      = app_adder
-        # How this widget becomes a fullscreen, stay-on-top surface — the one
-        # OS-specific seam, injected by the composition root. Falls back to a
-        # plain frameless fullscreen window (offscreen tests).
-        self._surface        = surface or PlainSurface()
+        self._surface        = LayerShellSurface()
 
         # Desktop visibility + paused + what the BTN_MODE menu targets (foreground).
         # The foreground is shared by reference with the AppLifecycle coordinator.
@@ -107,8 +99,8 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
 
         self.setWindowTitle("Kasual Desktop")
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
-        # Establish the fullscreen, stay-on-top surface via the injected strategy.
-        # On Wayland this promotes the widget to a layer-shell TOP surface (above
+        # Establish the fullscreen, stay-on-top layer-shell surface. On Wayland
+        # this promotes the widget to a TOP surface (above
         # DE panels; the Home Overlay still renders above it).
         self._surface.install(self)
 
@@ -206,10 +198,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
         self._tile_menu     = tile_menu
         self._home_surface  = home_surface
         self._power_popover = power_popover
-
-        # Surface reactivation events use the same idempotent domain entry point
-        # as the widget's activation-change handling.
-        self._surface.on_reactivate(self._lifecycle.reactivate_desktop)
 
         self._tilebar.activated.connect(self._activate_tile)
         self._tilebar.windows_changed.connect(self._lifecycle.check_active_dyn_gone)
@@ -370,9 +358,6 @@ class Desktop(QWidget, DesktopView, DesktopShell, DesktopControl, metaclass=Prot
     def hide_view(self) -> None:
         self._surface.drop_below()
         self._chrome.sync()
-
-    def sink_view(self, under_windows: bool) -> None:
-        self._surface.sink(under_windows)
 
     def withdraw_view(self) -> None:
         self._surface.hide()

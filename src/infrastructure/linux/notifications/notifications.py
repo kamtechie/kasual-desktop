@@ -30,9 +30,7 @@ from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from domain.notifications.notification import Notification
-from domain.notifications.source import NotificationSource
 from domain.shared.event_emitter import EventEmitter, Unsubscribe
-from infrastructure.common.qt._meta import ProtocolQtMeta
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +159,7 @@ def parse_notify_blocks(text: str) -> tuple[list[_NotifyArgs], str]:
     return results, leftover
 
 
-class FreedesktopNotificationMonitor(QObject, NotificationSource, metaclass=ProtocolQtMeta):
+class FreedesktopNotificationMonitor(QObject):
     """Observes freedesktop notifications via ``dbus-monitor`` and republishes
     them as domain :class:`Notification`s through the `NotificationSource` port.
 

@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 from PyQt6.QtDBus import QDBusMessage
 from PyQt6.QtWidgets import QWidget
 
-from infrastructure.linux.compositor import build_screensaver_waker
 from infrastructure.linux.display import screensaver
 from infrastructure.linux.display.screensaver import (
     ScreenSaverInhibitor, ScreenSaverWaker, VisibilityInhibitor,
@@ -111,8 +110,3 @@ class TestVisibilityInhibitor:
         inhibitor.release.assert_not_called()
         widget.hide()
         inhibitor.release.assert_called()
-
-
-class TestBuilder:
-    def test_uses_freedesktop_activity(self):
-        assert build_screensaver_waker()._send is screensaver.simulate_freedesktop_activity

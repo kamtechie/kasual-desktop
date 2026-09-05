@@ -13,10 +13,8 @@ from domain.catalog.target import AddTileTarget, AppTarget, Target, target_at_in
 from domain.catalog.window import Window
 from domain.catalog.window_rules import external_windows, is_app_running, resolve_recall_trigger
 from domain.lifecycle.process_manager import ProcessManager
-from infrastructure.common.qt._meta import ProtocolQtMeta
 from infrastructure.common.qt.ui import styles
 from domain.lifecycle.tile_bar_view import TileBarView
-from domain.navigation.bar_views import TileFocusView, TileReorderView
 from .app_tile import AddTile, AppTile, TILE_H, TILE_SEL_H
 from .window_icons import WindowIconResolver
 
@@ -26,7 +24,7 @@ _DYN_TILE_MAX_TITLE = 22   # Maximum length of a dynamic tile title
 _SCROLL_ANIM_MS     = 220  # glide duration when centering the focused tile
 
 
-class TileBar(QScrollArea, TileBarView, TileFocusView, TileReorderView, metaclass=ProtocolQtMeta):
+class TileBar(QScrollArea):
     """Scrollable row of tiles: configured apps first, then open-window tiles.
 
     Implements `TileBarView` (app-lifecycle), `TileFocusView` (focus navigation) and

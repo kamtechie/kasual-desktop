@@ -90,15 +90,6 @@ class TestLayeredPath:
         surface.drop_below()
         assert widget.visible is False
 
-    def test_sink_is_noop_because_cede_is_already_bottom(self, monkeypatch):
-        surface, _, calls = _make(monkeypatch)
-        surface.show_fullscreen()
-        surface.drop_below()
-        layers = list(calls["layer"])
-        surface.sink(False)
-        assert calls["layer"] == layers
-        assert surface.is_sunk() is True
-
 
 class TestDegradedPaths:
     def test_unlayered_drop_below_hides(self, monkeypatch):

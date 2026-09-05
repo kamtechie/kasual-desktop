@@ -16,9 +16,7 @@ from typing import Any
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from domain.lifecycle.app_events import AppStarted, AppFinished, AppLaunchFailed
-from domain.lifecycle.process_manager import ProcessManager
 from domain.shared.event_emitter import EventEmitter, Unsubscribe
-from infrastructure.common.qt._meta import ProtocolQtMeta
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,7 @@ logger = logging.getLogger(__name__)
 Proc = Any
 
 
-class BaseAppManager(QObject, ProcessManager, metaclass=ProtocolQtMeta):
+class BaseAppManager(QObject):
     """Shared lifecycle bookkeeping for a multi-app `ProcessManager` adapter.
 
     Subclasses provide the platform-specific spawn/kill mechanics via the hook

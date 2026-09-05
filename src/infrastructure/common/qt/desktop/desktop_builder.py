@@ -17,8 +17,6 @@ from domain.catalog.tile_settings_editor import TileSettingsEditor
 from domain.input.pad_control import PadControl
 from domain.lifecycle.app_lifecycle import AppLifecycle
 from domain.lifecycle.foreground_inspector import ForegroundInspector
-from domain.lifecycle.launch_hide import LaunchHide
-from domain.lifecycle.launch_show import LaunchShow
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.prompts import LocalizedPrompts
 from domain.lifecycle.window_manager import WindowManager
@@ -51,41 +49,8 @@ from .desktop import Desktop
 from .dialog_host_controller import DialogHostController
 from .home_surface import HomeSurface
 from .power_popover_controller import PowerPopoverController
-from .surface import DesktopSurface
-
-
-class _ImmediateHide:
-    """Fallback ``LaunchHide``: hides the Desktop immediately, no window-map wait.
-    Used when no ``deferred_hide_factory`` is injected (e.g. tests), keeping
-    this shared builder free of any platform import."""
-
-    def __init__(self, on_hide: Callable[[], None]) -> None:
-        self._on_hide = on_hide
-
-    @property
-    def is_armed(self) -> bool:
-        return False
-
-    def arm(self, app) -> None:
-        self._on_hide()
-
-    def cancel(self) -> None:
-        pass
-
-
-class _NoDeferredShow:
-    """Fallback ``LaunchShow``: never returns early — the Desktop comes back when
-    the app's process exits, as it did before window-driven return existed."""
-
-    @property
-    def is_armed(self) -> bool:
-        return False
-
-    def arm(self, app) -> None:
-        pass
-
-    def cancel(self) -> None:
-        pass
+from infrastructure.linux.qt.desktop.deferred_hide import DeferredHide
+from infrastructure.linux.qt.desktop.deferred_show import DeferredShow
 
 
 def build_desktop(
@@ -105,9 +70,6 @@ def build_desktop(
     order_store: TileOrderStore,
     settings_store: TileSettingsStore,
     app_pinning: AppPinning,
-    surface: DesktopSurface | None = None,
-    deferred_hide_factory: 'Callable[[WindowManager, ProcessManager, Callable[[], None]], LaunchHide] | None' = None,
-    deferred_show_factory: 'Callable[[WindowManager, ProcessManager, Callable[[], None]], LaunchShow] | None' = None,
     parent_of: Callable[[int], int | None] | None = None,
     is_game_pid: Callable[[int], bool] = lambda _: False,
     app_adder: AppAdder | None = None,
@@ -142,7 +104,6 @@ def build_desktop(
         notifications=notifications,
         network_control=network_control,
         overlays=overlays,
-        surface=surface,
         parent_of=parent_of,
         app_adder=app_adder,
     )
@@ -163,25 +124,13 @@ def build_desktop(
         hint_bar=widget._hintbar, restore_hints=nav.render,
     )
 
-    # Hides only once the launched app's window maps. Built by a factory since it
-    # needs collaborators the root can't supply directly; with none, an immediate
-    # hide keeps this shared builder free of any platform import.
-    if deferred_hide_factory is not None:
-        deferred_hide = deferred_hide_factory(
-            window_manager, process_manager,
-            widget.hide_view,     # cede: stay on TOP, Keyboard.NONE
-            widget.withdraw_view,  # hide: truly unmap
-        )
-    else:
-        deferred_hide = _ImmediateHide(widget.hide_view)
-    # Returns the Desktop the moment the app's last window unmaps. Its callback
-    # fires long after ``lifecycle`` below is bound.
-    if deferred_show_factory is not None:
-        deferred_show = deferred_show_factory(
-            window_manager, process_manager, lambda: lifecycle.on_app_windows_gone(),
-        )
-    else:
-        deferred_show = _NoDeferredShow()
+    # Cede once the launched app maps, then return when its last window unmaps.
+    deferred_hide = DeferredHide(
+        window_manager, process_manager, on_cede=widget.hide_view,
+    )
+    deferred_show = DeferredShow(
+        window_manager, process_manager, lambda: lifecycle.on_app_windows_gone(),
+    )
     # Read-only foreground/game introspection, split off the coordinator.
     inspector = ForegroundInspector(
         foreground=widget._foreground,

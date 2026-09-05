@@ -18,11 +18,8 @@ from domain.input.focus_stack import InputFocusStack
 from domain.input.gamepad_events import (
     BtnModePressed, GamepadConnected, GamepadDisconnected,
 )
-from domain.input.gamepad_signals import GamepadSignals
-from domain.input.pad_control import PadControl
 from domain.input.vocabulary import Event
 from domain.shared.event_emitter import EventEmitter, Unsubscribe
-from infrastructure.common.qt._meta import ProtocolQtMeta
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +45,8 @@ class _AxisEdge(Enum):
     RELEASE = auto()   # relaxed back below the reset threshold
 
 
-class BaseGamepadWatcher(
-    QObject, PadControl, GamepadSignals, metaclass=ProtocolQtMeta
-):
-    """Owns the GUI-thread bridge and the two domain ports; subclasses add the loop.
+class BaseGamepadWatcher(QObject):
+    """Owns the GUI-thread bridge and input behavior; subclasses add the loop.
 
     Everything the `_hop_*` methods touch (handler stack, emitters, the
     `_connected` latch) is only ever read or written on the GUI thread, so

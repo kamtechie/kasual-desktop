@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from domain.catalog.tile_settings_editor import TileSettingsEditor
     from domain.navigation.focus_navigator import FocusNavigator
     from .hint_bar import HintBar
-    from .surface import DesktopSurface
+    from infrastructure.linux.wayland.surface import LayerShellSurface
     from .tile_bar import TileBar
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class DialogHostController:
         overlays: OpenOverlays,
         hintbar: HintBar,
         nav: FocusNavigator,
-        surface: DesktopSurface,
+        surface: LayerShellSurface,
         tilebar: TileBar,
         tile_settings_editor: TileSettingsEditor,
         parent: QWidget,

@@ -13,15 +13,9 @@ import os
 import stat
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
-
 from domain.catalog.window import Window
 from domain.lifecycle.window_manager import WindowManager
 from domain.shell.wallpaper import SystemWallpaper
-
-if TYPE_CHECKING:
-    from infrastructure.common.qt.desktop.surface import DesktopSurface
-    from infrastructure.linux.display.screensaver import ScreenSaverWaker
 
 logger = logging.getLogger(__name__)
 
@@ -151,17 +145,3 @@ def build_system_wallpaper() -> SystemWallpaper:
         return HyprlandWallpaper()
     from infrastructure.linux.display.wallpaper import StaticFileWallpaper
     return StaticFileWallpaper()
-
-
-def build_screensaver_waker() -> "ScreenSaverWaker":
-    """Construct the standard gamepad-activity → screensaver wake adapter."""
-    from infrastructure.linux.display.screensaver import (
-        ScreenSaverWaker, simulate_freedesktop_activity,
-    )
-    return ScreenSaverWaker(simulate_freedesktop_activity)
-
-
-def build_desktop_surface() -> "DesktopSurface":
-    """Construct the wlroots layer-shell Desktop surface."""
-    from infrastructure.linux.wayland.surface import LayerShellSurface
-    return LayerShellSurface()

@@ -8,7 +8,6 @@ import pytest
 from infrastructure.linux.compositor import (
     Compositor,
     NullWindowManager,
-    build_desktop_surface,
     build_system_wallpaper,
     build_window_manager,
     detect_compositor,
@@ -101,10 +100,6 @@ class TestFactories:
     def test_wallpaper_is_hyprland_adapter(self, live_hyprland_socket):
         from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
         assert isinstance(build_system_wallpaper(), HyprlandWallpaper)
-
-    def test_desktop_surface_is_layer_shell(self, clean_env):
-        from infrastructure.linux.wayland.surface import LayerShellSurface
-        assert isinstance(build_desktop_surface(), LayerShellSurface)
 
 
 class TestSurfaceSizing:

@@ -26,10 +26,8 @@ from domain.input.pad_control import PadControl
 from domain.input.vocabulary import Event
 from domain.menu.cursor import MenuCursor
 from domain.provisioning.candidate import CandidateApp
-from domain.provisioning.ports import ProvisioningView
 from domain.provisioning.selection import AppSelection
 from domain.shared.feedback import Cue, Feedback
-from infrastructure.common.qt._meta import ProtocolQtMeta
 from infrastructure.common.qt.ui import styles
 from infrastructure.common.qt.ui.layer_shell import Keyboard
 from infrastructure.common.qt.ui.toggle_switch import ToggleSwitch
@@ -60,7 +58,7 @@ class _ToggleRow(QPushButton):
         self.toggle.move(x, y)
 
 
-class OnboardingOverlay(BaseOverlay, ProvisioningView, metaclass=ProtocolQtMeta):
+class OnboardingOverlay(BaseOverlay):
     """The first-run app picker. Created once via its factory, shown by
     :meth:`present`, which feeds it the candidates and result callback."""
 

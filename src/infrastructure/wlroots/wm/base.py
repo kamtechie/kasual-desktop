@@ -17,9 +17,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import QObject, QTimer
 
 from domain.catalog.window import Window
-from domain.lifecycle.window_manager import WindowManager
 from domain.shared.event_emitter import EventEmitter, Unsubscribe
-from infrastructure.common.qt._meta import ProtocolQtMeta
 from infrastructure.linux.proc import expand_pid_tree
 
 logger = logging.getLogger(__name__)
@@ -27,7 +25,7 @@ logger = logging.getLogger(__name__)
 _CLI_TIMEOUT_S = 2.0
 
 
-class WlrootsWindowManager(QObject, WindowManager, metaclass=ProtocolQtMeta):
+class WlrootsWindowManager(QObject):
     """Polling window manager over a compositor CLI. Subclasses implement
     ``_enum_windows`` and the imperative operations in that compositor's IPC."""
 

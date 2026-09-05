@@ -14,10 +14,8 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QGuiApplication, QPainter
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from domain.navigation.bar_views import HintBarView
 from domain.navigation.hints import Button, Direction, Hints
 from domain.shared.i18n import translate
-from infrastructure.common.qt._meta import ProtocolQtMeta
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
 from infrastructure.common.qt.ui.top_surface import (
     promote_overlay_surface, surface_sized_by_compositor,
@@ -60,7 +58,7 @@ _SHOULDER_BUTTONS = {
 }
 
 
-class HintBar(QWidget, HintBarView, metaclass=ProtocolQtMeta):
+class HintBar(QWidget):
     """Standalone bottom bar rendering the per-screen gamepad hints."""
 
     def __init__(self) -> None:

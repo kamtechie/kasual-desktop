@@ -6,18 +6,16 @@ from PyQt6.QtCore import QObject, QTimer
 
 from domain.catalog.app import App
 from domain.catalog.window import Window
-from domain.lifecycle.launch_show import LaunchShow
 from domain.lifecycle.process_manager import ProcessManager
 from domain.lifecycle.window_manager import WindowManager
 from domain.shared.event_emitter import Unsubscribe
-from infrastructure.common.qt._meta import ProtocolQtMeta
 from infrastructure.linux.qt.desktop.app_windows import has_mapped_window
 
 _POLL_INTERVAL_MS = 150
 _CONFIRM_MS = 500
 
 
-class DeferredShow(QObject, LaunchShow, metaclass=ProtocolQtMeta):
+class DeferredShow(QObject):
     """Take the screen back when a launched app drops its last window, rather
     than when its process exits.
 
