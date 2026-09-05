@@ -36,6 +36,7 @@ from domain.shell.home_chrome import HomeChrome
 from domain.shell.home_header_model import HomeHeaderModel
 from domain.shell.home_surface_controller import HomeSurfaceController
 from domain.shell.open_overlays import OpenOverlays
+from domain.shell.runtime import ShellRuntime
 from domain.shell.wallpaper import SystemWallpaper
 from domain.system.action_view import make_action_confirm
 from domain.system.actions import ActionDeps
@@ -216,6 +217,11 @@ def build_desktop(
     )
     chrome.refresh_power_default()
 
+    runtime = ShellRuntime(
+        window_manager, process_manager, tile_model, lifecycle,
+        widget._tilebar.render_reconciled_windows, widget.is_visible,
+    )
+
     tile_menu = TileMenuDispatcher(
         dispatch_lifecycle=lifecycle.dispatch_tile_action,
         mover=tile_mover,
@@ -235,5 +241,6 @@ def build_desktop(
         tile_menu=tile_menu,
         home_surface=home_surface,
         power_popover=power_popover,
+        runtime=runtime,
     )
     return widget

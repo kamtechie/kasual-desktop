@@ -36,6 +36,7 @@ from domain.shell.introspection import (
     MenuSectionSnapshot, ShellSnapshot, TileSnapshot,
 )
 from domain.shell.open_overlays import OpenOverlays
+from domain.shell.runtime import ShellRuntime
 from domain.shell.wallpaper import SystemWallpaper
 from infrastructure.common.qt.ui.nav_key_map import nav_key_map
 from .app_add_controller import AppAddController
@@ -161,6 +162,7 @@ class Desktop(QWidget):
         self._tile_menu:     'TileMenuDispatcher | None'      = None
         self._home_surface:  'HomeSurface | None'             = None
         self._power_popover: 'PowerPopoverController | None'  = None
+        self._runtime:       'ShellRuntime | None'             = None
 
         self._status_timer = QTimer(self)
         self._status_timer.timeout.connect(self._tilebar.refresh_status)
@@ -168,8 +170,6 @@ class Desktop(QWidget):
 
         self._wallpaper: 'QPixmap | None' = self._load_wallpaper_pixmap()
         self._wallpaper_scaled: 'QPixmap | None' = None
-
-        self._wm.on_windows_updated(self._tilebar.update_windows)
 
         # Desktop is not shown at startup — build_desktop wires it via attach(),
         # then it is revealed on the connected_changed(True) signal.
@@ -185,8 +185,9 @@ class Desktop(QWidget):
         chrome: HomeChrome,
         home_actions: HomeActions,
         tile_menu: TileMenuDispatcher,
-        home_surface: 'HomeSurface | None' = None,
-        power_popover: 'PowerPopoverController | None' = None,
+        home_surface: 'HomeSurface',
+        power_popover: 'PowerPopoverController',
+        runtime: 'ShellRuntime',
     ) -> None:
         """Inject the domain coordinators assembled by build_desktop and wire the
         orchestration signals. Called once, before the Desktop is ever shown, so
@@ -202,26 +203,11 @@ class Desktop(QWidget):
         self._tile_menu     = tile_menu
         self._home_surface  = home_surface
         self._power_popover = power_popover
+        self._runtime       = runtime
 
-        self._tilebar.activated.connect(self._activate_tile)
-        self._tilebar.windows_changed.connect(self._lifecycle.check_active_dyn_gone)
-        # Not windows_changed: an app's own window is no dynamic tile, so its
-        # disappearance rebuilds nothing and the deferred return would never finish.
-        self._wm.on_windows_updated(lambda _w: self._lifecycle.check_pending_return())
-        self._app_manager.on_finished(
-            lambda e: self._lifecycle.on_app_finished(e.app_id))
-        self._app_manager.on_launch_failed(
-            lambda e: self._lifecycle.on_app_launch_failed(e.app_id, e.error))
+        self._tilebar.activated.connect(self._runtime.activate_tile)
 
         QApplication.instance().installEventFilter(self)
-
-    def _activate_tile(self, target) -> None:
-        # A ceded Desktop keeps its surface mapped, and once sunk under a launcher
-        # it is again the topmost surface wherever that launcher doesn't reach — so
-        # a stray click there must not launch anything.
-        if not self._surface.is_visible():
-            return
-        self._lifecycle.on_tile_activated(target)
 
     # ── ShellIntrospection port ────────────────────────────────────────────
 
