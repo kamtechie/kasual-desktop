@@ -13,6 +13,7 @@ its public API.
 from domain.catalog.app_pinner import AppPinner
 from domain.catalog.catalog import AppCatalog
 from domain.catalog.live_catalog import LiveCatalog
+from domain.catalog.tile_bar_model import TileBarModel
 from domain.catalog.tile_settings_editor import TileSettingsEditor
 from domain.input.pad_control import PadControl
 from domain.lifecycle.app_lifecycle import AppLifecycle
@@ -43,6 +44,7 @@ from domain.system.volume import VolumeControl
 from domain.system.brightness import BrightnessControl
 
 from collections.abc import Callable
+import os
 
 from .desktop import Desktop
 from .dialog_host_controller import DialogHostController
@@ -88,8 +90,10 @@ def build_desktop(
     # Mutable in place, so a tile reorder/recolour is seen by the lifecycle and
     # deferred hide too.
     live_apps = LiveCatalog(apps)
+    tile_model = TileBarModel(live_apps, process_manager, parent_of, os.getpgid)
     widget = Desktop(
         apps=live_apps,
+        tile_model=tile_model,
         gamepad=gamepad,
         window_manager=window_manager,
         wallpaper=wallpaper,
@@ -98,7 +102,6 @@ def build_desktop(
         notifications=notifications,
         network_control=network_control,
         overlays=overlays,
-        parent_of=parent_of,
         app_adder=app_adder,
     )
 

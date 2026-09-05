@@ -17,6 +17,7 @@ from domain.catalog.app import App
 from domain.catalog.catalog import AppCatalog
 from domain.catalog.live_catalog import LiveCatalog
 from domain.catalog.target import AddTileTarget, AppTarget, WindowTarget
+from domain.catalog.tile_bar_model import TileBarModel
 from domain.catalog.window import Window
 
 
@@ -36,10 +37,10 @@ def app_manager():
 
 @pytest.fixture
 def bar(qapp, app_manager):
-    return TileBar(
-        apps=LiveCatalog(AppCatalog(())), app_manager=app_manager,
-        parent_of=lambda _pid: None,
+    model = TileBarModel(
+        LiveCatalog(AppCatalog(())), app_manager, lambda _pid: None, os.getpgid,
     )
+    return TileBar(model)
 
 
 # ── Guard sygnatury ────────────────────────────────────────────────────────────
@@ -169,9 +170,7 @@ class TestDynamicTileOrder:
 @pytest.fixture
 def bar_with_tiles(qapp, app_manager):
     apps = LiveCatalog(AppCatalog(tuple(App(name=f"App {i}", command="x") for i in range(3))))
-    return TileBar(
-        apps=apps, app_manager=app_manager, parent_of=lambda _pid: None,
-    )
+    return TileBar(TileBarModel(apps, app_manager, lambda _pid: None, os.getpgid))
 
 
 class TestHoverSuppression:

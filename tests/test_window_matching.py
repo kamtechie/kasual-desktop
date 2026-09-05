@@ -6,12 +6,17 @@ guarding it through the public TileBar surface afterwards. The pure rules get
 their own focused unit tests in test_domain_window.py once extracted.
 """
 
+import os
+
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from domain.input.vocabulary import Trigger
 from infrastructure.common.qt.desktop.tile_bar import TileBar
 from domain.catalog.app import App
+from domain.catalog.catalog import AppCatalog
+from domain.catalog.live_catalog import LiveCatalog
+from domain.catalog.tile_bar_model import TileBarModel
 from domain.catalog.window import Window
 
 
@@ -42,9 +47,11 @@ def apps():
 
 @pytest.fixture
 def bar(qapp, apps, app_manager):
-    return TileBar(
-        apps=apps, app_manager=app_manager, parent_of=lambda _pid: None,
+    model = TileBarModel(
+        LiveCatalog(AppCatalog(tuple(apps))), app_manager,
+        lambda _pid: None, os.getpgid,
     )
+    return TileBar(model)
 
 
 # ── is_tile_running ──────────────────────────────────────────────────────────
@@ -97,8 +104,8 @@ class TestManagedWindowFiltering:
         # A window whose process group is one of our launched apps is managed,
         # even without a class/desktopFile match.
         app_manager.all_running_pids.return_value = [4321]
-        with patch("infrastructure.common.qt.desktop.tile_bar.os.getpgid", return_value=4321):
-            bar.update_windows([_win(id_="w1", pid=9999, resource_class="mystery")])
+        bar._model._process_group_of = MagicMock(return_value=4321)
+        bar.update_windows([_win(id_="w1", pid=9999, resource_class="mystery")])
         assert bar._dynamic_tiles == []
 
 
@@ -106,21 +113,21 @@ class TestManagedWindowFiltering:
 
 class TestFindTriggerForPid:
     def test_pid_zero_defaults_to_click(self, bar):
-        assert bar._find_trigger_for_pid(0) == Trigger.CLICK
+        assert bar._model._find_trigger_for_pid(0) == Trigger.CLICK
 
     def test_owned_pid_inherits_app_trigger(self, bar, app_manager):
         app_manager.running_app_ids.return_value = ["steam"]        # Steam (HOLD_1S)
         app_manager.running_pid.side_effect = lambda i: 1000 if i == "steam" else None
-        assert bar._find_trigger_for_pid(1000) == Trigger.HOLD_1S
+        assert bar._model._find_trigger_for_pid(1000) == Trigger.HOLD_1S
 
     def test_inherits_through_parent_chain(self, bar, app_manager):
         app_manager.running_app_ids.return_value = ["steam"]
         app_manager.running_pid.side_effect = lambda i: 1000 if i == "steam" else None
         # child 2000 → parent 1000 (owned by Steam) — parent_of is injected now.
-        bar._parent_of = lambda pid: 1000
-        assert bar._find_trigger_for_pid(2000) == Trigger.HOLD_1S
+        bar._model._parent_of = lambda pid: 1000
+        assert bar._model._find_trigger_for_pid(2000) == Trigger.HOLD_1S
 
     def test_unowned_pid_defaults_to_click(self, bar, app_manager):
         app_manager.running_app_ids.return_value = []
-        bar._parent_of = lambda pid: None
-        assert bar._find_trigger_for_pid(7777) == Trigger.CLICK
+        bar._model._parent_of = lambda pid: None
+        assert bar._model._find_trigger_for_pid(7777) == Trigger.CLICK

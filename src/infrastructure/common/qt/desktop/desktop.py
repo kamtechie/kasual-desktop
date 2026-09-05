@@ -5,6 +5,7 @@ from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QApplication
 
 from domain.catalog.live_catalog import LiveCatalog
+from domain.catalog.tile_bar_model import TileBarModel
 from domain.shell.desktop_state import DesktopState
 from domain.input.vocabulary import Event
 from domain.input.pad_control import PadControl
@@ -64,6 +65,7 @@ class Desktop(QWidget):
     def __init__(
         self,
         apps: LiveCatalog,
+        tile_model: TileBarModel,
         gamepad: PadControl,
         window_manager: WindowManager,
         wallpaper: SystemWallpaper,
@@ -72,7 +74,6 @@ class Desktop(QWidget):
         notifications: NotificationCenter,
         network_control: NetworkControl,
         overlays: OpenOverlays,
-        parent_of: Callable[[int], int | None],
         app_adder: AppAdder,
     ):
         super().__init__()
@@ -123,7 +124,7 @@ class Desktop(QWidget):
         self._home_header.toggle_requested.connect(self._gamepad.trigger_btn_mode)
         self._topbar = self._home_header
         main.addStretch(1)
-        self._tilebar = TileBar(self._apps, self._app_manager, parent_of=parent_of)
+        self._tilebar = TileBar(tile_model)
         self._tilebar.tile_hovered.connect(self._on_tile_hovered)
         self._tilebar.tile_context_menu.connect(self._on_tile_context_menu)
 
