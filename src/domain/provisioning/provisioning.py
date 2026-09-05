@@ -25,11 +25,6 @@ class Provisioning:
         self._bundled_base = bundled_base
 
     def candidates(self) -> list[CandidateApp]:
-        extras = self._discovery.extra_candidates()
-        if extras:
-            # A platform with its own starter list: its entries resolve where the
-            # baseline's ``.sh`` scripts don't.
-            return list(extras)
         return starter_candidates(self._discovery, self._bundled_base)
 
     def complete(self, chosen: list[CandidateApp]) -> None:

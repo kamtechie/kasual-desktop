@@ -23,9 +23,6 @@ class FakeDiscovery:
     def system_icon(self, names: tuple[str, ...]) -> str | None:
         return next((n for n in names if n in self._icons), None)
 
-    def extra_candidates(self):
-        return []
-
 
 class FakeProvisioning:
     """An AppProvisioning recording what it was asked to provision."""

@@ -29,11 +29,6 @@ class AppDiscovery(Protocol):
         """The first of *names* the system icon theme provides, else None."""
         ...
 
-    def extra_candidates(self) -> list[CandidateApp]:
-        """Platform-specific starter candidates; the use-case prefers a non-empty
-        list over the cross-platform baseline. Empty by default."""
-        ...
-
 
 class InstalledApps(Protocol):
     """Enumerates every installed app as an add-app candidate (never pre-selected);

@@ -9,7 +9,6 @@ scan the XDG ``applications`` dirs (as ``window_icons._xdg_app_dirs`` does) for
 
 import shutil
 
-from domain.provisioning.candidate import CandidateApp
 from domain.provisioning.ports import AppDiscovery
 
 
@@ -26,6 +25,3 @@ class WhichAppDiscovery(AppDiscovery):
             if name and QIcon.hasThemeIcon(name):
                 return name
         return None
-
-    def extra_candidates(self) -> list[CandidateApp]:
-        return []   # nothing beyond the domain's starter_candidates baseline
