@@ -32,7 +32,7 @@ class AppAddController:
     def __init__(
         self,
         apps: LiveCatalog,
-        app_adder: AppAdder | None,
+        app_adder: AppAdder,
         gamepad: PadControl,
         feedback: Feedback,
         tilebar: TileBar,
@@ -53,8 +53,8 @@ class AppAddController:
     def show(self) -> None:
         """Open the add-app picker for the [＋] tile: the onboarding overlay,
         reused with the starter list filtered to not-yet-pinned apps. With
-        nothing left to add (or no adder wired) it just plays a back cue."""
-        if self._app_adder is None or self._picker is not None:
+        nothing left to add it just plays a back cue."""
+        if self._picker is not None:
             return
         candidates = self._app_adder.available(self._apps)
         if not candidates:

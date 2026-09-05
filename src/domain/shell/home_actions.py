@@ -10,7 +10,7 @@ from domain.system.runner import ActionRunner
 
 
 class HomeActions:
-    def __init__(self, action_runner: ActionRunner, power_menu: PowerMenu | None) -> None:
+    def __init__(self, action_runner: ActionRunner, power_menu: PowerMenu) -> None:
         self._action_runner = action_runner
         self._power_menu = power_menu
 
@@ -18,8 +18,7 @@ class HomeActions:
         """A header button fired: Power runs the persisted default immediately
         (its chooser is a separate gesture); the rest are system actions."""
         if action_type == POWER:
-            if self._power_menu is not None:
-                self._power_menu.activate_default()
+            self._power_menu.activate_default()
         else:
             self._action_runner.run(action_type)
 

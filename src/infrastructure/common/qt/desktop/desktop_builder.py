@@ -70,10 +70,10 @@ def build_desktop(
     order_store: TileOrderStore,
     settings_store: TileSettingsStore,
     app_pinning: AppPinning,
-    parent_of: Callable[[int], int | None] | None = None,
-    is_game_pid: Callable[[int], bool] = lambda _: False,
-    app_adder: AppAdder | None = None,
-    power_preference: PowerPreference | None = None,
+    parent_of: Callable[[int], int | None],
+    is_game_pid: Callable[[int], bool],
+    app_adder: AppAdder,
+    power_preference: PowerPreference,
 ) -> Desktop:
     """Build a fully wired Desktop: the view widget plus its domain coordinators.
 
@@ -82,12 +82,7 @@ def build_desktop(
 
     ``is_game_pid`` decides whether a foreground pid is a game, using graphics-
     API maps and launcher ancestry, and gates the in-game HUD toggle.
-
-    ``power_preference`` also gates the power-driven chrome: without it (bare
-    test builds) no PowerMenu, Home surface or Power popover is built, and the
-    BTN_MODE in-place toggle reports unhandled.
     """
-    parent_of = parent_of or (lambda _pid: None)
     # Shared: the widget registers/forgets overlays; the coordinator pauses/
     # resumes the group as the surface hides and returns.
     overlays = OpenOverlays()
@@ -177,31 +172,26 @@ def build_desktop(
         sync_hint_visibility=lambda: chrome.sync(),
     )
 
-    power_menu = None
-    home_surface = None
-    power_popover = None
-    if power_preference is not None:
-        power_menu = PowerMenu(
-            ActionDeps(desktop=widget, power=power),
-            power_preference,
-            make_action_confirm(widget.show_confirm),
-        )
+    power_menu = PowerMenu(
+        ActionDeps(desktop=widget, power=power),
+        power_preference,
+        make_action_confirm(widget.show_confirm),
+    )
     home_actions = HomeActions(action_runner, power_menu)
-    if power_menu is not None:
-        home_surface = HomeSurface(
-            gamepad, feedback, volume, brightness, power_menu,
-            widget._home_header,
-            on_action=home_actions.menu_pick,
-            on_power_chooser=lambda: power_popover.open_header_chooser(),
-            begin_hints=lambda: chrome.begin_overlay_hints(),
-            set_hints=lambda h: chrome.set_overlay_hints(h),
-            end_hints=lambda: chrome.end_overlay_hints(),
-        )
-        home_surface.install_surface()
-        power_popover = PowerPopoverController(
-            power_menu, gamepad, feedback, widget._home_header,
-            home_surface, nav, widget._hintbar, overlays,
-        )
+    home_surface = HomeSurface(
+        gamepad, feedback, volume, brightness, power_menu,
+        widget._home_header,
+        on_action=home_actions.menu_pick,
+        on_power_chooser=lambda: power_popover.open_header_chooser(),
+        begin_hints=lambda: chrome.begin_overlay_hints(),
+        set_hints=lambda h: chrome.set_overlay_hints(h),
+        end_hints=lambda: chrome.end_overlay_hints(),
+    )
+    home_surface.install_surface()
+    power_popover = PowerPopoverController(
+        power_menu, gamepad, feedback, widget._home_header,
+        home_surface, nav, widget._hintbar, overlays,
+    )
 
     chrome = HomeChrome(
         is_desktop_visible=widget.is_visible,

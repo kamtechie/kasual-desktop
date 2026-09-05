@@ -68,14 +68,14 @@ class HomeChrome:
         self,
         *,
         is_desktop_visible: Callable[[], bool],
-        home_surface: HomeSurfaceView | None,
+        home_surface: HomeSurfaceView,
         hintbar: HintBarSurface,
         header: HeaderStatusView,
         notifications: NotificationCenter,
         render_screen_hints: Callable[[], None],
         dismiss_overlays: Callable[[], None],
         show_notifications_view: Callable[[], None],
-        power_preference: PowerPreference | None = None,
+        power_preference: PowerPreference,
     ) -> None:
         self._is_desktop_visible = is_desktop_visible
         self._surface = home_surface
@@ -122,8 +122,6 @@ class HomeChrome:
         self._sync_home_surface()
 
     def _sync_home_surface(self) -> None:
-        if self._surface is None:
-            return
         if self._is_desktop_visible():
             # Reclaim a still-mapped on-demand overlay as collapsed chrome rather
             # than resurface a stale app-context menu.
@@ -139,17 +137,16 @@ class HomeChrome:
     def on_desktop_activated(self) -> None:
         """Coming forward from an app always lands on the bare Home chrome —
         never a leftover menu from the app just left."""
-        if self._surface is not None:
-            self._surface.collapse_immediately()
+        self._surface.collapse_immediately()
         self.sync()
 
     # ── In-place menu toggle (Home view) ─────────────────────────────────────
 
     def try_toggle(self) -> bool:
-        """Toggle the surface's menu in place when the surface exists and the
-        Desktop is on screen; ``False`` leaves the caller to drive the
-        map-on-demand overlay. A fresh expansion supersedes any open overlay."""
-        if self._surface is None or not self._is_desktop_visible():
+        """Toggle the surface's menu in place when the Desktop is on screen;
+        ``False`` leaves the caller to drive the map-on-demand overlay. A fresh
+        expansion supersedes any open overlay."""
+        if not self._is_desktop_visible():
             return False
         if self._surface.is_expanded():
             self._surface.request_close()
@@ -164,8 +161,6 @@ class HomeChrome:
         """Reflect the persisted default power action on the header's Power
         button. Event-driven (on show/resume): the default only changes by
         executing a power action, and Sleep is the one that returns here."""
-        if self._power_preference is None:
-            return
         self._header.set_power_icon(ACTIONS[self._power_preference.default()].icon)
 
     def update_network_status(self, status: NetworkStatus) -> None:

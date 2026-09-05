@@ -45,16 +45,15 @@ class TileBar(QScrollArea):
     tile_context_menu = pyqtSignal()
 
     def __init__(self, apps: LiveCatalog, app_manager: ProcessManager,
-                 parent_of: Callable[[int], int | None] | None = None,
+                 parent_of: Callable[[int], int | None],
                  parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._apps          = apps
         self._app_manager   = app_manager
         self._icon_resolver = WindowIconResolver()
         # Parent-PID lookup for recall-trigger inheritance (a dynamic window
-        # owned by a launcher inherits its trigger). Production injects the
-        # /proc reader; tests may use the no-op default.
-        self._parent_of     = parent_of or (lambda _pid: None)
+        # owned by a launcher inherits its trigger).
+        self._parent_of     = parent_of
 
         self._tile_index = 0
         self._focused    = True   # tiles own focus at startup

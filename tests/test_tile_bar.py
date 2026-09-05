@@ -36,7 +36,10 @@ def app_manager():
 
 @pytest.fixture
 def bar(qapp, app_manager):
-    return TileBar(apps=LiveCatalog(AppCatalog(())), app_manager=app_manager)
+    return TileBar(
+        apps=LiveCatalog(AppCatalog(())), app_manager=app_manager,
+        parent_of=lambda _pid: None,
+    )
 
 
 # ── Guard sygnatury ────────────────────────────────────────────────────────────
@@ -166,7 +169,9 @@ class TestDynamicTileOrder:
 @pytest.fixture
 def bar_with_tiles(qapp, app_manager):
     apps = LiveCatalog(AppCatalog(tuple(App(name=f"App {i}", command="x") for i in range(3))))
-    return TileBar(apps=apps, app_manager=app_manager)
+    return TileBar(
+        apps=apps, app_manager=app_manager, parent_of=lambda _pid: None,
+    )
 
 
 class TestHoverSuppression:

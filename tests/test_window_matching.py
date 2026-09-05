@@ -42,7 +42,9 @@ def apps():
 
 @pytest.fixture
 def bar(qapp, apps, app_manager):
-    return TileBar(apps=apps, app_manager=app_manager)
+    return TileBar(
+        apps=apps, app_manager=app_manager, parent_of=lambda _pid: None,
+    )
 
 
 # ── is_tile_running ──────────────────────────────────────────────────────────

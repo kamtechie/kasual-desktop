@@ -93,6 +93,8 @@ def _chrome(
     power_preference=None,
 ):
     calls = []
+    surface = surface or FakeHomeSurface()
+    power_preference = power_preference or FakePowerPreference()
     chrome = HomeChrome(
         is_desktop_visible=lambda: visible,
         home_surface=surface,
@@ -131,10 +133,6 @@ class TestSurfaceVisibilitySync:
         chrome, _ = _chrome(visible=False, surface=surface)
         chrome.sync()
         assert surface.calls == []
-
-    def test_no_surface_is_fine(self):
-        chrome, _ = _chrome(visible=True, surface=None)
-        chrome.sync()   # must not raise
 
     def test_activation_lands_on_bare_chrome(self):
         surface = FakeHomeSurface(expanded=True)
@@ -189,10 +187,6 @@ class TestHintBarVisibility:
 
 
 class TestTryToggle:
-    def test_unhandled_without_surface(self):
-        chrome, _ = _chrome(visible=True, surface=None)
-        assert chrome.try_toggle() is False
-
     def test_unhandled_when_desktop_down(self):
         chrome, _ = _chrome(visible=False, surface=FakeHomeSurface())
         assert chrome.try_toggle() is False
@@ -219,12 +213,6 @@ class TestHeaderStatus:
         chrome.refresh_power_default()
         from domain.system.actions import ACTIONS
         assert header.power_icons == [ACTIONS["sleep"].icon]
-
-    def test_power_glyph_skipped_without_preference(self):
-        header = FakeHeader()
-        chrome, _ = _chrome(header=header, power_preference=None)
-        chrome.refresh_power_default()
-        assert header.power_icons == []
 
     def test_network_status_is_stored_and_reflected(self):
         header = FakeHeader()

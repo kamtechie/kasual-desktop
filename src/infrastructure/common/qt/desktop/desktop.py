@@ -72,8 +72,8 @@ class Desktop(QWidget):
         notifications: NotificationCenter,
         network_control: NetworkControl,
         overlays: OpenOverlays,
-        parent_of: 'Callable[[int], int | None] | None' = None,
-        app_adder: AppAdder | None = None,
+        parent_of: Callable[[int], int | None],
+        app_adder: AppAdder,
     ):
         super().__init__()
         self._apps        = apps
@@ -88,8 +88,7 @@ class Desktop(QWidget):
         # handles (confirm, tile settings, tile popover) are tracked as a group
         # in this shared registry.
         self._overlays       = overlays
-        # The add-app use-case behind the [＋] tile. Optional so offscreen test
-        # builds can omit it — the [＋] tile then simply does nothing.
+        # The add-app use-case behind the [＋] tile.
         self._app_adder      = app_adder
         self._surface        = LayerShellSurface()
 
@@ -270,9 +269,7 @@ class Desktop(QWidget):
             desktop_visible=self._surface.is_visible(),
             desktop_mapped=self.isVisible(),
             desktop_sunk=self._surface.is_sunk(),
-            home_header_mapped=(
-                self._home_surface is not None and self._home_surface.isVisible()
-            ),
+            home_header_mapped=self._home_surface.isVisible(),
             hint_bar_mapped=self._hintbar.isVisible(),
             home_menu=self._home_menu_snapshot(),
             confirm=self._confirm_snapshot(),
@@ -478,7 +475,7 @@ class Desktop(QWidget):
     def _menu_owns_header(self) -> bool:
         """True while the expanded Home menu is up: the header is then its navigable
         zone 0, so header mouse events drive the menu, not the collapsed-view nav."""
-        return self._home_surface is not None and self._home_surface.is_open()
+        return self._home_surface.is_open()
 
     def _on_topbar_hovered(self, idx: int) -> None:
         if self._menu_owns_header():
@@ -517,16 +514,10 @@ class Desktop(QWidget):
     # ── Top bar actions ────────────────────────────────────────────────────
 
     def _open_system_action(self, action_type: str) -> None:
-        if self._home_actions is not None:
-            self._home_actions.open_header_action(action_type)
+        self._home_actions.open_header_action(action_type)
 
     def home_overlay(self) -> HomeSurface:
         """The persistent surface used for BTN_MODE over apps and minimized Kasual."""
-        if self._home_surface is None:
-            raise RuntimeError(
-                "home_overlay() needs the Home surface — build_desktop() builds it "
-                "only when a power_preference is provided."
-            )
         return self._home_surface
 
     def try_toggle_home_surface(self) -> bool:
@@ -535,9 +526,8 @@ class Desktop(QWidget):
     def _show_topbar_power_menu(self, index: int) -> None:
         """Delegate the top-bar Power chooser (X / right-click on Power) to the
         collaborator. Wired as the FocusNavigator's on_topbar_menu; a no-op on
-        the other header buttons and in builds without a power preference."""
-        if self._power_popover is not None:
-            self._power_popover.show_topbar(index)
+        the other header buttons."""
+        self._power_popover.show_topbar(index)
 
     def refresh_notification_badge(self) -> None:
         self._chrome.refresh_notification_badge()

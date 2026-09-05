@@ -66,6 +66,10 @@ def _make_desktop(mock_gamepad):
         order_store=MagicMock(),
         settings_store=MagicMock(),
         app_pinning=MagicMock(),
+        parent_of=lambda _pid: None,
+        is_game_pid=lambda _pid: False,
+        app_adder=MagicMock(),
+        power_preference=MagicMock(default=lambda: "sleep"),
     )
 
 
