@@ -13,8 +13,7 @@ from domain.catalog.target import AppTarget, Target, WindowTarget
 from domain.input.pad_control import PadControl
 from domain.lifecycle.app_control import AppControl
 from domain.lifecycle.foreground_inspector import ForegroundInspector
-from domain.lifecycle.launch_hide import LaunchHide
-from domain.lifecycle.launch_show import LaunchShow
+from domain.lifecycle.deferred_launch import DeferredLaunch
 from domain.menu.entry import CLOSE, LAUNCH, RESTORE
 from domain.menu.item import MenuItem
 from domain.lifecycle.process_manager import ProcessManager
@@ -45,8 +44,8 @@ class AppLifecycle(AppControl):
         app_manager: ProcessManager,
         apps: LiveCatalog,
         foreground: ForegroundState,
-        deferred_hide: LaunchHide,
-        deferred_show: LaunchShow,
+        deferred_hide: DeferredLaunch,
+        deferred_show: DeferredLaunch,
         tilebar: TileBarView,
         pad_handler: Callable[[str], None],
         scheduler: Scheduler,
