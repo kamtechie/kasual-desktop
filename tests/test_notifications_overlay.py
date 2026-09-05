@@ -9,6 +9,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from domain.notifications.center import NotificationCenter
+from domain.notifications.list_model import NotificationListModel
 from domain.notifications.notification import Notification
 
 
@@ -22,7 +23,9 @@ def _center(*names: str) -> NotificationCenter:
 
 def _make_overlay(mock_gamepad, center):
     from infrastructure.common.qt.overlays.notifications_overlay import NotificationsOverlay
-    return NotificationsOverlay(gamepad=mock_gamepad, center=center, feedback=MagicMock())
+    feedback = MagicMock()
+    model = NotificationListModel(center, feedback)
+    return NotificationsOverlay(gamepad=mock_gamepad, model=model, feedback=feedback)
 
 
 def _row_texts(row) -> list[str]:
@@ -92,7 +95,7 @@ class TestUnreadHighlight:
 
     def test_unread_capped_to_visible_rows(self, mock_gamepad):
         overlay = _make_overlay(mock_gamepad, _center("A", "B"))
-        assert overlay._unread == 2
+        assert overlay._model.unread_count == 2
 
 
 class TestClosing:

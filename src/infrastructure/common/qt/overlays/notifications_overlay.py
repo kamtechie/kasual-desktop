@@ -18,8 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from domain.input.pad_control import PadControl
-from domain.menu.cursor import MenuCursor
-from domain.notifications.center import NotificationCenter
+from domain.notifications.list_model import NotificationListModel
 from domain.notifications.view import relative_age
 from domain.shared.feedback import Cue, Feedback
 from domain.shared.text import truncate
@@ -106,28 +105,15 @@ class NotificationsOverlay(BaseOverlay):
     def __init__(
         self,
         gamepad: PadControl,
-        center: NotificationCenter,
+        model: NotificationListModel,
         feedback: Feedback,
         parent: QWidget | None = None,
         dim: bool = True,
     ) -> None:
         super().__init__(gamepad, self._handle_pad, feedback, parent, dim=dim)
-        self._items = center.recent(_MAX_ROWS)
-        # The first `unread` rows are the new ones (newest-first ordering). Read
-        # before the desktop clears the tally so the highlight survives the reset.
-        self._unread = min(center.unread_count, len(self._items))
+        self._model = model
+        self._items = model.items
         self._rows: list[QFrame] = []
-
-        # Vertical navigation lives in the domain; movement clamps at the ends
-        # (wrap=False), A/B/Esc dismiss (read-only list — no per-item action).
-        self._cursor = MenuCursor(
-            count=lambda: len(self._rows),
-            render=self._render_selection,
-            on_activate=lambda _idx: self._close(),
-            on_dismiss=self._close,
-            feedback=feedback,
-            wrap=False,
-        )
 
         outer = QVBoxLayout(self)
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -156,7 +142,7 @@ class NotificationsOverlay(BaseOverlay):
 
         outer.addWidget(card)
 
-        self._cursor.reset(0)
+        self._render_selection()
         self._feedback.play(Cue.POPUP_OPEN)
         self._show()
 
@@ -209,7 +195,7 @@ class NotificationsOverlay(BaseOverlay):
         row.setObjectName("notifrow")
         row.setStyleSheet(_ROW_UNREAD if unread else _ROW_NORMAL)
         # Clicking a row selects it (mouse parity with the gamepad cursor).
-        row.mousePressEvent = lambda _e, i=idx: self._cursor.hover(i)
+        row.mousePressEvent = lambda _e, i=idx: self._hover(i)
 
         h = QHBoxLayout(row)
         h.setContentsMargins(16, 10, 16, 10)
@@ -254,12 +240,20 @@ class NotificationsOverlay(BaseOverlay):
     # ── Navigation (delegated to the domain cursor) ──────────────────────────
 
     def _handle_pad(self, event: str) -> None:
-        self._cursor.handle_pad(event)
+        if self._model.handle_pad(event):
+            self._close()
+        else:
+            self._render_selection()
+
+    def _hover(self, index: int) -> None:
+        self._model.hover(index)
+        self._render_selection()
 
     def _is_unread(self, idx: int) -> bool:
-        return idx < self._unread
+        return self._model.is_unread(idx)
 
-    def _render_selection(self, index: int) -> None:
+    def _render_selection(self) -> None:
+        index = self._model.selected_index
         for i, row in enumerate(self._rows):
             if i == index:
                 row.setStyleSheet(_ROW_SELECTED)
@@ -273,7 +267,7 @@ class NotificationsOverlay(BaseOverlay):
     def keyPressEvent(self, event: QKeyEvent) -> None:
         mapped = self._KEY_MAP.get(event.key())
         if mapped is not None:
-            self._cursor.handle_pad(mapped)
+            self._handle_pad(mapped)
 
     def _on_outside_click(self) -> None:
         self._close()

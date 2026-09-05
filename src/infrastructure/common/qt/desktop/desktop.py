@@ -14,6 +14,7 @@ from infrastructure.common.qt.overlays.info_dialog import InfoDialog
 from infrastructure.common.qt.overlays.notifications_overlay import NotificationsOverlay
 from infrastructure.common.qt.overlays.network_overlay import NetworkOverlay
 from domain.notifications.center import NotificationCenter
+from domain.notifications.list_model import NotificationListModel
 from domain.network.control import NetworkControl
 from domain.network.status import NetworkStatus
 from domain.lifecycle.app_control import AppControl
@@ -548,8 +549,9 @@ class Desktop(QWidget):
         self._chrome.open_notifications()
 
     def _show_notifications_view(self) -> None:
+        model = NotificationListModel(self._notifications, self._feedback)
         overlay = NotificationsOverlay(
-            self._gamepad, self._notifications, self._feedback, parent=self, dim=False,
+            self._gamepad, model, self._feedback, parent=self, dim=False,
         )
         self._dialogs.present(overlay)
         self._hintbar.show_hints(home_hints.NOTIFICATIONS)
