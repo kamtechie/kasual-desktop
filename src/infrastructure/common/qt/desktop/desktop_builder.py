@@ -253,7 +253,6 @@ def build_desktop(
         tile_mover=tile_mover,
         dialogs=dialogs,
         chrome=chrome,
-        home_actions=home_actions,
         tile_menu=tile_menu,
         home_surface=home_surface,
         power_popover=power_popover,

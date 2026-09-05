@@ -242,7 +242,7 @@ class HomeMenuContent(QWidget):
         generation = self._build_generation
 
         def work() -> None:
-            self._value_ready.emit(generation, action, self._model._control_for(action).get())
+            self._value_ready.emit(generation, action, self._model.read_value(action))
 
         QThreadPool.globalInstance().start(QRunnable.create(work))
 

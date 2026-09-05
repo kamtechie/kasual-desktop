@@ -97,6 +97,9 @@ class HomeMenuModel:
     def accept_value(self, action: str, value: BoundedValue) -> None:
         self.values[action] = value
 
+    def read_value(self, action: str) -> BoundedValue:
+        return self._control_for(action).get()
+
     def set_from_raw(self, action: str, raw: int) -> bool:
         current = self.default_value(action)
         new = type(current)(raw)

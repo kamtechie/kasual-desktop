@@ -28,7 +28,6 @@ from domain.navigation.focus_navigator import FocusNavigator
 from domain.navigation.tile_mover import TileMover
 from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Feedback
-from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
 from domain.shell.home_header_model import HomeHeaderModel
 from domain.shell.input_router import DesktopInputRouter, DesktopOverlayPolicy
@@ -159,7 +158,6 @@ class Desktop(QWidget):
         self._tile_mover:    'TileMover | None'               = None
         self._dialogs:       'DialogHostController | None'    = None
         self._chrome:        'HomeChrome | None'              = None
-        self._home_actions:  'HomeActions | None'             = None
         self._tile_menu:     'TileMenuDispatcher | None'      = None
         self._home_surface:  'HomeSurface | None'             = None
         self._power_popover: 'PowerPopoverController | None'  = None
@@ -186,7 +184,6 @@ class Desktop(QWidget):
         tile_mover: TileMover,
         dialogs: DialogHostController,
         chrome: HomeChrome,
-        home_actions: HomeActions,
         tile_menu: TileMenuDispatcher,
         home_surface: 'HomeSurface',
         power_popover: 'PowerPopoverController',
@@ -204,7 +201,6 @@ class Desktop(QWidget):
         self._tile_mover    = tile_mover
         self._dialogs       = dialogs
         self._chrome        = chrome
-        self._home_actions  = home_actions
         self._tile_menu     = tile_menu
         self._home_surface  = home_surface
         self._power_popover = power_popover
@@ -486,9 +482,6 @@ class Desktop(QWidget):
         self._dialogs.show_tile_popover()
 
     # ── Top bar actions ────────────────────────────────────────────────────
-
-    def _open_system_action(self, action_type: str) -> None:
-        self._home_actions.open_header_action(action_type)
 
     def home_overlay(self) -> HomeSurface:
         """The persistent surface used for BTN_MODE over apps and minimized Kasual."""
