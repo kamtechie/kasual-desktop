@@ -125,7 +125,7 @@ class TestLaunch:
     def _launch(self, am, app_id="a", command="echo", args=None, pid=1234):
         proc = _running_proc(pid=pid)
         with patch("infrastructure.linux.catalog.app_manager.subprocess.Popen", return_value=proc) as popen, \
-             patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"):
+             patch("infrastructure.linux.catalog.app_manager.threading.Thread"):
             am.launch(app_id, command, args or [])
         return popen, proc
 
@@ -142,7 +142,7 @@ class TestLaunch:
         am = _make_manager()
         proc = _running_proc(pid=1234)
         with patch("infrastructure.linux.catalog.app_manager.subprocess.Popen", return_value=proc) as popen, \
-             patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"):
+             patch("infrastructure.linux.catalog.app_manager.threading.Thread"):
             am.launch("a", "echo", [], {"FOO": "bar"})
         env = popen.call_args.kwargs["env"]
         assert env["FOO"] == "bar"
@@ -157,7 +157,7 @@ class TestLaunch:
         am = _make_manager()
         proc = _running_proc()
         with patch("infrastructure.linux.catalog.app_manager.subprocess.Popen", return_value=proc) as popen, \
-             patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"):
+             patch("infrastructure.linux.catalog.app_manager.threading.Thread"):
             am.launch("a", "cmd")
         assert popen.call_args[0][0] == ["cmd"]
 
@@ -185,7 +185,7 @@ class TestLaunch:
         am = _make_manager()
         proc = _running_proc()
         with patch("infrastructure.linux.catalog.app_manager.subprocess.Popen", return_value=proc), \
-             patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread") as mock_thread:
+             patch("infrastructure.linux.catalog.app_manager.threading.Thread") as mock_thread:
             am.launch("a", "echo")
         mock_thread.assert_called_once()
         mock_thread.return_value.start.assert_called_once()
@@ -194,7 +194,7 @@ class TestLaunch:
         am = _make_manager()
         proc = _running_proc()
         with patch("infrastructure.linux.catalog.app_manager.subprocess.Popen", return_value=proc), \
-             patch("infrastructure.common.lifecycle.base_app_manager.threading.Thread"):
+             patch("infrastructure.linux.catalog.app_manager.threading.Thread"):
             assert am.launch("a", "echo") is True
 
     def test_returns_false_when_already_running(self, qapp):
@@ -266,7 +266,7 @@ class TestTerminate:
         am._processes["a"] = _running_proc(pid=1234)
         with patch("infrastructure.linux.catalog.app_manager.os.getpgid", return_value=1234), \
              patch("infrastructure.linux.catalog.app_manager.os.killpg") as mock_killpg, \
-             patch("infrastructure.common.lifecycle.base_app_manager.QTimer.singleShot"):
+             patch("infrastructure.linux.catalog.app_manager.QTimer.singleShot"):
             am.terminate("a")
         mock_killpg.assert_called_once_with(1234, signal.SIGTERM)
 
@@ -275,7 +275,7 @@ class TestTerminate:
         am._processes["a"] = _running_proc()
         with patch("infrastructure.linux.catalog.app_manager.os.getpgid", return_value=999), \
              patch("infrastructure.linux.catalog.app_manager.os.killpg"), \
-             patch("infrastructure.common.lifecycle.base_app_manager.QTimer.singleShot") as mock_timer:
+             patch("infrastructure.linux.catalog.app_manager.QTimer.singleShot") as mock_timer:
             am.terminate("a")
         assert mock_timer.call_args[0][0] == 3000
 
@@ -292,7 +292,7 @@ class TestTerminate:
         am._processes["b"] = _running_proc(pid=200)
         with patch("infrastructure.linux.catalog.app_manager.os.getpgid", return_value=100), \
              patch("infrastructure.linux.catalog.app_manager.os.killpg") as mock_killpg, \
-             patch("infrastructure.common.lifecycle.base_app_manager.QTimer.singleShot"):
+             patch("infrastructure.linux.catalog.app_manager.QTimer.singleShot"):
             am.terminate("a")
         mock_killpg.assert_called_once_with(100, signal.SIGTERM)
 
