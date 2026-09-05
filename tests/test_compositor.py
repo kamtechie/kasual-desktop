@@ -75,31 +75,31 @@ class TestDetectCompositor:
 
 
 class TestFactories:
-    def test_window_manager_falls_back_to_null(self, clean_env):
-        assert isinstance(build_window_manager(), NullWindowManager)
+    def test_window_manager_falls_back_to_null(self):
+        assert isinstance(build_window_manager(Compositor.UNKNOWN), NullWindowManager)
 
-    def test_window_manager_is_sway_adapter(self, live_sway_socket, qapp):
+    def test_window_manager_is_sway_adapter(self, qapp):
         from infrastructure.wlroots.wm.sway import SwayWindowManager
-        assert isinstance(build_window_manager(), SwayWindowManager)
+        assert isinstance(build_window_manager(Compositor.SWAY), SwayWindowManager)
 
-    def test_window_manager_is_hyprland_adapter(self, live_hyprland_socket, qapp):
+    def test_window_manager_is_hyprland_adapter(self, qapp):
         from infrastructure.wlroots.wm.hyprland import HyprlandWindowManager
-        assert isinstance(build_window_manager(), HyprlandWindowManager)
+        assert isinstance(build_window_manager(Compositor.HYPRLAND), HyprlandWindowManager)
 
     def test_wallpaper_falls_back_to_static_file(self, clean_env, tmp_path):
         clean_env.setenv("XDG_CONFIG_HOME", str(tmp_path))
         from infrastructure.linux.display.wallpaper import StaticFileWallpaper
-        wallpaper = build_system_wallpaper()
+        wallpaper = build_system_wallpaper(Compositor.UNKNOWN)
         assert isinstance(wallpaper, StaticFileWallpaper)
         assert wallpaper.current() is None
 
-    def test_wallpaper_is_sway_adapter(self, live_sway_socket):
+    def test_wallpaper_is_sway_adapter(self):
         from infrastructure.wlroots.display.wallpaper import SwayWallpaper
-        assert isinstance(build_system_wallpaper(), SwayWallpaper)
+        assert isinstance(build_system_wallpaper(Compositor.SWAY), SwayWallpaper)
 
-    def test_wallpaper_is_hyprland_adapter(self, live_hyprland_socket):
+    def test_wallpaper_is_hyprland_adapter(self):
         from infrastructure.wlroots.display.wallpaper import HyprlandWallpaper
-        assert isinstance(build_system_wallpaper(), HyprlandWallpaper)
+        assert isinstance(build_system_wallpaper(Compositor.HYPRLAND), HyprlandWallpaper)
 
 
 class TestSurfaceSizing:

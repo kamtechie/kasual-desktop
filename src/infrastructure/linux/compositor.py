@@ -118,9 +118,8 @@ class NullWindowManager(WindowManager):
         pass
 
 
-def build_window_manager() -> WindowManager:
-    """Construct the WindowManager adapter for the detected compositor."""
-    compositor = detect_compositor()
+def build_window_manager(compositor: Compositor) -> WindowManager:
+    """Construct the WindowManager adapter for *compositor*."""
     if compositor is Compositor.SWAY:
         from infrastructure.wlroots.wm.sway import SwayWindowManager
         return SwayWindowManager()
@@ -134,9 +133,8 @@ def build_window_manager() -> WindowManager:
     return NullWindowManager()
 
 
-def build_system_wallpaper() -> SystemWallpaper:
-    """Construct the SystemWallpaper adapter for the detected compositor."""
-    compositor = detect_compositor()
+def build_system_wallpaper(compositor: Compositor) -> SystemWallpaper:
+    """Construct the SystemWallpaper adapter for *compositor*."""
     if compositor is Compositor.SWAY:
         from infrastructure.wlroots.display.wallpaper import SwayWallpaper
         return SwayWallpaper()

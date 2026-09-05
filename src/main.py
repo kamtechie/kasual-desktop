@@ -65,7 +65,8 @@ def main() -> None:
     log_file = setup_logging(Path.home() / ".local" / "cache" / "kasual")
     version = get_version()
     logger.info("Running Kasual Desktop %s", version)
-    logger.info("Detected compositor: %s", detect_compositor().value)
+    compositor = detect_compositor()
+    logger.info("Detected compositor: %s", compositor.value)
 
     app = QApplication(sys.argv)
     app.setApplicationName("Kasual Desktop")
@@ -112,7 +113,7 @@ def main() -> None:
         apps = load_apps()
         logger.info("Loaded %d apps", len(apps))
 
-        wm = build_window_manager()
+        wm = build_window_manager(compositor)
         # One PowerControl shared by the Desktop's action runner and the Application.
         power = SystemdPowerControl()
 
@@ -135,7 +136,7 @@ def main() -> None:
         brightness = select_brightness_control()
         desktop = build_desktop(
             apps=apps, gamepad=gamepad, window_manager=wm,
-            wallpaper=build_system_wallpaper(), feedback=feedback,
+            wallpaper=build_system_wallpaper(compositor), feedback=feedback,
             volume=volume, brightness=brightness,
             power=power, scheduler=QtScheduler(),
             process_manager=AppManager(), notifications=notification_center,
