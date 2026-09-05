@@ -60,8 +60,8 @@ class ConfirmDialog(BaseOverlay):
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(20)
-        self._btn_yes = QPushButton("✔  " + self.tr("Yes"))
-        self._btn_no  = QPushButton("✘  " + self.tr("No"))
+        self._btn_yes = QPushButton("✔  Yes")
+        self._btn_no  = QPushButton("✘  No")
         for i, btn in enumerate((self._btn_yes, self._btn_no)):
             btn.setMinimumSize(200, 80)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)

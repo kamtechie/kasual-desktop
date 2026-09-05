@@ -96,7 +96,7 @@ class OnboardingOverlay(BaseOverlay):
         layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        self._title = QLabel(self.tr("Welcome — pick your apps"))
+        self._title = QLabel("Welcome — pick your apps")
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._title.setStyleSheet(
             "font-size: 28px; color: #88c0d0; font-weight: bold;"
@@ -124,7 +124,7 @@ class OnboardingOverlay(BaseOverlay):
 
         # Outside the scroll area so it's always visible; navigation-wise it's
         # the cursor's last index (see _handle_pad).
-        self._confirm = QPushButton(self.tr("Confirm"))
+        self._confirm = QPushButton("Confirm")
         self._confirm.setMinimumHeight(62)
         self._confirm.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._confirm.clicked.connect(self._confirm_clicked)
@@ -293,7 +293,7 @@ class OnboardingOverlay(BaseOverlay):
 
     def _render(self, index: int) -> None:
         for i, btn in enumerate(self._rows):
-            btn.setText(f"  {self.tr(self._candidates[i].app.name)}")
+            btn.setText(f"  {self._candidates[i].app.name}")
             btn.setStyleSheet(
                 styles.home_menu_item_selected() if i == index
                 else styles.home_menu_item_normal()

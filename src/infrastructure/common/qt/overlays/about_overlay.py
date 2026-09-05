@@ -50,16 +50,16 @@ class AboutOverlay(BaseOverlay):
         title.setStyleSheet("font-size: 28px; font-weight: bold; color: white; background: transparent;")
         layout.addWidget(title)
 
-        ver = QLabel(self.tr("Version {0}").format(version))
+        ver = QLabel("Version {0}".format(version))
         ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ver.setStyleSheet("font-size: 16px; color: #d8dee9; background: transparent;")
         layout.addWidget(ver)
 
         info = QLabel(
             f'<div style="line-height: 160%;">'
-            f'{self.tr("Author")}: {_AUTHOR} &lt;<a href="mailto:{_AUTHOR_EMAIL}" '
+            f'{"Author"}: {_AUTHOR} &lt;<a href="mailto:{_AUTHOR_EMAIL}" '
             f'style="color: {styles.COLOR_ACCENT};">{_AUTHOR_EMAIL}</a>&gt;<br>'
-            f'{self.tr("License")}: <a href="{_LICENSE_URL}" '
+            f'{"License"}: <a href="{_LICENSE_URL}" '
             f'style="color: {styles.COLOR_ACCENT};">{_LICENSE_NAME}</a><br>'
             f'<a href="{_GITHUB_URL}" style="color: {styles.COLOR_ACCENT};">{_GITHUB_URL}</a>'
             f'</div>'
@@ -72,7 +72,7 @@ class AboutOverlay(BaseOverlay):
         info.setStyleSheet("font-size: 16px; color: #e5e9f0; background: transparent;")
         layout.addWidget(info)
 
-        self._btn_close = QPushButton(self.tr("Close"))
+        self._btn_close = QPushButton("Close")
         self._btn_close.setMinimumSize(200, 64)
         self._btn_close.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         styles.style_dialog_button(self._btn_close, role="primary", focused=True)

@@ -44,7 +44,7 @@ class InfoDialog(BaseOverlay):
         lbl.setStyleSheet("font-size: 26px; color: white; background: transparent;")
         layout.addWidget(lbl)
 
-        self._btn_ok = QPushButton("✔  " + self.tr("OK"))
+        self._btn_ok = QPushButton("✔  OK")
         self._btn_ok.setMinimumSize(200, 80)
         self._btn_ok.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         styles.style_dialog_button(self._btn_ok, role="primary", focused=True)

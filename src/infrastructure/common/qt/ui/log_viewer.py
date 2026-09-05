@@ -47,7 +47,7 @@ class LogViewer(QWidget):
         super().__init__(parent)
         self._provider = provider
 
-        self.setWindowTitle(self.tr("Kasual Desktop – Logs"))
+        self.setWindowTitle("Kasual Desktop – Logs")
         self.resize(900, 500)
         self.setStyleSheet(_STYLE)
 
@@ -86,7 +86,7 @@ class LogViewer(QWidget):
         layout.addWidget(lbl)
         layout.addStretch()
 
-        btn = QPushButton(self.tr("Clear"))
+        btn = QPushButton("Clear")
         btn.clicked.connect(self._clear_log)
         layout.addWidget(btn)
 
