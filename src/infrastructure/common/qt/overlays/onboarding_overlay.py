@@ -1,4 +1,4 @@
-"""First-run app picker — the Qt side of provisioning (a ``ProvisioningView``).
+"""First-run app picker — the Qt side of provisioning.
 
 A centred card listing the starter candidates as toggle rows plus a Confirm
 action. Pure presentation: renders the domain candidates, drives an
@@ -132,7 +132,6 @@ class OnboardingOverlay(BaseOverlay):
 
         outer.addWidget(card)
 
-    # ── ProvisioningView ─────────────────────────────────────────────────────
 
     def present(
         self,

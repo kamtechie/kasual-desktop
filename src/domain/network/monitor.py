@@ -1,6 +1,4 @@
-"""The network-status port the Desktop observes. A pull-only backend can instead
-implement the smaller `domain.network.probe.NetworkProbe` and be wrapped by
-`PollingNetworkMonitor`."""
+"""The network-status port the Desktop observes."""
 
 from collections.abc import Callable
 from typing import Protocol

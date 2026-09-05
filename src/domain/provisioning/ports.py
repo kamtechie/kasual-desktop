@@ -1,6 +1,5 @@
 """The ports the provisioning use-case drives — implemented in infrastructure."""
 
-from collections.abc import Callable
 from typing import Protocol
 
 from domain.provisioning.candidate import CandidateApp
@@ -41,20 +40,4 @@ class InstalledApps(Protocol):
     the source behind the ``[＋]`` tile."""
 
     def scan(self) -> list[CandidateApp]:
-        ...
-
-
-class ProvisioningView(Protocol):
-    """The UI surface the controller drives to let the user pick starter apps."""
-
-    def present(
-        self,
-        candidates: list[CandidateApp],
-        on_confirm: Callable[[list[CandidateApp]], None],
-        on_cancel: Callable[[], None] | None = None,
-    ) -> None:
-        """Show the picker; report the chosen candidates via ``on_confirm``.
-
-        ``on_cancel`` is offered for reuse by views that allow dismissal; the
-        first-run picker is confirm-only and never invokes it."""
         ...
