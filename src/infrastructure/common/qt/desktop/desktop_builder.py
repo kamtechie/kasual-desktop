@@ -34,6 +34,7 @@ from domain.shell.desktop import Desktop as DesktopCoordinator
 from domain.shell.home_actions import HomeActions
 from domain.shell.home_chrome import HomeChrome
 from domain.shell.home_header_model import HomeHeaderModel
+from domain.shell.home_surface_controller import HomeSurfaceController
 from domain.shell.open_overlays import OpenOverlays
 from domain.shell.wallpaper import SystemWallpaper
 from domain.system.action_view import make_action_confirm
@@ -185,13 +186,16 @@ def build_desktop(
     )
     home_actions = HomeActions(action_runner, power_menu)
     home_menu_model = HomeMenuModel(feedback, volume, brightness, power_menu)
-    home_surface = HomeSurface(
-        gamepad, feedback, home_menu_model, widget._home_header,
+    home_surface_controller = HomeSurfaceController(
+        gamepad, feedback,
         on_action=home_actions.menu_pick,
         on_power_chooser=lambda: power_popover.open_header_chooser(),
         begin_hints=lambda: chrome.begin_overlay_hints(),
         set_hints=lambda h: chrome.set_overlay_hints(h),
         end_hints=lambda: chrome.end_overlay_hints(),
+    )
+    home_surface = HomeSurface(
+        home_surface_controller, home_menu_model, widget._home_header,
     )
     home_surface.install_surface()
     power_popover = PowerPopoverController(

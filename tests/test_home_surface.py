@@ -18,6 +18,7 @@ from domain.input.vocabulary import Event
 from domain.menu.entry import POWER, RETURN_TO_APP, RETURN_TO_DESKTOP
 from domain.menu.home_menu_model import HomeMenuModel
 from domain.shell.home_header_model import HomeHeaderModel
+from domain.shell.home_surface_controller import HomeSurfaceController
 from domain.system.actions import NETWORK
 from domain.system.brightness import Brightness
 from domain.system.volume import Volume
@@ -112,15 +113,17 @@ def _surface(qapp, gamepad=None, spy=None):
     spy = spy or Spy()
     header = HomeHeader(HomeHeaderModel(spy.on_header_activate), CARD_WIDTH)
     feedback = MagicMock()
+    pad = gamepad or MagicMock()
     menu_model = HomeMenuModel(feedback, FakeVolume(), FakeBrightness(), FakePowerMenu())
-    surface = HomeSurface(
-        gamepad or MagicMock(), feedback, menu_model, header,
+    controller = HomeSurfaceController(
+        pad, feedback,
         on_action=spy.on_action,
         on_power_chooser=spy.on_power_chooser,
         begin_hints=spy.begin_hints,
         set_hints=spy.set_hints,
         end_hints=spy.end_hints,
     )
+    surface = HomeSurface(controller, menu_model, header)
     return surface, spy
 
 
@@ -150,7 +153,7 @@ class TestMorphState:
         surface, _ = _surface(qapp)
         surface.expand()
         surface.request_close()
-        surface._feedback.play.assert_any_call(Cue.POPUP_CLOSE)
+        surface._controller._feedback.play.assert_any_call(Cue.POPUP_CLOSE)
         assert surface.is_expanded() is False
 
 

@@ -29,11 +29,10 @@ from PyQt6.QtGui import QGuiApplication, QPainter, QRegion
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGraphicsOpacityEffect
 
 from domain.catalog.target import Target
-from domain.input.pad_control import PadControl
 from domain.menu.home_menu_model import HomeMenuModel
 from domain.menu.item import MenuItem
 from domain.shared.event_emitter import Unsubscribe
-from domain.shared.feedback import Cue, Feedback
+from domain.shell.home_surface_controller import HomeSurfaceController
 from domain.system.hud import HudControl
 from infrastructure.common.qt.ui import styles
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
@@ -56,18 +55,6 @@ MORPH_MS    = 180   # collapse↔expand animation duration
 SURFACE_H   = TOP_MARGIN + HEADER_H + CONTENT_H + TOP_MARGIN
 
 
-class _NullHud(HudControl):
-    """A HUD that is never available — the Home view (context 1) never offers the
-    in-game HUD toggle, and :func:`domain.menu.home.compose_home_sections` omits
-    the HUD section when there is no foreground app, so this is only a
-    type-satisfying placeholder for the embedded content."""
-
-    def is_available(self) -> bool: return False
-    def is_enabled(self) -> bool: return False
-    def enable(self) -> None: ...
-    def disable(self) -> None: ...
-
-
 class HomeSurface(QWidget):
     """The Home view's persistent collapse/expand surface, doubling as the
     map-on-demand Home Overlay for contexts 2/3 (a SectionedHomeOverlay)."""
@@ -76,27 +63,12 @@ class HomeSurface(QWidget):
 
     def __init__(
         self,
-        gamepad: PadControl,
-        feedback: Feedback,
+        controller: HomeSurfaceController,
         menu_model: HomeMenuModel,
         header: HomeHeader,
-        *,
-        on_action: Callable[[MenuItem], None],
-        on_power_chooser: Callable[[], None],
-        begin_hints: Callable[[], None],
-        set_hints: Callable,
-        end_hints: Callable[[], None],
     ) -> None:
         super().__init__()
-        self._gamepad = gamepad
-        self._feedback = feedback
-        self._on_action = on_action          # context-1 dispatch (Desktop)
-        self._on_power_chooser = on_power_chooser   # header Power → default chooser
-        self._begin_hints = begin_hints
-        self._set_hints = set_hints
-        self._end_hints = end_hints
-        self._expanded = False               # morphed open in the Home view (ctx 1)
-        self._on_demand = False              # mapped open over an app / minimized (ctx 2/3)
+        self._controller = controller
 
         self.setWindowTitle("Kasual Home")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -129,6 +101,13 @@ class HomeSurface(QWidget):
         panel_col = QVBoxLayout(self._panel)
         panel_col.setContentsMargins(28, 22, 28, 22)
         self._content = HomeMenuContent(menu_model)
+        self._controller.bind_menu(
+            handler=self._content.handle_pad,
+            configure=self._content.configure,
+            cancel=self._content.cancel,
+            sync_hints=self._content.sync_hints,
+            request_dismiss=self.dismiss,
+        )
         panel_col.addWidget(self._content)
         outer.addWidget(self._panel, alignment=Qt.AlignmentFlag.AlignHCenter)
         outer.addStretch(1)
@@ -160,13 +139,11 @@ class HomeSurface(QWidget):
 
     def is_expanded(self) -> bool:
         """Whether the menu is morphed open in the Home view (context 1)."""
-        return self._expanded
+        return self._controller.expanded
 
     def is_open(self) -> bool:
-        """Whether the menu is currently shown — morphed open (ctx 1) or mapped on
-        demand (ctx 2/3). The Desktop's visibility sync keeps the surface on screen
-        while this holds even when the Desktop itself is down."""
-        return self._expanded or self._on_demand
+        """Whether the menu is currently shown in either surface mode."""
+        return self._controller.open
 
     # ── Pointer input region ─────────────────────────────────────────────────
 
@@ -260,45 +237,26 @@ class HomeSurface(QWidget):
     def expand(self) -> None:
         """Morph open in the Home view: build the menu content (bare-Home context),
         take the pad, animate the panel in. The header stays put throughout."""
-        if self._expanded:
+        if not self._controller.expand(self._header):
             return
-        self._expanded = True
         self._header.set_menu_open(True)
-        self._content.configure(
-            foreground=None, foreground_is_game=False, hud=_NullHud(),
-            on_action=self._on_action, on_cancel=None,
-            set_hints=self._set_hints, request_hide=self.dismiss,
-            header=self._header, on_power_chooser=self._on_power_chooser,
-        )
         self._panel.show()   # unhide the panel collapsed teardown hid (see below)
-        self._begin_hints()
-        # configure() already computed this zone's hints, but that ran before
-        # begin_hints granted the bar to the overlay — re-push them now.
-        self._content.sync_hints()
-        self._gamepad.push_handler(self._content.handle_pad)
-        self._feedback.play(Cue.POPUP_OPEN)
         self._morph(open_=True)
         # Widen to the full surface at once so the growing panel takes the mouse.
         self._refresh_input_region()
 
     def request_close(self) -> None:
-        """The one user-initiated close, shared by every dismiss gesture — the grab
-        handle, BTN_MODE, B / Escape, a click outside. Routes through the menu's own
-        cancel so all of them play the close cue and tear down identically; the
-        mechanical collapse / hide_overlay are silent, reached only via it."""
-        self._content.cancel()
+        """Route every user-initiated close through the menu coordinator."""
+        self._controller.request_close()
 
     def collapse(self) -> None:
         """Morph closed: drop the pad, restore the screen hints, animate away. The
         silent mechanical teardown of the context-1 morph, reached via dismiss (so
         the cue plays once, in request_close), never called on its own."""
-        if not self._expanded:
+        if not self._controller.collapse():
             return
-        self._expanded = False
         self._header.set_menu_open(False)
-        self._teardown_menu()
         self._morph(open_=False)
-        self._end_hints()
         # Narrow back to the header only *after* the panel has morphed away — the
         # mask clips painting, so shrinking it early would snap the closing panel.
         QTimer.singleShot(MORPH_MS, self._refresh_input_region)
@@ -308,10 +266,7 @@ class HomeSurface(QWidget):
         was open (used when the Desktop hides, so the surface is already collapsed
         when it next appears). Free of hint-bar calls so it never re-enters the
         Desktop's visibility sync."""
-        if self.is_open():
-            self._teardown_menu()
-            self._expanded = False
-            self._on_demand = False
+        if self._controller.reset():
             self._header.set_menu_open(False)
         self._anim.stop()
         self._panel.setMaximumHeight(0)
@@ -333,9 +288,10 @@ class HomeSurface(QWidget):
         the context-1 morph. Wired as the embedded content's ``request_hide`` in
         both contexts, so it tears down whichever mode is actually open rather
         than the one wired last."""
-        if self._on_demand:
+        mode = self._controller.dismiss_mode()
+        if mode == "on_demand":
             self.hide_overlay()
-        elif self._expanded:
+        elif mode == "expanded":
             self.collapse()
 
     # ── Contexts 2/3: SectionedHomeOverlay (driven by the controller) ─────────
@@ -353,16 +309,12 @@ class HomeSurface(QWidget):
         """Map the surface straight to the expanded layout over an app / minimized
         Kasual. The controller wires the dispatch (its ``on_action`` handles app
         controls) and brackets the hint bar itself, as for the old overlay."""
-        if self.is_open():
+        if not self._controller.show_for_context(
+            self._header, foreground, foreground_is_game, hud,
+            on_action, on_cancel, set_hints, desktop_minimized,
+        ):
             return
-        self._on_demand = True
         self._header.set_menu_open(True)
-        self._content.configure(
-            foreground, foreground_is_game, hud,
-            on_action=on_action, on_cancel=on_cancel, set_hints=set_hints,
-            request_hide=self.dismiss, desktop_minimized=desktop_minimized,
-            header=self._header, on_power_chooser=self._on_power_chooser,
-        )
         self.position_at_top()
         self.show()
         self.raise_()
@@ -371,17 +323,13 @@ class HomeSurface(QWidget):
         self._panel.show()   # undo any prior collapse's panel.hide()
         self._panel.setMaximumHeight(CONTENT_H)
         self._opacity.setOpacity(1.0)
-        self._gamepad.push_handler(self._content.handle_pad)
-        self._feedback.play(Cue.POPUP_OPEN)
         self._refresh_input_region()   # mapped already open → full input region
 
     def hide_overlay(self) -> None:
         """Unmap the on-demand overlay (contexts 2/3). Idempotent."""
-        if not self._on_demand:
+        if not self._controller.hide_overlay():
             return
-        self._on_demand = False
         self._header.set_menu_open(False)
-        self._teardown_menu()
         self._anim.stop()
         self._panel.setMaximumHeight(0)
         self._opacity.setOpacity(0.0)
@@ -394,7 +342,7 @@ class HomeSurface(QWidget):
         self.closed.emit()
 
     def is_showing(self) -> bool:
-        return self._on_demand
+        return self._controller.on_demand
 
     def on_closed(self, handler: Callable[[], None]) -> Unsubscribe:
         self.closed.connect(handler)
@@ -405,10 +353,7 @@ class HomeSurface(QWidget):
     def refresh_hints(self) -> None:
         """Re-push the menu's own hint set — used after a chooser popover that
         floated over the open menu closes."""
-        self._content.sync_hints()
-
-    def _teardown_menu(self) -> None:
-        self._gamepad.pop_handler(self._content.handle_pad)
+        self._controller.refresh_hints()
 
     def _morph(self, *, open_: bool) -> None:
         self._anim.stop()
