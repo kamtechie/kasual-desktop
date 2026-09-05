@@ -336,9 +336,8 @@ Every scenario needs:
 - **[!]** The game among Big Picture's recent games on the home page — that is the row
   the run walks.
 
-The list grows with the suite, and it grows in the scenarios: a YouTube scenario
-will want a logged-in session in the YT app, and it will say so in its own
-`requires`, not here.
+The list grows with the suite and in each scenario: scenario-specific setup is
+declared in its own `requires`, not here.
 
 ## Running it (any supported compositor / Wayland)
 

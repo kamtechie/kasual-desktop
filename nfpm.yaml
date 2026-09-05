@@ -15,7 +15,7 @@ maintainer: xis <xis@schowek.net>
 description: |
   Gamepad-first launcher/desktop for Wayland: KDE Plasma 6, Sway and Hyprland via
   wlr-layer-shell, GNOME via the bundled Kasual Helper Shell extension. Bundles the
-  File Browser and YouTube couch apps.
+  File Browser couch app.
 vendor: Kasual Desktop
 homepage: https://github.com/thanek/kasual-desktop
 license: GPL-3.0-or-later
@@ -40,7 +40,6 @@ overrides:
       - python3-pyqt6
       - python3-pyqt6.sip
       - python3-pyqt6.qtmultimedia
-      - python3-pyqt6.qtwebengine
       - python3-qtawesome
       - python3-evdev
       - python3-xlib
@@ -58,11 +57,10 @@ overrides:
       - mangohud
   rpm:
     # NOTE: Fedora/openSUSE package names — verify on a real target before a
-    # public rpm release (qtwebengine/layer-shell naming differs across distros).
+    # public rpm release (layer-shell naming differs across distros).
     depends:
       - python3 >= 3.11
       - python3-pyqt6
-      - python3-pyqt6-webengine
       - python3-QtAwesome
       - python3-evdev
       - python3-xlib
@@ -75,14 +73,13 @@ overrides:
     suggests:
       - mangohud
   archlinux:
-    # Arch's python-pyqt6 bundles QtMultimedia; QtWebEngine is a separate pkg.
+    # Arch's python-pyqt6 bundles QtMultimedia.
     # nfpm drops recommends/suggests for this packager (they reach no .PKGINFO
     # field), so brightnessctl — the sole brightness path under Sway/Hyprland,
     # which is most of the Arch audience — has to be a hard depend or nothing.
     depends:
       - python
       - python-pyqt6
-      - python-pyqt6-webengine
       - python-qtawesome
       - python-evdev
       - python-xlib

@@ -4,8 +4,8 @@ A scenario declares its requirements instead of documenting them: the ones that 
 be verified are checked before the run touches the screen, and all of them —
 verifiable or not — are what `run.py --list` prints. The list is the documentation.
 
-Some can only be confirmed by the person at the keyboard (a game is installed, a
-YouTube session is logged in). Those are stated, never guessed at.
+Some can only be confirmed by the person at the keyboard, such as whether a game
+is installed. Those are stated, never guessed at.
 """
 
 from __future__ import annotations

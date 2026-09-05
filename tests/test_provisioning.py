@@ -45,12 +45,10 @@ class FakeProvisioning:
 # ── starter_candidates ──────────────────────────────────────────────────────
 
 class TestStarterCandidates:
-    def test_bundled_always_present_with_resolved_paths(self):
+    def test_bundled_app_always_present_with_resolved_path(self):
         cands = starter_candidates(FakeDiscovery(set()), bundled_base="/opt/kd")
         by_key = {c.key: c for c in cands}
-        assert "files" in by_key and "youtube" in by_key
         assert by_key["files"].app.command == "/opt/kd/apps/file_browser/file_browser.sh"
-        assert by_key["youtube"].app.command == "/opt/kd/apps/yt/yt.sh"
 
     def test_system_apps_filtered_by_availability(self):
         none = {c.key for c in starter_candidates(FakeDiscovery(set()), "/x")}
@@ -83,11 +81,9 @@ class TestStarterCandidates:
 
     def test_prefers_real_system_icon_over_glyph(self):
         cands = starter_candidates(
-            FakeDiscovery({"steam"}, icons={"steam", "youtube"}), "/x")
+            FakeDiscovery({"steam"}, icons={"steam"}), "/x")
         steam = next(c for c in cands if c.key == "steam")
-        youtube = next(c for c in cands if c.key == "youtube")
         assert steam.app.icon_theme == "steam" and steam.app.icon is None
-        assert youtube.app.icon_theme == "youtube" and youtube.app.icon is None
 
     def test_heroic_uses_reverse_dns_icon_when_present(self):
         heroic = next(
@@ -106,7 +102,7 @@ class TestAppSelection:
 
     def test_seeds_from_default_selected(self):
         sel = AppSelection(self._candidates())
-        assert sel.count == 4
+        assert sel.count == 3
         assert all(sel.is_selected(i) for i in range(sel.count))
 
     def test_toggle_flips_state(self):
@@ -121,7 +117,7 @@ class TestAppSelection:
         sel = AppSelection(cands)
         sel.toggle(1)   # drop the second candidate
         chosen = sel.chosen()
-        assert chosen == [cands[0], cands[2], cands[3]]
+        assert chosen == [cands[0], cands[2]]
 
     def test_chosen_empty_when_all_off(self):
         cands = self._candidates()
@@ -143,7 +139,7 @@ class TestProvisioningUseCase:
     def test_candidates_delegates_to_starter_list(self):
         uc = Provisioning(FakeProvisioning(), FakeDiscovery({"steam"}), "/opt/kd")
         keys = {c.key for c in uc.candidates()}
-        assert keys == {"files", "youtube", "steam"}
+        assert keys == {"files", "steam"}
 
     def test_complete_passes_exactly_the_chosen_candidates(self):
         fake = FakeProvisioning()
@@ -167,7 +163,7 @@ class TestUnpinnedCandidates:
                         args=("steam://open/bigpicture",))]
         keys = {c.key for c in unpinned_candidates(cands, existing)}
         assert "steam" not in keys
-        assert {"files", "youtube", "heroic"} <= keys
+        assert {"files", "heroic"} <= keys
 
     def test_keeps_all_when_catalog_empty(self):
         cands = self._candidates()

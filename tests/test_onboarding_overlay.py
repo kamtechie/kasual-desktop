@@ -20,7 +20,7 @@ def _candidates():
     return [
         CandidateApp("files", App(name="Files", command="f", icon="fa5s.folder-open"),
                      order=40, default_selected=True),
-        CandidateApp("youtube", App(name="YouTube", command="y", icon="fa5b.youtube"),
+        CandidateApp("steam", App(name="Steam", command="steam", icon="fa5b.steam"),
                      order=30, default_selected=False),
     ]
 
@@ -71,7 +71,7 @@ class TestToggleSwitches:
     def test_switches_seed_from_default_selection(self, mock_gamepad):
         overlay = _present(mock_gamepad)
         assert overlay._rows[0].toggle.isChecked() is True   # files default-on
-        assert overlay._rows[1].toggle.isChecked() is False  # youtube default-off
+        assert overlay._rows[1].toggle.isChecked() is False  # steam default-off
 
     def test_switch_reflects_toggle(self, mock_gamepad):
         overlay = _present(mock_gamepad)
@@ -109,10 +109,10 @@ class TestConfirm:
         overlay = _present(mock_gamepad, on_confirm=lambda c: chosen.append(c))
         overlay._handle_pad("select")          # toggle files OFF
         overlay._handle_pad("down")
-        overlay._handle_pad("select")          # toggle youtube ON
+        overlay._handle_pad("select")          # toggle steam ON
         overlay._handle_pad("down")            # → Confirm
         overlay._handle_pad("select")
-        assert [c.key for c in chosen[0]] == ["youtube"]
+        assert [c.key for c in chosen[0]] == ["steam"]
 
 
 class TestConfirmOnly:

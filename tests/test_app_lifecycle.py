@@ -699,9 +699,9 @@ class TestForegroundIsGame:
         assert c.lc.foreground_is_game() is True
 
     def test_bundled_app_playing_video_is_not_a_game(self):
-        # The bundled File Browser / YouTube run as `python3`, so their window is
-        # not attributed to the tile — but accelerated playback must not make the
-        # HUD toggle appear.
+        # The bundled File Browser runs as `python3`, so its window is not
+        # attributed to the tile, but accelerated media must not make the HUD
+        # toggle appear.
         c = _make(
             apps=[_app(command="file_browser.sh")],
             is_game_pid=lambda _pid: False,

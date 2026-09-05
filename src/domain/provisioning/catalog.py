@@ -15,7 +15,6 @@ from domain.provisioning.ports import AppDiscovery
 # launcher that starts them, because that is all a tile records about them.
 BUNDLED_WM_CLASS = {
     "file_browser.sh": "kasual-file-browser",
-    "yt.sh":           "kasual-youtube",
 }
 
 
@@ -47,18 +46,6 @@ def starter_candidates(discovery: AppDiscovery, bundled_base: str) -> list[Candi
                 color="#5e81ac",
             ),
             order=40,
-            default_selected=True,
-        ),
-        CandidateApp(
-            key="youtube",
-            app=with_real_icon(App(
-                name="YouTube",
-                command=f"{bundled_base}/apps/yt/yt.sh",
-                wm_class=BUNDLED_WM_CLASS["yt.sh"],
-                icon="fa5b.youtube",
-                color="#c0392b",
-            ), "youtube"),
-            order=30,
             default_selected=True,
         ),
     ]

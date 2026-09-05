@@ -52,7 +52,7 @@ runtime from the session.
 ## 🛠️ Tech Stack
 
 - **Python 3.11+** (uses `enum.StrEnum`)
-- **PyQt6** + **qtawesome**, **PyQt6-WebEngine** (bundled YouTube app)
+- **PyQt6** + **qtawesome**
 - **Linux**: `wlr-layer-shell` (LayerShellQt) on KWin / Sway / Hyprland, a GJS Shell extension on GNOME, `evdev`, `python-xlib`
 
 ---
@@ -127,23 +127,22 @@ requires reaching for a keyboard.
   On **Debian/Ubuntu**:
   ```bash
   sudo apt install python3-pyqt6 python3-pyqt6.sip python3-pyqt6.qtmultimedia \
-      python3-pyqt6.qtwebengine python3-qtawesome python3-evdev python3-xlib \
+      python3-qtawesome python3-evdev python3-xlib \
       layer-shell-qt qt6-wayland brightnessctl
   ```
 
   On **Arch Linux**:
   ```bash
-  sudo pacman -S python python-pyqt6 python-pyqt6-webengine python-qtawesome \
+  sudo pacman -S python python-pyqt6 python-qtawesome \
       python-evdev python-xlib layer-shell-qt qt6-wayland brightnessctl
   ```
 
   On **Fedora** the qtawesome package is spelled `python3-QtAwesome` (and Qt's
   Wayland platform plugin `qt6-qtwayland`).
 
-  Other distros: install the equivalent of `python3-pyqt6` (incl. its
-  `QtMultimedia` and `QtWebEngine` modules), `python3-qtawesome`, `python3-evdev`,
-  `python3-xlib`, `layer-shell-qt` (LayerShellQt) and `qt6-wayland`. `QtWebEngine`
-  is required by the bundled YouTube app.
+  Other distros: install the equivalent of `python3-pyqt6` (including its
+  `QtMultimedia` module), `python3-qtawesome`, `python3-evdev`, `python3-xlib`,
+  `layer-shell-qt` (LayerShellQt) and `qt6-wayland`.
 - **(Optional) `brightnessctl`** — brightness control. Kasual Desktop tries the
   backends in order and keeps the first one that actually drives a screen:
   `brightnessctl` (a kernel backlight, under any DE), then Plasma's
@@ -197,7 +196,7 @@ sudo pacman -U ./kasual-desktop-*-any.pkg.tar.zst     # Arch Linux
 ```
 
 This installs the launcher as `kasual-desktop` (also in the application menu);
-the bundled File Browser and YouTube apps ship inside the same package.
+the bundled File Browser ships inside the same package.
 
 **From source (development).**
 
@@ -293,7 +292,7 @@ stored in `apps/*.desktop`; `.provisioned` records completion of first-run setup
 ### First run (provisioning)
 
 On its **first launch**, Kasual Desktop shows a provisioning dialog with a curated
-starter set: File Browser and YouTube, plus Steam and Heroic when installed.
+starter set: File Browser, plus Steam and Heroic when installed.
 
 Completing it writes a `.provisioned` marker in the config root, so the dialog
 does not reappear (even if you pick nothing, or later remove every tile). To run
@@ -340,10 +339,10 @@ X-Kasual-Env=MANGOHUD=1;FOO=bar     # extra environment variables (optional)
 
 `NoDisplay=true`, `Hidden=true` and non-`Application` entries are ignored.
 
-> **Bundled apps (`yt`, `file_browser`):** their launcher scripts live in
-> the cloned repo, so `Exec` must be an **absolute** path (e.g.
-> `Exec=/home/you/kasual-desktop/apps/yt/yt.sh`) — relative paths do not resolve
-> from `~/.config`.
+> **Bundled File Browser:** its launcher script lives in the cloned repo, so
+> `Exec` must be an **absolute** path (e.g.
+> `Exec=/home/you/kasual-desktop/apps/file_browser/file_browser.sh`) — relative
+> paths do not resolve from `~/.config`.
 
 ---
 
