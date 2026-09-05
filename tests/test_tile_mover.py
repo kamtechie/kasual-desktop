@@ -14,13 +14,15 @@ def _make(count=3, start_index=1):
     view = MagicMock()
     view.app_tile_count.return_value = count
     view.current_app_index.return_value = start_index
+    model = MagicMock()
+    model.swap_apps.return_value = True
     store = MagicMock()
     gamepad = MagicMock()
     feedback = MagicMock()
     hint_bar = MagicMock()
     restore_hints = MagicMock()
     mover = TileMover(
-        view=view, store=store, gamepad=gamepad, feedback=feedback,
+        model=model, view=view, store=store, gamepad=gamepad, feedback=feedback,
         hint_bar=hint_bar, restore_hints=restore_hints,
     )
     return mover, view, store, gamepad
@@ -38,7 +40,7 @@ class TestStart:
         mover, view, store, _ = _make(start_index=2)
         mover.start()
         mover.handle_pad("left")
-        view.swap_app_tiles.assert_called_once_with(2, 1)
+        view.render_app_swap.assert_called_once_with(2, 1)
         store.swap.assert_called_once_with(2, 1)
 
 
@@ -47,28 +49,28 @@ class TestSwap:
         mover, view, store, _ = _make(start_index=1)
         mover.start()
         mover.handle_pad("left")
-        view.swap_app_tiles.assert_called_once_with(1, 0)
+        view.render_app_swap.assert_called_once_with(1, 0)
         store.swap.assert_called_once_with(1, 0)
 
     def test_right_swaps_with_right_neighbour(self):
         mover, view, store, _ = _make(count=3, start_index=1)
         mover.start()
         mover.handle_pad("right")
-        view.swap_app_tiles.assert_called_once_with(1, 2)
+        view.render_app_swap.assert_called_once_with(1, 2)
         store.swap.assert_called_once_with(1, 2)
 
     def test_left_clamped_at_first(self):
         mover, view, store, _ = _make(start_index=0)
         mover.start()
         mover.handle_pad("left")
-        view.swap_app_tiles.assert_not_called()
+        view.render_app_swap.assert_not_called()
         store.swap.assert_not_called()
 
     def test_right_clamped_at_last(self):
         mover, view, store, _ = _make(count=3, start_index=2)
         mover.start()
         mover.handle_pad("right")
-        view.swap_app_tiles.assert_not_called()
+        view.render_app_swap.assert_not_called()
         store.swap.assert_not_called()
 
     def test_index_follows_the_moved_tile(self):
@@ -76,7 +78,7 @@ class TestSwap:
         mover.start()
         mover.handle_pad("right")   # 0 -> 1
         mover.handle_pad("right")   # 1 -> 2
-        assert [c.args for c in view.swap_app_tiles.call_args_list] == [(0, 1), (1, 2)]
+        assert [c.args for c in view.render_app_swap.call_args_list] == [(0, 1), (1, 2)]
 
 
 class TestFinish:
@@ -97,7 +99,7 @@ class TestFinish:
     def test_ignores_events_before_start(self):
         mover, view, store, _ = _make()
         mover.handle_pad("left")
-        view.swap_app_tiles.assert_not_called()
+        view.render_app_swap.assert_not_called()
         store.swap.assert_not_called()
 
 

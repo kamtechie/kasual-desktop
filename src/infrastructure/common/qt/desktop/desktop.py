@@ -131,7 +131,7 @@ class Desktop(QWidget):
         # The [＋] add-app flow lives in its own controller; the tile bar's
         # add-requested signal drives it directly.
         self._app_add = AppAddController(
-            self._apps, self._app_adder, self._gamepad, self._feedback,
+            tile_model, self._app_adder, self._gamepad, self._feedback,
             self._tilebar, self._overlays, self._hintbar,
             restore_hints=lambda: self._nav.render() if self._nav else None,
         )

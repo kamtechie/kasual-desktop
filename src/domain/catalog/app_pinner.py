@@ -3,28 +3,42 @@ through the store, mirror the change on the live view, report the outcome."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
+from domain.catalog.app import App
+from domain.catalog.tile_bar_model import TileBarModel
 from domain.menu.ports import AppPinning
-from domain.navigation.bar_views import TileBarView
 from domain.shared.feedback import Cue, Feedback
 
 
 class AppPinner:
-    def __init__(self, view: TileBarView, pinning: AppPinning, feedback: Feedback) -> None:
-        self._view     = view
-        self._pinning  = pinning
+    def __init__(
+        self,
+        model: TileBarModel,
+        pinning: AppPinning,
+        feedback: Feedback,
+        render_pinned: Callable[[App], None],
+        render_unpinned: Callable[[int], None],
+    ) -> None:
+        self._model = model
+        self._pinning = pinning
         self._feedback = feedback
+        self._render_pinned = render_pinned
+        self._render_unpinned = render_unpinned
 
     def pin(self, window_id: str) -> None:
-        window = self._view.window_for(window_id)
+        window = self._model.window_for(window_id)
         app = self._pinning.pin(window) if window is not None else None
         if app is None:
             # Unresolvable window (no launchable command) → back cue, no phantom tile.
             self._feedback.play(Cue.EXIT)
             return
-        self._view.pin_window(app, window_id)
+        self._model.pin_window(app, window_id)
+        self._render_pinned(app)
         self._feedback.play(Cue.SELECT)
 
     def unpin(self, index: int) -> None:
         self._pinning.unpin(index)
-        self._view.unpin_app(index)
+        if self._model.unpin_app(index) is not None:
+            self._render_unpinned(index)
         self._feedback.play(Cue.SELECT)

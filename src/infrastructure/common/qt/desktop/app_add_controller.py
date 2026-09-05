@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from domain.catalog.live_catalog import LiveCatalog
+from domain.catalog.tile_bar_model import TileBarModel
 from domain.input.pad_control import PadControl
 from domain.navigation import hints as home_hints
 from domain.provisioning.add_apps import AppAdder
@@ -31,7 +31,7 @@ class AppAddController:
 
     def __init__(
         self,
-        apps: LiveCatalog,
+        tile_model: TileBarModel,
         app_adder: AppAdder,
         gamepad: PadControl,
         feedback: Feedback,
@@ -40,7 +40,7 @@ class AppAddController:
         hint_bar: HintBar,
         restore_hints: Callable[[], None],
     ) -> None:
-        self._apps = apps
+        self._tile_model = tile_model
         self._app_adder = app_adder
         self._gamepad = gamepad
         self._feedback = feedback
@@ -56,7 +56,7 @@ class AppAddController:
         nothing left to add it just plays a back cue."""
         if self._picker is not None:
             return
-        candidates = self._app_adder.available(self._apps)
+        candidates = self._app_adder.available(self._tile_model.apps)
         if not candidates:
             self._feedback.play(Cue.EXIT)
             return
@@ -80,7 +80,9 @@ class AppAddController:
         for candidate in chosen:
             # add() just wrote this candidate to <candidate.key>.desktop — set the
             # same id here so process tracking matches without waiting for a reload.
-            self._tilebar.add_app(replace(candidate.app, id=candidate.key))
+            app = replace(candidate.app, id=candidate.key)
+            self._tile_model.add_app(app)
+            self._tilebar.render_added_app(app)
         self._feedback.play(Cue.SELECT)
 
     def _forget(self) -> None:

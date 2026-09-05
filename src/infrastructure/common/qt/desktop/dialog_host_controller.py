@@ -166,7 +166,7 @@ class DialogHostController:
         original_color = self._tilebar.current_app_color()
 
         def _on_color_preview(color: str) -> None:
-            self._tilebar.set_app_color(index, color)
+            self._tilebar.render_app_color(index, color)
 
         def _on_save(color: str, trigger: str) -> None:
             self._forget_tile_settings()
@@ -175,7 +175,7 @@ class DialogHostController:
         def _on_cancel() -> None:
             self._forget_tile_settings()
             if original_color is not None:
-                self._tilebar.set_app_color(index, original_color)
+                self._tilebar.render_app_color(index, original_color)
 
         model = TileSettingsModel(
             colors=TILE_COLORS,

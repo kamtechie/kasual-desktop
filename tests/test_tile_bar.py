@@ -26,6 +26,31 @@ def _win(id_: str, title: str = "App") -> Window:
     return Window(id=id_, title=title, pid=0)
 
 
+def _swap(bar, first, second):
+    if bar._model.swap_apps(first, second):
+        bar.render_app_swap(first, second)
+
+
+def _color(bar, index, color):
+    if bar._model.recolour_app(index, color):
+        bar.render_app_color(index, color)
+
+
+def _pin(bar, app, window_id):
+    bar._model.pin_window(app, window_id)
+    bar.render_pinned_app(app)
+
+
+def _unpin(bar, index):
+    if bar._model.unpin_app(index) is not None:
+        bar.render_unpinned_app(index)
+
+
+def _add(bar, app):
+    bar._model.add_app(app)
+    bar.render_added_app(app)
+
+
 @pytest.fixture
 def app_manager():
     mgr = MagicMock()
@@ -214,7 +239,7 @@ class TestSwapAppTiles:
     def test_swap_reorders_catalog_and_follows_selection(self, bar_with_tiles):
         bar = bar_with_tiles
         names_before = [t._full_name for t in bar._tiles]   # App 0, App 1, App 2
-        bar.swap_app_tiles(0, 1)
+        _swap(bar, 0, 1)
         assert [a.name for a in bar._apps] == ["App 1", "App 0", "App 2"]
         # The two widgets exchanged positions in the list.
         assert bar._tiles[0]._full_name == names_before[1]
@@ -224,7 +249,7 @@ class TestSwapAppTiles:
 
     def test_swap_keeps_widgets_clickable_at_new_index(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.swap_app_tiles(0, 2)
+        _swap(bar, 0, 2)
         # The tile now sitting at position 0 resolves its own current index.
         assert bar._static_index_of(bar._tiles[0]) == 0
         assert bar._static_index_of(bar._tiles[2]) == 2
@@ -237,27 +262,27 @@ class TestSwapAppTiles:
 
     def test_out_of_range_swap_is_noop(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.swap_app_tiles(0, 9)
+        _swap(bar, 0, 9)
         assert [a.name for a in bar._apps] == ["App 0", "App 1", "App 2"]
 
 
 class TestSetAppColor:
     def test_recolours_catalog_and_tile(self, bar_with_tiles):
         bar = bar_with_tiles
-        bar.set_app_color(1, "#ff0000")
+        _color(bar, 1, "#ff0000")
         assert bar._apps[1].color == "#ff0000"
         assert bar._tiles[1]._color == "#ff0000"
 
     def test_current_app_color_reflects_focus(self, bar_with_tiles):
         bar = bar_with_tiles
         bar.move(2)
-        bar.set_app_color(2, "#00ff00")
+        _color(bar, 2, "#00ff00")
         assert bar.current_app_color() == "#00ff00"
 
     def test_out_of_range_is_noop(self, bar_with_tiles):
         bar = bar_with_tiles
         before = [a.color for a in bar._apps]
-        bar.set_app_color(9, "#ff0000")
+        _color(bar, 9, "#ff0000")
         assert [a.color for a in bar._apps] == before
 
 
@@ -266,7 +291,7 @@ class TestPinWindow:
         bar = bar_with_tiles
         before = len(bar._tiles)
         bar.update_windows([_win("100", "Foo")])
-        bar.pin_window(App(name="Foo", command="foo"), window_id="100")
+        _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert len(bar._tiles) == before + 1
         assert bar._apps[-1].name == "Foo"
         assert bar._tiles[-1]._full_name == "Foo"
@@ -275,13 +300,13 @@ class TestPinWindow:
         bar = bar_with_tiles
         bar.update_windows([_win("100", "Foo")])
         assert len(bar._dynamic_tiles) == 1
-        bar.pin_window(App(name="Foo", command="foo"), window_id="100")
+        _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert bar._dynamic_tiles == []
 
     def test_pinned_window_stays_suppressed_on_refresh(self, bar_with_tiles):
         bar = bar_with_tiles
         bar.update_windows([_win("100", "Foo")])
-        bar.pin_window(App(name="Foo", command="foo"), window_id="100")
+        _pin(bar, App(name="Foo", command="foo"), window_id="100")
         # A later KWin refresh still reporting the open window must not bring its
         # dynamic tile back (identity may not match the pinned tile).
         bar.update_windows([_win("100", "Foo")])
@@ -290,33 +315,33 @@ class TestPinWindow:
     def test_other_windows_still_get_dynamic_tiles(self, bar_with_tiles):
         bar = bar_with_tiles
         bar.update_windows([_win("100", "Foo"), _win("200", "Bar")])
-        bar.pin_window(App(name="Foo", command="foo"), window_id="100")
+        _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert [wid for wid, _, _ in bar._dynamic_tiles] == ["200"]
 
     def test_focus_moves_to_new_tile(self, bar_with_tiles):
         bar = bar_with_tiles
         bar.update_windows([_win("100", "Foo")])
-        bar.pin_window(App(name="Foo", command="foo"), window_id="100")
+        _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert bar.current_app_index() == len(bar._tiles) - 1
 
     def test_new_tile_marked_running_immediately(self, bar_with_tiles):
         bar = bar_with_tiles
         bar.update_windows([_win("100", "Foo")])
-        bar.pin_window(App(name="Foo", command="foo"), window_id="100")
+        _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert not bar._tiles[-1]._status_bar.isHidden()
 
     def test_window_for_resolves_open_window(self, bar_with_tiles):
         bar = bar_with_tiles
         bar.update_windows([_win("100", "Foo")])
-        assert bar.window_for("100").title == "Foo"
-        assert bar.window_for("nope") is None
+        assert bar._model.window_for("100").title == "Foo"
+        assert bar._model.window_for("nope") is None
 
 
 class TestUnpinApp:
     def test_idle_app_tile_is_removed(self, bar_with_tiles):
         bar = bar_with_tiles
         before = len(bar._tiles)
-        bar.unpin_app(1)
+        _unpin(bar, 1)
         assert len(bar._tiles) == before - 1
         assert [a.name for a in bar._apps] == ["App 0", "App 2"]
 
@@ -324,30 +349,30 @@ class TestUnpinApp:
         """Process tracking keys on the app's own id, so unpinning a tile — which
         only changes tile position — must not terminate or re-key anything."""
         bar = bar_with_tiles
-        bar.unpin_app(1)
+        _unpin(bar, 1)
         app_manager.terminate.assert_not_called()
 
     def test_out_of_range_is_noop(self, bar_with_tiles):
         bar = bar_with_tiles
         before = [a.name for a in bar._apps]
-        bar.unpin_app(9)
+        _unpin(bar, 9)
         assert [a.name for a in bar._apps] == before
 
     def test_running_app_returns_to_dynamic_section(self, bar_with_tiles):
         bar = bar_with_tiles
         win = Window(id="100", title="Foo", pid=0, resource_class="foo")
         bar.update_windows([win])
-        bar.pin_window(App(name="Foo", command="foo"), window_id="100")
+        _pin(bar, App(name="Foo", command="foo"), window_id="100")
         assert bar._dynamic_tiles == []            # suppressed while pinned
-        bar.unpin_app(len(bar._tiles) - 1)         # unpin the just-added tile
+        _unpin(bar, len(bar._tiles) - 1)         # unpin the just-added tile
         assert [wid for wid, _, _ in bar._dynamic_tiles] == ["100"]   # back as dynamic
 
     def test_unpinned_window_is_no_longer_suppressed(self, bar_with_tiles):
         bar = bar_with_tiles
         win = Window(id="100", title="Foo", pid=0, resource_class="foo")
         bar.update_windows([win])
-        bar.pin_window(App(name="Foo", command="foo"), window_id="100")
-        bar.unpin_app(len(bar._tiles) - 1)
+        _pin(bar, App(name="Foo", command="foo"), window_id="100")
+        _unpin(bar, len(bar._tiles) - 1)
         assert "100" not in bar._pinned_window_ids
 
 
@@ -401,7 +426,7 @@ class TestAddTile:
     def test_add_app_appends_before_add_tile_and_focuses_it(self, bar_with_tiles):
         bar = bar_with_tiles
         before = len(bar._tiles)
-        bar.add_app(App(name="New", command="new"))
+        _add(bar, App(name="New", command="new"))
         assert len(bar._tiles) == before + 1
         assert bar._apps[-1].name == "New"
         assert bar.current_app_index() == len(bar._tiles) - 1

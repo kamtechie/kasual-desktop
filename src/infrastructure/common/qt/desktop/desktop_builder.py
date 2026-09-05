@@ -123,7 +123,7 @@ def build_desktop(
     nav.render()
 
     tile_mover = TileMover(
-        view=widget._tilebar, store=order_store, gamepad=gamepad, feedback=feedback,
+        model=tile_model, view=widget._tilebar, store=order_store, gamepad=gamepad, feedback=feedback,
         hint_bar=widget._hintbar, restore_hints=nav.render,
     )
 
@@ -240,7 +240,11 @@ def build_desktop(
     tile_menu = TileMenuDispatcher(
         dispatch_lifecycle=lifecycle.dispatch_tile_action,
         mover=tile_mover,
-        pinner=AppPinner(widget._tilebar, app_pinning, feedback),
+        pinner=AppPinner(
+            tile_model, app_pinning, feedback,
+            widget._tilebar.render_pinned_app,
+            widget._tilebar.render_unpinned_app,
+        ),
         show_settings=dialogs.show_tile_settings,
         confirm=widget.show_confirm,
     )

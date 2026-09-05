@@ -194,12 +194,9 @@ class TileBar(QScrollArea):
     def current_app_index(self) -> int:
         return self._tile_index
 
-    def swap_app_tiles(self, i: int, j: int) -> None:
-        """Exchange the static app tiles at positions *i* and *j*, on screen and in
-        the in-memory catalog, and keep the focus on the moved tile."""
+    def render_app_swap(self, i: int, j: int) -> None:
+        """Re-seat two app widgets after the model has exchanged their identities."""
         if not (0 <= i < len(self._tiles) and 0 <= j < len(self._tiles)):
-            return
-        if not self._model.swap_apps(i, j):
             return
         self._tiles[i], self._tiles[j] = self._tiles[j], self._tiles[i]
         # Re-seat both widgets at their new layout positions (static tiles occupy
@@ -230,11 +227,9 @@ class TileBar(QScrollArea):
             return self._apps[self._tile_index].color
         return None
 
-    def set_app_color(self, index: int, color: str) -> None:
-        """Recolour the static app tile at *index*, on screen and in the catalog."""
-        if not (0 <= index < len(self._tiles)):
-            return
-        if self._model.recolour_app(index, color):
+    def render_app_color(self, index: int, color: str) -> None:
+        """Preview or render a model-owned colour on the app widget."""
+        if 0 <= index < len(self._tiles):
             self._tiles[index].set_color(color)
 
     def current_app_recall_trigger(self) -> str | None:
@@ -246,17 +241,8 @@ class TileBar(QScrollArea):
 
     # ── Pin to menu (Tile Management Popover) ────────────────────────────────
 
-    def window_for(self, window_id: str) -> Window | None:
-        """The open :class:`Window` behind a dynamic tile, or None if it is gone."""
-        return self._model.window_for(window_id)
-
-    def pin_window(self, app, window_id: str) -> None:
-        """Promote the open-window tile *window_id* to a persistent tile for *app*.
-
-        Appends a static tile after the configured ones (the catalog is the shared
-        LiveCatalog, so the lifecycle/deferred-hide see the new app too), suppresses
-        the now-pinned window from the dynamic section, and focuses the new tile."""
-        self._model.pin_window(app, window_id)
+    def render_pinned_app(self, app) -> None:
+        """Render a newly pinned app after the model has reconciled its window."""
         tile = self._make_static_tile(app)
         # The pinned window is open, so the new tile is running from the start —
         # mark it now rather than waiting for the next periodic status refresh.
@@ -268,32 +254,17 @@ class TileBar(QScrollArea):
         self._render_tiles()
         self.windows_changed.emit()
 
-    def add_app(self, app) -> None:
-        """Append a newly added catalog app as a static tile (the [＋] flow).
-
-        Like :meth:`pin_window` but for an idle app chosen from the add-app picker
-        rather than a live window: the tile lands just before the [＋] (the end of
-        the pinned section), the shared catalog grows so the lifecycle sees it, and
-        focus moves to the new tile."""
-        self._model.add_app(app)
+    def render_added_app(self, app) -> None:
+        """Render a newly added app immediately before the add tile."""
         tile = self._make_static_tile(app)
         # Insert before the [＋] tile (which sits at layout position len(self._tiles)).
         self._tile_layout.insertWidget(len(self._tiles), tile)
         self._tiles.append(tile)
         self._render_tiles()
 
-    def unpin_app(self, index: int) -> None:
-        """Remove the static app tile at *index* — the reverse of :meth:`pin_window`.
-
-        The app leaves the shared catalog (so the lifecycle/deferred-hide stop
-        seeing it). Any open window the app owned is no longer suppressed nor
-        matched, so the dynamic rebuild brings it back as an open-window tile —
-        an *unpinned running app* lands in the dynamic section, an unpinned idle
-        one simply disappears. The AppManager keys its running process by the
-        app's own stable id, so unpinning it doesn't disturb that tracking."""
+    def render_unpinned_app(self, index: int) -> None:
+        """Remove an app widget and render the model's reconciled dynamic section."""
         if not (0 <= index < len(self._tiles)):
-            return
-        if self._model.unpin_app(index) is None:
             return
         tile = self._tiles.pop(index)
         self._tile_layout.removeWidget(tile)

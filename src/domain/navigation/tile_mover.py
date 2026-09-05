@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from domain.catalog.tile_bar_model import TileBarModel
 from domain.input.pad_control import PadControl
 from domain.input.vocabulary import Event
 from domain.menu.ports import TileOrderStore
@@ -17,6 +18,7 @@ from domain.shared.feedback import Cue, Feedback
 class TileMover:
     def __init__(
         self,
+        model: TileBarModel,
         view: TileBarView,
         store: TileOrderStore,
         gamepad: PadControl,
@@ -24,6 +26,7 @@ class TileMover:
         hint_bar: HintBarView,
         restore_hints: Callable[[], None],
     ) -> None:
+        self._model    = model
         self._view     = view
         self._store    = store
         self._gamepad  = gamepad
@@ -66,7 +69,9 @@ class TileMover:
     def _swap_to(self, target: int) -> None:
         if not (0 <= target < self._view.app_tile_count()):
             return
-        self._view.swap_app_tiles(self._index, target)
+        if not self._model.swap_apps(self._index, target):
+            return
+        self._view.render_app_swap(self._index, target)
         self._store.swap(self._index, target)
         self._index = target
         self._feedback.play(Cue.CURSOR)
