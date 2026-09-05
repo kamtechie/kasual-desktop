@@ -17,7 +17,7 @@ from domain.lifecycle.deferred_launch import DeferredLaunch
 from domain.menu.entry import CLOSE, LAUNCH, RESTORE
 from domain.menu.item import MenuItem
 from domain.lifecycle.process_manager import ProcessManager
-from domain.lifecycle.prompts import Prompts
+from domain.lifecycle.prompts import close_confirm, launch_failed
 from domain.lifecycle.tile_bar_view import TileBarView
 from domain.lifecycle.window_arranger import WindowArranger
 from domain.lifecycle.window_manager import WindowManager
@@ -50,7 +50,6 @@ class AppLifecycle(AppControl):
         pad_handler: Callable[[str], None],
         scheduler: Scheduler,
         feedback: Feedback,
-        prompts: Prompts,
         inspector: ForegroundInspector,
         is_paused: Callable[[], bool] = lambda: False,
     ):
@@ -67,7 +66,6 @@ class AppLifecycle(AppControl):
         self._pad_handler   = pad_handler
         self._scheduler     = scheduler
         self._feedback      = feedback
-        self._prompts       = prompts
         self._inspector     = inspector
         self._is_paused     = is_paused
         self._pending_return: str | None = None
@@ -166,7 +164,7 @@ class AppLifecycle(AppControl):
         # Capture where Cancel should return to now, before the dialog changes it.
         from_desktop = self._view.is_visible()
         self._view.show_confirm(
-            question=self._prompts.close_confirm(target.name),
+            question=close_confirm(target.name),
             on_confirmed=lambda: self._close_confirmed(target),
             on_cancelled=lambda: self._close_cancelled(target, from_desktop),
         )
@@ -217,7 +215,7 @@ class AppLifecycle(AppControl):
         # clear it or BTN_MODE would target the never-launched app.
         self._foreground.clear_if_app(app_id)
         self.reactivate_desktop()
-        self._view.show_error(self._prompts.launch_failed(error))
+        self._view.show_error(launch_failed(error))
 
     def on_app_finished(self, app_id: str) -> None:
         if self._forwarder_launch_in_flight(app_id):

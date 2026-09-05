@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from domain.catalog.app_pinner import AppPinner
 from domain.catalog.target import AppTarget
-from domain.lifecycle.prompts import Prompts
+from domain.lifecycle.prompts import unpin_confirm
 from domain.menu.entry import MOVE, PIN, SETTINGS, UNPIN
 from domain.menu.item import MenuItem
 from domain.navigation.tile_mover import TileMover
@@ -24,14 +24,12 @@ class TileMenuDispatcher:
         pinner: AppPinner,
         show_settings: Callable[[], None],
         confirm: Callable[[str, Callable[[], None]], None],
-        prompts: Prompts,
     ) -> None:
         self._dispatch_lifecycle = dispatch_lifecycle
         self._mover = mover
         self._pinner = pinner
         self._show_settings = show_settings
         self._confirm = confirm
-        self._prompts = prompts
 
     def dispatch(self, item: MenuItem) -> None:
         if item.action == MOVE:
@@ -50,6 +48,6 @@ class TileMenuDispatcher:
         so the focus cannot move underneath it."""
         index = target.index
         self._confirm(
-            self._prompts.unpin_confirm(target.name),
+            unpin_confirm(target.name),
             lambda: self._pinner.unpin(index),
         )

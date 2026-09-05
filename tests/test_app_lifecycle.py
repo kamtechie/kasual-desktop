@@ -1,8 +1,8 @@
 """Tests for AppLifecycle — the launch / restore / close / exit coordinator
 extracted from the Desktop (E2 of the refactoring roadmap).
 
-Pure orchestration over injected fakes (DesktopView, Scheduler, Feedback,
-Prompts) and mocked infra; no QWidget, no Qt event loop. The Scheduler fake just
+Pure orchestration over injected fakes (DesktopView, Scheduler, Feedback) and
+mocked infra; no QWidget, no Qt event loop. The Scheduler fake just
 records deferrals without firing them, matching production's singleShot timing
 (callbacks never run mid-test).
 """
@@ -27,16 +27,6 @@ class FakeScheduler:
 
     def call_later(self, delay_ms: int, callback) -> None:
         self.calls.append((delay_ms, callback))
-
-
-class FakePrompts:
-    """Returns plain strings echoing the argument."""
-
-    def close_confirm(self, name: str) -> str:
-        return f"close? {name}"
-
-    def launch_failed(self, error: str) -> str:
-        return f"failed: {error}"
 
 
 class FakeView:
@@ -106,7 +96,6 @@ def _make(apps=None, visible=False, is_game_pid=None, paused=False):
     pad = object()  # sentinel pad-handler identity
     scheduler = FakeScheduler()
     feedback = MagicMock()
-    prompts = FakePrompts()
     # Default: no open windows, so current_app() never overrides the foreground
     # unless a test sets cached_windows explicitly.
     wm.cached_windows.return_value = []
@@ -130,7 +119,6 @@ def _make(apps=None, visible=False, is_game_pid=None, paused=False):
         pad_handler=pad,
         scheduler=scheduler,
         feedback=feedback,
-        prompts=prompts,
         inspector=inspector,
         is_paused=lambda: paused,
     )
@@ -138,7 +126,7 @@ def _make(apps=None, visible=False, is_game_pid=None, paused=False):
         lc=lc, view=view, gamepad=gamepad, wm=wm, am=app_manager,
         apps=apps, fg=foreground, dh=deferred_hide, ds=deferred_show,
         tilebar=tilebar, pad=pad,
-        scheduler=scheduler, feedback=feedback, prompts=prompts,
+        scheduler=scheduler, feedback=feedback,
     )
 
 

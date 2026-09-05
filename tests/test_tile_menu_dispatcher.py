@@ -2,7 +2,6 @@
 coordinator (pure domain)."""
 
 from domain.catalog.target import AppTarget, WindowTarget
-from domain.lifecycle.prompts import DefaultPrompts
 from domain.menu.dispatcher import TileMenuDispatcher
 from domain.menu.entry import CLOSE, LAUNCH, MOVE, PIN, SETTINGS, UNPIN
 from domain.menu.item import MenuItem
@@ -54,7 +53,6 @@ def _dispatcher():
         pinner=pinner,
         show_settings=rec.show_settings,
         confirm=rec.confirm,
-        prompts=DefaultPrompts(),
     )
     return dispatcher, rec, mover, pinner
 
