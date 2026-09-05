@@ -306,15 +306,3 @@ class OnboardingOverlay(BaseOverlay):
         # the scroll area (always visible), so it needs no scrolling.
         if index < len(self._rows):
             self._scroll.ensureWidgetVisible(self._rows[index])
-
-
-class OnboardingOverlayFactory:
-    """Builds the onboarding overlay bound to the gamepad + feedback, so the
-    composition root can create the view without knowing its wiring."""
-
-    def __init__(self, gamepad: PadControl, feedback: Feedback) -> None:
-        self._gamepad = gamepad
-        self._feedback = feedback
-
-    def create(self) -> OnboardingOverlay:
-        return OnboardingOverlay(self._gamepad, self._feedback)

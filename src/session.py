@@ -21,7 +21,7 @@ from domain.provisioning.provisioning import needs_provisioning
 from domain.shared.feedback import Cue
 from domain.system.actions import ActionDeps
 from infrastructure.common.qt.overlays.about_overlay import AboutOverlay
-from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlayFactory
+from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlay
 from infrastructure.common.qt.ui.tray import SystemTray
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def run_onboarding_or_start(
     """
     if needs_provisioning(provisioning):
         logger.info("First run — showing onboarding")
-        onboarding = OnboardingOverlayFactory(gamepad, feedback).create()
+        onboarding = OnboardingOverlay(gamepad, feedback)
         keep_alive(onboarding)
         onboarding.present(
             provisioning_uc.candidates(),
