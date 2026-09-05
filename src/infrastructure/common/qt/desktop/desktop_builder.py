@@ -18,7 +18,7 @@ from domain.input.pad_control import PadControl
 from domain.lifecycle.app_lifecycle import AppLifecycle
 from domain.lifecycle.foreground_inspector import ForegroundInspector
 from domain.lifecycle.process_manager import ProcessManager
-from domain.lifecycle.prompts import LocalizedPrompts
+from domain.lifecycle.prompts import DefaultPrompts
 from domain.lifecycle.window_manager import WindowManager
 from domain.menu.dispatcher import TileMenuDispatcher
 from domain.menu.ports import AppPinning, TileSettingsStore, TileOrderStore
@@ -154,7 +154,7 @@ def build_desktop(
         pad_handler=widget._handle_pad,
         scheduler=scheduler,
         feedback=feedback,
-        prompts=LocalizedPrompts(),
+        prompts=DefaultPrompts(),
         inspector=inspector,
         is_paused=lambda: widget._state.paused,
     )
@@ -222,7 +222,7 @@ def build_desktop(
         pinner=AppPinner(widget._tilebar, app_pinning, feedback),
         show_settings=dialogs.show_tile_settings,
         confirm=widget.show_confirm,
-        prompts=LocalizedPrompts(),
+        prompts=DefaultPrompts(),
     )
 
     widget.attach(

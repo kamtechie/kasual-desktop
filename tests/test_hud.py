@@ -1,8 +1,7 @@
 """Tests for the HUD toggle's rough logic — hud_menu_item / toggle_hud.
 
 Pure decisions over a HudControl stub plus the foreground-is-game flag; no
-filesystem, no Qt. Labels come back localized; with no translator installed
-`support.i18n` is the identity, so they equal the source strings.
+filesystem and no Qt.
 """
 
 from domain.menu.entry import TOGGLE_HUD

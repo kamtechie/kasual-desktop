@@ -1,7 +1,6 @@
 """Tile Popover menu composition — which items appear for a focused tile.
 
-Labels keep the "Desktop" translation context so the existing locale entries
-keep resolving.
+Labels are defined alongside the actions so menu construction remains self-contained.
 """
 
 from collections.abc import Callable
@@ -11,7 +10,6 @@ from domain.menu.entry import (
     SETTINGS, CLOSE, LAUNCH, MOVE, PIN, RESTORE, SEPARATOR, UNPIN,
 )
 from domain.menu.item import MenuItem
-from domain.shared.i18n import translate
 
 _SEPARATOR = MenuItem("", SEPARATOR)
 
@@ -34,10 +32,10 @@ def compose_tile_menu(target: Target, is_running: bool) -> list[MenuItem]:
 
 def lifecycle_menu(target: Target, is_running: bool) -> list[MenuItem]:
     if isinstance(target, AppTarget) and not is_running:
-        return [MenuItem(translate("Desktop", "Launch"), LAUNCH, target=target)]
+        return [MenuItem("Launch", LAUNCH, target=target)]
     return [
-        MenuItem(translate("Desktop", "Restore"), RESTORE, target=target),
-        MenuItem(translate("Desktop", "Close"), CLOSE, target=target),
+        MenuItem("Restore", RESTORE, target=target),
+        MenuItem("Close", CLOSE, target=target),
     ]
 
 
@@ -46,8 +44,8 @@ def tile_management_menu(target: Target) -> list[MenuItem]:
     only be pinned into the catalog."""
     if isinstance(target, AppTarget):
         return [
-            MenuItem(translate("Desktop", "Move"), MOVE, target=target),
-            MenuItem(translate("Desktop", "Settings"), SETTINGS, target=target),
-            MenuItem(translate("Desktop", "Unpin"), UNPIN, target=target),
+            MenuItem("Move", MOVE, target=target),
+            MenuItem("Settings", SETTINGS, target=target),
+            MenuItem("Unpin", UNPIN, target=target),
         ]
-    return [MenuItem(translate("Desktop", "Pin to menu"), PIN, target=target)]
+    return [MenuItem("Pin to menu", PIN, target=target)]

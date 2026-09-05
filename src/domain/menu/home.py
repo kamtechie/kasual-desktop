@@ -11,11 +11,10 @@ from domain.system.actions import (
     ACTIONS, BRIGHTNESS, HIDE_DESKTOP, NETWORK, NOTIFICATIONS, POWER_ACTIONS, VOLUME,
 )
 from domain.system.hud import HudControl, hud_menu_item
-from domain.shared.i18n import translate
 
 
 def _return_to_desktop_item() -> MenuItem:
-    return MenuItem(translate("Kasual Desktop", "Return to Home screen"), RETURN_TO_DESKTOP, "fa5s.home")
+    return MenuItem("Return to Home screen", RETURN_TO_DESKTOP, "fa5s.home")
 
 
 class SectionKind(StrEnum):
@@ -43,14 +42,14 @@ class HomeSections:
 
 def _action_item(key: str) -> MenuItem:
     action = ACTIONS[key]
-    return MenuItem(translate("Kasual Desktop", action.label), key, action.icon)
+    return MenuItem(action.label, key, action.icon)
 
 
 def _power_card(power_default: str) -> MenuItem:
     """Carries the abstract POWER action, not the concrete key, so A runs the
     default and Y opens the dropdown; label and icon mirror the default."""
     default = ACTIONS[power_default]
-    return MenuItem(translate("Kasual Desktop", default.label), POWER, default.icon)
+    return MenuItem(default.label, POWER, default.icon)
 
 
 def power_dropdown_items() -> list[MenuItem]:
@@ -91,9 +90,9 @@ def compose_home_sections(
 
     name = truncate(foreground.name, 22)
     actions = [
-        MenuItem(translate("Kasual Desktop", "Return to {0}").format(name),
+        MenuItem("Return to {0}".format(name),
                  RETURN_TO_APP, "fa5s.times", target=foreground),
-        MenuItem(translate("Kasual Desktop", "Close {0}").format(name),
+        MenuItem("Close {0}".format(name),
                  CLOSE_APP, "fa5s.times-circle", target=foreground),
         _return_to_desktop_item(),
     ]

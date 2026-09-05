@@ -24,14 +24,12 @@ endif
 STAGE    := build/stage
 APPROOT  := $(STAGE)/usr/share/kasual-desktop
 
-# What lands under /usr/share/kasual-desktop. Excludes test/dev cruft and the
-# source .ts translations (only compiled .qm ship).
+# What lands under /usr/share/kasual-desktop. Excludes test/dev cruft.
 RSYNC_EXCLUDES := \
 	--exclude='__pycache__' \
 	--exclude='*.pyc' \
 	--exclude='tests' \
 	--exclude='tools' \
-	--exclude='*.ts' \
 	--exclude='.gitignore'
 
 .PHONY: all deb rpm arch stage clean
@@ -42,7 +40,7 @@ stage:
 	@echo "==> Staging kasual-desktop $(VERSION)"
 	rm -rf $(STAGE)
 	mkdir -p $(APPROOT)
-	rsync -a $(RSYNC_EXCLUDES) src apps sounds locale fonts $(APPROOT)/
+	rsync -a $(RSYNC_EXCLUDES) src apps sounds fonts $(APPROOT)/
 	cp pyproject.toml $(APPROOT)/
 	printf '%s' "$(VERSION)" > $(APPROOT)/src/_version.txt
 	find $(APPROOT) -type d -exec chmod 0755 {} +

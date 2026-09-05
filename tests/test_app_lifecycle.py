@@ -30,7 +30,7 @@ class FakeScheduler:
 
 
 class FakePrompts:
-    """Returns plain strings echoing the argument (no Qt translation)."""
+    """Returns plain strings echoing the argument."""
 
     def close_confirm(self, name: str) -> str:
         return f"close? {name}"

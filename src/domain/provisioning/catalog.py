@@ -1,6 +1,8 @@
-"""The starter apps offered on first run. Names are the canonical English strings
-the view translates; bundled launchers are always offered, system apps only when
-discovery finds their command."""
+"""The starter apps offered on first run.
+
+Bundled launchers are always offered; system apps only when discovery finds their
+command.
+"""
 
 from collections.abc import Sequence
 from dataclasses import replace

@@ -30,7 +30,6 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 from domain.menu.item import MenuItem
 from domain.menu.entry import POWER
 from domain.system.actions import ACTIONS, NETWORK, NOTIFICATIONS
-from domain.shared.i18n import translate
 
 HEADER_H = 80    # matches the old top bar / hint bar height
 _BTN     = 56
@@ -352,10 +351,10 @@ class HomeHeader(QWidget):
     @staticmethod
     def _nav_item(key: str) -> MenuItem:
         # POWER is abstract (no entry in ACTIONS); the others carry their action's
-        # localized label + icon.
+        # label + icon.
         if key == POWER:
-            return MenuItem(translate("Kasual Desktop", "Power"), POWER, _POWER_GLYPH)
-        return MenuItem(translate("Kasual Desktop", ACTIONS[key].label), key, ACTIONS[key].icon)
+            return MenuItem("Power", POWER, _POWER_GLYPH)
+        return MenuItem(ACTIONS[key].label, key, ACTIONS[key].icon)
 
     # ── Clock ─────────────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 """Tests for compose_home_sections — the Home Overlay sectioned model (§7.10).
 
 Pure composition over the foreground target, brightness gating and power default;
-no Qt. Labels come back localized (identity without a translator installed).
+no Qt.
 """
 
 from domain.menu.entry import (

@@ -7,7 +7,6 @@ from typing import Protocol
 
 from domain.menu.entry import TOGGLE_HUD
 from domain.menu.item import MenuItem
-from domain.shared.i18n import translate
 
 
 class HudControl(Protocol):
@@ -28,8 +27,8 @@ def hud_menu_item(hud: HudControl, foreground_is_game: bool) -> MenuItem | None:
     if not foreground_is_game:
         return None
     if hud.is_enabled():
-        return MenuItem(translate("Kasual Desktop", "Disable HUD"), TOGGLE_HUD, "fa5s.eye-slash")
-    return MenuItem(translate("Kasual Desktop", "Enable HUD"), TOGGLE_HUD, "fa5s.eye")
+        return MenuItem("Disable HUD", TOGGLE_HUD, "fa5s.eye-slash")
+    return MenuItem("Enable HUD", TOGGLE_HUD, "fa5s.eye")
 
 
 def toggle_hud(hud: HudControl) -> None:

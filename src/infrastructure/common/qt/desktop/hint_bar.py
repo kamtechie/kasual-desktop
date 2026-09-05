@@ -15,7 +15,6 @@ from PyQt6.QtGui import QGuiApplication, QPainter
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from domain.navigation.hints import Button, Direction, Hints
-from domain.shared.i18n import translate
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
 from infrastructure.common.qt.ui.top_surface import (
     promote_overlay_surface, surface_sized_by_compositor,
@@ -194,12 +193,12 @@ class HintBar(QWidget):
                 widget.deleteLater()
 
     def _hint(self, glyph: QWidget, label: str) -> QWidget:
-        """A glyph followed by its localized description."""
+        """A glyph followed by its description."""
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
         row.addWidget(glyph)
-        row.addWidget(self._label(translate("HintBar", label)))
+        row.addWidget(self._label(label))
         holder = QWidget()
         holder.setStyleSheet("background: transparent;")
         holder.setLayout(row)
@@ -213,7 +212,7 @@ class HintBar(QWidget):
         for direction in directions:
             row.addWidget(self._arrow(direction))
         row.addSpacing(4)
-        row.addWidget(self._label(translate("HintBar", nav_label)))
+        row.addWidget(self._label(nav_label))
         holder = QWidget()
         holder.setStyleSheet("background: transparent;")
         holder.setLayout(row)
@@ -236,7 +235,7 @@ class HintBar(QWidget):
         for hint in pair:
             row.addWidget(self._button_glyph(hint.button))
         row.addSpacing(4)
-        row.addWidget(self._label(translate("HintBar", pair[0].label)))
+        row.addWidget(self._label(pair[0].label))
         holder = QWidget()
         holder.setStyleSheet("background: transparent;")
         holder.setLayout(row)

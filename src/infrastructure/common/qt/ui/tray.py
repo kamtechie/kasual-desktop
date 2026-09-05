@@ -7,7 +7,6 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
 
 from domain.shell.session_collaborators import ConnectionIndicator
-from domain.shared.i18n import translate
 
 
 class SystemTray(ConnectionIndicator):
@@ -32,14 +31,14 @@ class SystemTray(ConnectionIndicator):
         self._tray.setToolTip("Kasual Desktop")
 
         menu = QMenu()
-        show_action = menu.addAction(translate("Kasual Desktop", "Show Desktop"))
+        show_action = menu.addAction("Show Desktop")
         show_action.triggered.connect(self._on_show)
-        logs_action = menu.addAction(translate("Kasual Desktop", "Logs"))
+        logs_action = menu.addAction("Logs")
         logs_action.triggered.connect(self._on_logs)
-        about_action = menu.addAction(translate("Kasual Desktop", "About…"))
+        about_action = menu.addAction("About…")
         about_action.triggered.connect(self._on_about)
         menu.addSeparator()
-        quit_action = menu.addAction(translate("Kasual Desktop", "Quit"))
+        quit_action = menu.addAction("Quit")
         quit_action.triggered.connect(self._on_quit)
 
         # QSystemTrayIcon does not take ownership of the menu, so keep a reference.

@@ -18,7 +18,6 @@ from domain.input.pad_control import PadControl
 from domain.navigation import hints as home_hints
 from domain.provisioning.add_apps import AppAdder
 from domain.shared.feedback import Cue, Feedback
-from domain.shared.i18n import translate
 from domain.shell.open_overlays import OpenOverlays
 from infrastructure.common.qt.overlays.onboarding_overlay import OnboardingOverlay
 
@@ -68,7 +67,7 @@ class AppAddController:
             candidates,
             on_confirm=self._on_added,
             on_cancel=self._forget,
-            title=translate("Desktop", "Add app"),
+            title="Add app",
         )
         self._hint_bar.show_hints(home_hints.ADD_APP)
 

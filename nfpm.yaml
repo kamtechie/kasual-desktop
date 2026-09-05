@@ -4,7 +4,7 @@
 # Version is derived from git tags by the Makefile (KASUAL_VERSION).
 # The whole runnable tree is staged under build/stage/usr by `make stage`, so
 # this file just packs that staging dir — keeping __file__-relative resource
-# paths (src/apps/sounds/locale all under /usr/share/kasual-desktop) intact.
+# paths (src/apps/sounds/fonts under /usr/share/kasual-desktop) intact.
 name: kasual-desktop
 arch: all
 platform: linux

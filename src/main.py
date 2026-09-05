@@ -52,7 +52,6 @@ from infrastructure.linux.notifications.notifications import FreedesktopNotifica
 from infrastructure.linux.network.network_manager import NMNetworkControl, NMNetworkMonitor
 from domain.notifications.center import NotificationCenter
 from infrastructure.common.catalog.preferences import DesktopPowerPreference
-from infrastructure.common.qt.i18n import install_translations
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +84,6 @@ def main() -> None:
     # Use the bundled genuine Font Awesome 5 fonts, not the distro's Fork Awesome
     # substitute (see icons.install_fontawesome5). Before any icon is built.
     install_fontawesome5()
-
-    install_translations(app, str(Path(__file__).parent.parent / "locale"))
 
     gamepad = GamepadWatcher()
     screensaver_waker = ScreenSaverWaker(simulate_freedesktop_activity)

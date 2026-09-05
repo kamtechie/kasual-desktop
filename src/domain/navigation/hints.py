@@ -1,16 +1,9 @@
-"""Gamepad control hints shown along the bottom of the Desktop.
-
-Labels are English source strings harvested by pylupdate6 from the literal
-``translate("HintBar", ...)`` calls at import time and re-translated at render,
-so those calls must stay literal.
-"""
+"""English gamepad control hints shown along the bottom of the Desktop."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-
-from domain.shared.i18n import translate
 
 
 class Direction(StrEnum):
@@ -41,7 +34,7 @@ class ButtonHint:
     """One button paired with what it does on the current screen."""
 
     button: Button
-    label:  str   # source string, re-translated at render
+    label:  str
 
 
 @dataclass(frozen=True)
@@ -60,23 +53,23 @@ class Hints:
     adjust_label: str = "Adjust"
 
 
-_NAVIGATE = translate("HintBar", "Navigate")
-_ADJUST   = translate("HintBar", "Adjust")
-_MOVE     = translate("HintBar", "Move")
+_NAVIGATE = "Navigate"
+_ADJUST   = "Adjust"
+_MOVE     = "Move"
 
-_SECTION = ButtonHint(Button.LB, translate("HintBar", "Section")), \
-           ButtonHint(Button.RB, translate("HintBar", "Section"))
-_VOLUME  = ButtonHint(Button.LT, translate("HintBar", "Volume")), \
-           ButtonHint(Button.RT, translate("HintBar", "Volume"))
+_SECTION = ButtonHint(Button.LB, "Section"), \
+           ButtonHint(Button.RB, "Section")
+_VOLUME  = ButtonHint(Button.LT, "Volume"), \
+           ButtonHint(Button.RT, "Volume")
 
-_HOME_MENU = ButtonHint(Button.HOME, translate("HintBar", "Show/Hide menu"))
+_HOME_MENU = ButtonHint(Button.HOME, "Show/Hide menu")
 
 TILES = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.UP),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.Y, translate("HintBar", "Actions")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.Y, "Actions"),
     ),
 )
 
@@ -84,7 +77,7 @@ TILES_ADD = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.UP),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
+        ButtonHint(Button.A, "Select"),
     ),
 )
 
@@ -92,8 +85,8 @@ MOVE = Hints(
     directions=(Direction.LEFT, Direction.RIGHT),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Confirm")),
-        ButtonHint(Button.B, translate("HintBar", "Cancel")),
+        ButtonHint(Button.A, "Confirm"),
+        ButtonHint(Button.B, "Cancel"),
     ),
     nav_label=_MOVE,
 )
@@ -102,7 +95,7 @@ TOPBAR = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
+        ButtonHint(Button.A, "Select"),
     ),
 )
 
@@ -110,8 +103,8 @@ TOPBAR_POWER = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.Y, translate("HintBar", "Options")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.Y, "Options"),
     ),
 )
 
@@ -119,8 +112,8 @@ OVERLAY_MENU = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.B, translate("HintBar", "Back")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.B, "Back"),
     ),
 )
 
@@ -128,9 +121,9 @@ TILE_POPOVER = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.Y, translate("HintBar", "Close menu")),
-        ButtonHint(Button.B, translate("HintBar", "Back")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.Y, "Close menu"),
+        ButtonHint(Button.B, "Back"),
     ),
 )
 
@@ -138,8 +131,8 @@ TILE_SETTINGS = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.B, translate("HintBar", "Cancel")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.B, "Cancel"),
     ),
     bumpers=_SECTION,
 )
@@ -148,8 +141,8 @@ ADD_APP = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.B, translate("HintBar", "Cancel")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.B, "Cancel"),
     ),
     bumpers=_SECTION,
 )
@@ -158,8 +151,8 @@ CONFIRM = Hints(
     directions=(Direction.LEFT, Direction.RIGHT),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.B, translate("HintBar", "Cancel")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.B, "Cancel"),
     ),
 )
 
@@ -167,8 +160,8 @@ NOTIFICATIONS = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.B, translate("HintBar", "Close")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.B, "Close"),
     ),
 )
 
@@ -176,8 +169,8 @@ NETWORK = Hints(
     directions=(),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.B, translate("HintBar", "Close")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.B, "Close"),
     ),
 )
 
@@ -188,7 +181,7 @@ OVERLAY_QUICK = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.B, translate("HintBar", "Close")),
+        ButtonHint(Button.B, "Close"),
     ),
     nav_label=_NAVIGATE,
     adjust=(Direction.LEFT, Direction.RIGHT),
@@ -201,8 +194,8 @@ OVERLAY_ACTIONS = Hints(
     directions=(Direction.UP, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.B, translate("HintBar", "Close")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.B, "Close"),
     ),
     bumpers=_SECTION,
     triggers=_VOLUME,
@@ -212,8 +205,8 @@ OVERLAY_HEADER = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.B, translate("HintBar", "Close")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.B, "Close"),
     ),
     bumpers=_SECTION,
     triggers=_VOLUME,
@@ -225,9 +218,9 @@ OVERLAY_HEADER_POWER = Hints(
     directions=(Direction.LEFT, Direction.RIGHT, Direction.DOWN),
     overlay=_HOME_MENU,
     actions=(
-        ButtonHint(Button.A, translate("HintBar", "Select")),
-        ButtonHint(Button.Y, translate("HintBar", "Options")),
-        ButtonHint(Button.B, translate("HintBar", "Close")),
+        ButtonHint(Button.A, "Select"),
+        ButtonHint(Button.Y, "Options"),
+        ButtonHint(Button.B, "Close"),
     ),
     bumpers=_SECTION,
     triggers=_VOLUME,

@@ -28,7 +28,6 @@ from domain.input.pad_control import PadControl
 from domain.input.vocabulary import Event, Trigger
 from domain.menu.grid_cursor import GridCursor
 from domain.shared.feedback import Cue, Feedback
-from domain.shared.i18n import translate
 from domain.shared.text import truncate
 from infrastructure.common.qt.ui import styles
 from .base_overlay import BaseOverlay
@@ -41,8 +40,8 @@ _MAX_PER_ROW = 10   # wrap the palette into rows of at most this many swatches
 _RECALL_OPTIONS: tuple[tuple[str, str], ...] = (
     # (label, trigger value) — the first is the default; the order is the
     # left-to-right navigation order in the Recall section.
-    (translate("Desktop", "Pressing"),   Trigger.CLICK),
-    (translate("Desktop", "Holding"),     Trigger.HOLD_1S),
+    ("Pressing",   Trigger.CLICK),
+    ("Holding",     Trigger.HOLD_1S),
 )
 
 # The same glyph the hint bar shows for BTN_MODE, so both surfaces name one button.
@@ -137,14 +136,13 @@ class TileSettings(BaseOverlay):
         layout.setContentsMargins(48, 40, 48, 40)
         layout.setSpacing(20)
 
-        title = QLabel(translate("Desktop", "Settings — {0}")
-                       .format(truncate(app_name, 40)))
+        title = QLabel("Settings — {0}".format(truncate(app_name, 40)))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 24px; color: white; background: transparent;")
         layout.addWidget(title)
 
         # ── Recall section ───────────────────────────────────────────────────
-        recall_label = QLabel(translate("Desktop", "Call Kasual Desktop menu:"))
+        recall_label = QLabel("Call Kasual Desktop menu:")
         recall_label.setStyleSheet(
             "font-size: 18px; color: #d8dee9; background: transparent;")
         layout.addWidget(recall_label)
@@ -155,7 +153,7 @@ class TileSettings(BaseOverlay):
         self._recall_buttons: list[QPushButton] = []
         home_icon = _home_button_icon()
         for i, (label, _value) in enumerate(_RECALL_OPTIONS):
-            btn = QPushButton(translate("Desktop", label))
+            btn = QPushButton(label)
             btn.setIcon(home_icon)
             btn.setIconSize(QSize(_GLYPH_GAP + _GLYPH_DISC, _GLYPH_DISC))
             # Right-to-left lays the glyph after the verb: "Pressing [home]".
@@ -172,7 +170,7 @@ class TileSettings(BaseOverlay):
         layout.addWidget(styles.separator())
 
         # ── Colour section ───────────────────────────────────────────────────
-        color_label = QLabel(translate("Desktop", "Tile color:"))
+        color_label = QLabel("Tile color:")
         color_label.setStyleSheet(
             "font-size: 18px; color: #d8dee9; background: transparent;")
         layout.addWidget(color_label)
@@ -197,8 +195,8 @@ class TileSettings(BaseOverlay):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(20)
         btn_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._btn_cancel = QPushButton("✘  " + translate("Desktop", "Cancel"))
-        self._btn_save = QPushButton("✔  " + translate("Desktop", "Save"))
+        self._btn_cancel = QPushButton("✘  Cancel")
+        self._btn_save = QPushButton("✔  Save")
         for i, btn in enumerate((self._btn_cancel, self._btn_save)):
             btn.setMinimumSize(210, 80)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)

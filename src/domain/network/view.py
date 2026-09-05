@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 from domain.network.status import NetworkKind, NetworkStatus
 from domain.shared.text import truncate
-from domain.shared.i18n import translate
 
 _ICONS = {
     NetworkKind.WIFI:     "fa5s.wifi",
@@ -27,7 +26,7 @@ def icon_for(kind: NetworkKind) -> str:
 
 
 def title() -> str:
-    return translate("Kasual Desktop", "Network")
+    return "Network"
 
 
 def info_lines(status: NetworkStatus) -> list[tuple[str, str]]:
@@ -35,24 +34,24 @@ def info_lines(status: NetworkStatus) -> list[tuple[str, str]]:
     empty. Offline collapses to a single status line."""
     if not status.online:
         return [(
-            translate("Kasual Desktop", "Status"),
-            translate("Kasual Desktop", "Not connected"),
+            "Status",
+            "Not connected",
         )]
 
     rows: list[tuple[str, str]] = [
-        (translate("Kasual Desktop", "Type"),
-         translate("Kasual Desktop", _KIND_LABELS.get(status.kind, "Connected"))),
+        ("Type",
+         _KIND_LABELS.get(status.kind, "Connected")),
     ]
     if status.name:
-        label = translate("Kasual Desktop", "Network") if status.kind is NetworkKind.WIFI else (
-            translate("Kasual Desktop", "Connection"))
-        rows.append((translate("Kasual Desktop", label), truncate(status.name, 40)))
+        label = "Network" if status.kind is NetworkKind.WIFI else (
+            "Connection")
+        rows.append((label, truncate(status.name, 40)))
     if status.signal is not None:
-        rows.append((translate("Kasual Desktop", "Signal"), f"{status.signal}%"))
+        rows.append(("Signal", f"{status.signal}%"))
     if status.ip_address:
-        rows.append((translate("Kasual Desktop", "IP address"), status.ip_address))
+        rows.append(("IP address", status.ip_address))
     if status.interface:
-        rows.append((translate("Kasual Desktop", "Interface"), status.interface))
+        rows.append(("Interface", status.interface))
     return rows
 
 
@@ -71,8 +70,8 @@ def connect_button(status: NetworkStatus, can_reconnect: bool) -> ConnectButton:
     to restore the last connection — disabled when there is none to restore."""
     if status.online:
         return ConnectButton(
-            translate("Kasual Desktop", "Disconnect"), reconnect=False, enabled=True,
+            "Disconnect", reconnect=False, enabled=True,
         )
     return ConnectButton(
-        translate("Kasual Desktop", "Connect"), reconnect=True, enabled=can_reconnect,
+        "Connect", reconnect=True, enabled=can_reconnect,
     )

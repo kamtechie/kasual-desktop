@@ -23,7 +23,6 @@ from domain.notifications.center import NotificationCenter
 from domain.notifications.view import relative_age
 from domain.shared.feedback import Cue, Feedback
 from domain.shared.text import truncate
-from domain.shared.i18n import translate
 from infrastructure.common.qt.ui import styles
 from infrastructure.common.qt.ui.nav_key_map import nav_key_map
 from .base_overlay import BaseOverlay
@@ -146,7 +145,7 @@ class NotificationsOverlay(BaseOverlay):
         icon_lbl = QLabel()
         icon_lbl.setPixmap(qta.icon("fa5s.bell", color="white").pixmap(28, 28))
         icon_lbl.setStyleSheet("background: transparent;")
-        title = QLabel(translate("Kasual Desktop", "Recent notifications"))
+        title = QLabel("Recent notifications")
         title.setStyleSheet("font-size: 24px; color: white; background: transparent;")
         title_row.addWidget(icon_lbl)
         title_row.addWidget(title)
@@ -165,7 +164,7 @@ class NotificationsOverlay(BaseOverlay):
 
     def _build_list(self) -> QWidget:
         if not self._items:
-            empty = QLabel(translate("Kasual Desktop", "No notifications"))
+            empty = QLabel("No notifications")
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty.setStyleSheet(
                 "font-size: 18px; color: #aaa; background: transparent; padding: 40px;"

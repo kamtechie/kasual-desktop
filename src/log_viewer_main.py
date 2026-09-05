@@ -22,7 +22,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "wayland")
 from PyQt6.QtWidgets import QApplication
 
 from domain.shared.log_provider import LogProvider
-from infrastructure.common.qt.i18n import install_translations
 from infrastructure.common.qt.ui.log_viewer import LogViewer
 from infrastructure.common.log.file_log_source import FileLogSource
 
@@ -34,8 +33,6 @@ def main() -> None:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Kasual Desktop – Logs")
-    install_translations(app, str(Path(__file__).parent.parent / "locale"))
-
     viewer = LogViewer(LogProvider(FileLogSource(log_file)))
     viewer.show()
     sys.exit(app.exec())
