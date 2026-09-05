@@ -1,4 +1,4 @@
-"""Shared `GamepadSignals` / `PadControl` plumbing for platform gamepad watchers.
+"""Shared `PadControl` plumbing for gamepad watchers.
 
 Both platform watchers read a physical pad on a background thread yet must touch
 their observers only on the GUI thread. That bridge (the `_hop_*` pyqtSignals,
@@ -177,7 +177,7 @@ class BaseGamepadWatcher(QObject):
             return _AxisEdge.RELEASE, None
         return _AxisEdge.NONE, None
 
-    # ── GamepadSignals port ────────────────────────────────────────────────────
+    # ── Event subscriptions ───────────────────────────────────────────────────
 
     def on_btn_mode(self, handler: Callable[[], None]) -> Unsubscribe:
         return self._btn_mode_emitter.subscribe(lambda _evt: handler())

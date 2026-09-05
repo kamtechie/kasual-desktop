@@ -9,7 +9,7 @@ import logging
 from domain.menu.entry import CLOSE_APP, RETURN_TO_APP, RETURN_TO_DESKTOP, TOGGLE_HUD
 from domain.menu.item import MenuItem
 from domain.shared.event_emitter import Unsubscribe
-from domain.input.gamepad_signals import GamepadSignals
+from domain.input.pad_control import PadControl
 from domain.lifecycle.app_control import AppControl
 from domain.lifecycle.window_manager import WindowManager
 from domain.shell.desktop_control import DesktopControl
@@ -32,7 +32,7 @@ class Application:
 
     def __init__(
         self,
-        gamepad:         GamepadSignals,
+        gamepad:         PadControl,
         desktop:         DesktopControl,
         app_control:     AppControl,
         action_deps:     ActionDeps,

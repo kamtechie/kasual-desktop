@@ -31,7 +31,7 @@ VIRTUAL_DEVICE_NAME   = "kasual-vpad"
 class GamepadWatcher(BaseGamepadWatcher):
     """Reads events from a physical gamepad (evdev) in a background thread.
 
-    The shared `PadControl` / `GamepadSignals` plumbing lives in
+    The shared `PadControl` plumbing lives in
     :class:`BaseGamepadWatcher`; this adapter adds the Linux device handling.
 
     The gamepad is always grabbed exclusively. All events except BTN_MODE are

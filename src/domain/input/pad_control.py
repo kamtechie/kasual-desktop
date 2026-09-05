@@ -1,18 +1,30 @@
-"""The gamepad-control port the lifecycle seizes and cedes."""
+"""The gamepad port observed and controlled by the application."""
 
 from collections.abc import Callable
 from typing import Protocol
 
+from domain.input.gamepad_events import GamepadConnected, GamepadDisconnected
+from domain.shared.event_emitter import Unsubscribe
+
 
 class PadControl(Protocol):
     """Gamepad input control the lifecycle seizes/cedes (GamepadWatcher): the
-    handler stack, the per-app BTN_MODE trigger, a keyboard-driven BTN_MODE
-    request, and device re-binding."""
+    event subscriptions, handler stack, per-app BTN_MODE trigger, keyboard-driven
+    requests, and device re-binding."""
 
     def is_connected(self) -> bool:
         """Whether a controller is present — nothing may put the Desktop on screen
         without one, since nothing could then drive it."""
         ...
+
+    def on_btn_mode(self, handler: Callable[[], None]) -> Unsubscribe: ...
+    def on_activity(self, handler: Callable[[], None]) -> Unsubscribe: ...
+    def on_connected(
+        self, handler: Callable[[GamepadConnected], None]
+    ) -> Unsubscribe: ...
+    def on_disconnected(
+        self, handler: Callable[[GamepadDisconnected], None]
+    ) -> Unsubscribe: ...
 
     def set_app_btn_mode_trigger(self, trigger: str) -> None: ...
     def push_handler(self, handler: Callable[[str], None]) -> None: ...

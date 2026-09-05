@@ -1,7 +1,7 @@
 """Tests for the Application controller — wiring over domain ports only.
 
 The controller is pure wiring (no Qt): it subscribes to the gamepad through the
-`GamepadSignals` port, drives the home overlay, and routes activated menu items.
+`PadControl` port, drives the home overlay, and routes activated menu items.
 Here we drive it entirely over fakes.
 """
 
@@ -19,7 +19,7 @@ from domain.catalog.app import App
 # ── Fakes ────────────────────────────────────────────────────────────────────
 
 class FakeGamepad:
-    """GamepadSignals port over real EventEmitters, with fire helpers."""
+    """Gamepad event subscriptions over real EventEmitters, with fire helpers."""
 
     def __init__(self):
         self._btn_mode = EventEmitter[BtnModePressed]()
