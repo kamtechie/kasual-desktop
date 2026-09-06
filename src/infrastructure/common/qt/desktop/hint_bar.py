@@ -14,7 +14,8 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QGuiApplication, QPainter
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from domain.navigation.hints import Button, Direction, Hints
+from domain.navigation.hints import Button, Direction, Hints, TILES, TILES_ADD, MOVE, TOPBAR, TOPBAR_POWER
+from infrastructure.common.qt.ui import styles
 from infrastructure.common.qt.ui.layer_shell import Anchor, Keyboard, Layer
 from infrastructure.common.qt.ui.top_surface import (
     promote_overlay_surface, surface_sized_by_compositor,
@@ -63,6 +64,7 @@ class HintBar(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self._current_hints: Hints | None = None
+        self._home_style = False
         # Own top-level window: frameless, translucent (only the rounded bar is
         # opaque, the surrounding strip is transparent), and click-through.
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -79,6 +81,7 @@ class HintBar(QWidget):
         outer.setSpacing(0)
 
         bar = QWidget()
+        self._bar = bar
         bar.setObjectName("hintbar")
         bar.setFixedHeight(BAR_HEIGHT)
         bar.setFixedWidth(CARD_WIDTH)
@@ -88,6 +91,7 @@ class HintBar(QWidget):
             "  border-radius: 30px;"
             "}"
         )
+        self._standard_style = bar.styleSheet()
         outer.addStretch(1)   # absorbs any surplus surface height above the bar
         outer.addWidget(bar, alignment=Qt.AlignmentFlag.AlignHCenter)
 
@@ -124,6 +128,29 @@ class HintBar(QWidget):
     def showEvent(self, event) -> None:
         super().showEvent(event)
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self._home_style:
+            self._bar.setFixedWidth(self.width() - 2 * styles.home_edge_margin(self.width()))
+
+    def _apply_presentation(self) -> None:
+        # Only Home navigation presets use the split layout. Contextual menus,
+        # dialogs and the Guide keep their exact existing bar and typography.
+        if self._home_style:
+            self._bar.setStyleSheet("#hintbar { background: transparent; border: none; }")
+            self._bar.setFixedWidth(self.width() - 2 * styles.home_edge_margin(self.width()))
+            self._row.setContentsMargins(0, 0, 0, 0)
+            self.layout().setContentsMargins(16, 0, 16, 32)
+            self.setFixedHeight(BAR_HEIGHT + 32)
+        else:
+            self._bar.setStyleSheet(self._standard_style)
+            self._bar.setFixedWidth(CARD_WIDTH)
+            self._row.setContentsMargins(20, 0, 20, 0)
+            self.layout().setContentsMargins(16, 0, 16, BOTTOM_MARGIN)
+            self.setFixedHeight(SURFACE_H)
+        if self.isVisible():
+            self.position_at_bottom()
+
     def show_at_bottom(self) -> None:
         self.position_at_bottom()
         self.show()
@@ -152,6 +179,8 @@ class HintBar(QWidget):
         if hints is self._current_hints:
             return
         self._current_hints = hints
+        self._home_style = any(hints is preset for preset in (TILES, TILES_ADD, MOVE, TOPBAR, TOPBAR_POWER))
+        self._apply_presentation()
         self._clear()
         if hints.directions:
             self._row.addWidget(self._directions(hints.directions, hints.nav_label))
@@ -209,8 +238,22 @@ class HintBar(QWidget):
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(4)
-        for direction in directions:
-            row.addWidget(self._arrow(direction))
+        if self._home_style:
+            # A compact D-pad made only of the directions this context allows.
+            pad = QWidget()
+            pad.setFixedSize(40, 40)
+            positions = {Direction.LEFT: (0, 13), Direction.RIGHT: (26, 13),
+                         Direction.UP: (13, 0), Direction.DOWN: (13, 26)}
+            for direction in directions:
+                arrow = self._arrow(direction)
+                arrow.setParent(pad)
+                arrow.setFixedSize(14, 14)
+                arrow.setPixmap(qta.icon(_ARROWS[direction], color="white").pixmap(QSize(12, 12)))
+                arrow.move(*positions[direction])
+            row.addWidget(pad)
+        else:
+            for direction in directions:
+                row.addWidget(self._arrow(direction))
         row.addSpacing(4)
         row.addWidget(self._label(nav_label))
         holder = QWidget()
@@ -263,29 +306,34 @@ class HintBar(QWidget):
 
     def _disc_letter(self, letter: str, bg: str, fg: str) -> QLabel:
         lbl = QLabel(letter)
-        lbl.setFixedSize(GLYPH_SIZE, GLYPH_SIZE)
+        size = 34 if self._home_style else GLYPH_SIZE
+        font_size = 18 if self._home_style else 14
+        lbl.setFixedSize(size, size)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setStyleSheet(
             f"background-color: {bg}; color: {fg};"
-            f" border-radius: {GLYPH_SIZE // 2}px;"
-            "  font-weight: bold; font-size: 14px;"
+            f" border-radius: {size // 2}px;"
+            f" font-weight: bold; font-size: {font_size}px;"
         )
         return lbl
 
     def _disc_icon(self, glyph: str) -> QLabel:
         lbl = QLabel()
-        lbl.setFixedSize(GLYPH_SIZE, GLYPH_SIZE)
+        size = 34 if self._home_style else GLYPH_SIZE
+        lbl.setFixedSize(size, size)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setStyleSheet(
+            "background: transparent; border: 1px solid #9285ad; border-radius: 17px;"
+            if self._home_style else
             f"background-color: #3b4252; border-radius: {GLYPH_SIZE // 2}px;"
         )
         lbl.setPixmap(qta.icon(glyph, color="white").pixmap(QSize(ICON_PX, ICON_PX)))
         return lbl
 
-    @staticmethod
-    def _label(text: str) -> QLabel:
+    def _label(self, text: str) -> QLabel:
         lbl = QLabel(text)
+        size = 20 if self._home_style else 14
         lbl.setStyleSheet(
-            "color: #d8dee9; font-size: 14px; background: transparent;"
+            f"color: #d8dee9; font-size: {size}px; background: transparent;"
         )
         return lbl

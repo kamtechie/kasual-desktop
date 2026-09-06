@@ -1,5 +1,7 @@
 from domain.shared.text import truncate  # noqa: F401 - re-exported: callers use styles.truncate
 
+HOME_ACCENT     = "#b47aff"
+GUIDE_ACCENT    = HOME_ACCENT  # Opt-in Guide/dialog palette; other screens stay unchanged.
 COLOR_ACCENT    = "#88c0d0"
 COLOR_ACCENT_HI = "#9fd6e2"   # accent lifted for the mouse-hover echo
 COLOR_BG_DARK   = "#0b140e"
@@ -54,6 +56,31 @@ def make_card(width: int):
     return card
 
 
+def style_guide_panel(widget) -> None:
+    """Translucent Guide plate shared only with its related system dialogs."""
+    widget.setObjectName("guidepanel")
+    widget.setStyleSheet("""
+        #guidepanel {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 rgba(39, 32, 57, 250), stop:1 rgba(20, 19, 32, 248));
+            border: 1px solid #4b3a66;
+            border-radius: 28px;
+        }
+    """)
+    apply_card_shadow(widget, offset_y=4, blur=36, alpha=90, color=GUIDE_ACCENT)
+
+
+GUIDE_SLIDER_QSS = f"""
+    QSlider {{ background: transparent; border: none; min-height: 32px; }}
+    QSlider::groove:horizontal {{ height: 8px; border-radius: 4px; background: #414057; }}
+    QSlider::sub-page:horizontal {{ background: {GUIDE_ACCENT}; border-radius: 4px; }}
+    QSlider::add-page:horizontal {{ background: #414057; border-radius: 4px; }}
+    QSlider::handle:horizontal {{
+        width: 24px; height: 24px; margin: -8px 0; background: white; border: none; border-radius: 12px;
+    }}
+"""
+
+
 def separator():
     from PyQt6.QtWidgets import QFrame
 
@@ -63,66 +90,43 @@ def separator():
     return line
 
 
-def tile_normal(color: str) -> str:
+def home_edge_margin(width: int) -> int:
+    """Shared screen inset for Home information and its content row."""
+    return max(32, round(width * 0.047))
+
+
+def _launcher_tile(selected: bool) -> str:
+    """No native button chrome: AppTile paints focus around the artwork only."""
+    text = "white" if selected else "#d8dee9"
+    weight = "bold" if selected else "normal"
     return f"""
         QToolButton {{
-            font-size: 18px;
-            font-weight: bold;
-            color: white;
-            background-color: {color};
+            font-size: 24px;
+            font-weight: {weight};
+            color: {text};
+            background: transparent;
             border: none;
-            border-radius: 32px;
-            padding: 12px 8px 16px 8px;
+            padding: 0;
         }}
     """
+
+
+def tile_normal(color: str) -> str:
+    # Retain the presentation style API; the artwork painter owns app colour.
+    return _launcher_tile(False)
 
 
 def tile_selected(color: str) -> str:
-    """The focused tile — its own colour with a solid white selection border
-    (size still comes from the grow animation)."""
-    return f"""
-        QToolButton {{
-            font-size: 18px;
-            font-weight: bold;
-            color: white;
-            background-color: {color};
-            border: 3px solid white;
-            border-radius: 32px;
-            padding: 12px 8px 16px 8px;
-        }}
-    """
+    return _launcher_tile(True)
 
 
 def tile_moving(color: str) -> str:
-    """The focused tile while in move mode — its normal look plus a dashed border
-    as the only move cue (size still comes from the grow animation)."""
-    return f"""
-        QToolButton {{
-            font-size: 18px;
-            font-weight: bold;
-            color: white;
-            background-color: {color};
-            border: 3px dashed white;
-            border-radius: 32px;
-            padding: 12px 8px 16px 8px;
-        }}
-    """
+    # The artwork focus outline carries the dashed move cue.
+    return _launcher_tile(True)
 
 
 def add_tile(selected: bool) -> str:
-    """The synthetic ``[＋]`` add-app tile: a transparent, dashed-outline
-    affordance (the same dashed cue as move mode) so it never reads as a real
-    app. Its border brightens to the accent colour when focused."""
-    border = COLOR_ACCENT if selected else "#6b7280"
-    return f"""
-        QToolButton {{
-            color: {border};
-            background-color: transparent;
-            border: 3px dashed {border};
-            border-radius: 32px;
-            padding: 12px 8px 16px 8px;
-        }}
-    """
+    return _launcher_tile(selected)
 
 
 def topbar_normal(color: str) -> str:
@@ -194,7 +198,7 @@ _DIALOG_ROLES = {
 }
 
 
-def apply_focus_glow(widget, on: bool) -> None:
+def apply_focus_glow(widget, on: bool, *, accent: str = COLOR_ACCENT) -> None:
     """The accent halo behind a focused button, drawn as a graphics effect since
     Qt style sheets have no box-shadow."""
     if not on:
@@ -206,20 +210,42 @@ def apply_focus_glow(widget, on: bool) -> None:
     glow = QGraphicsDropShadowEffect(widget)
     glow.setOffset(0, 0)
     glow.setBlurRadius(28)
-    color = QColor(COLOR_ACCENT)
+    color = QColor(accent)
     color.setAlpha(180)
     glow.setColor(color)
     widget.setGraphicsEffect(glow)
 
 
-def style_dialog_button(btn, *, role: str = "primary", focused: bool = False) -> None:
+def style_dialog_button(btn, *, role: str = "primary", focused: bool = False, guide: bool = False) -> None:
     """Paint one button. ``role``: primary / secondary / selected / disabled."""
     if role == "disabled":
         btn.setStyleSheet(dialog_disabled())
         apply_focus_glow(btn, False)
         return
-    btn.setStyleSheet(_DIALOG_ROLES[role](focused))
-    apply_focus_glow(btn, focused)
+    if guide:
+        primary = role == "primary"
+        btn.setStyleSheet(_dialog_button(
+            GUIDE_ACCENT if primary else "#30283e", "#160e22" if primary else "white",
+            "#caa0ff" if primary else "#41314f", focused=focused,
+            border=GUIDE_ACCENT if role == "selected" else "transparent",
+        ))
+    else:
+        btn.setStyleSheet(_DIALOG_ROLES[role](focused))
+    apply_focus_glow(btn, focused, accent=GUIDE_ACCENT if guide else COLOR_ACCENT)
+
+
+def guide_menu_item(selected: bool, *, compact: bool = False) -> str:
+    background = "rgba(127, 70, 184, 60)" if selected else "rgba(42, 37, 58, 140)"
+    border = GUIDE_ACCENT if selected else "transparent"
+    font_size = 20 if compact else 24
+    padding = 8 if compact else 12
+    return f"""
+        QPushButton {{
+            font-size: {font_size}px; padding: {padding}px 20px; color: white;
+            background-color: {background}; border: 2px solid {border};
+            border-radius: 16px; text-align: left;
+        }}
+    """
 
 
 def home_menu_item_normal() -> str:

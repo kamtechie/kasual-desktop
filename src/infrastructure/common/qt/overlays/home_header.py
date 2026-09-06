@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
 from domain.menu.item import MenuItem
 from domain.shell.home_header_model import HomeHeaderModel
+from infrastructure.common.qt.ui import styles
 
 HEADER_H = 80    # matches the old top bar / hint bar height
 _BTN     = 56
@@ -63,6 +64,15 @@ class _GrabHandle(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._prominent = False
         self._focused = False
+        self._home_layout = False
+
+    def set_home_layout(self, home: bool) -> None:
+        self._home_layout = home
+        if home:
+            self.setFixedSize(_BTN, _BTN)
+        else:
+            self.setFixedSize(_HANDLE_W, _HANDLE_H)
+        self.update()
 
     def set_prominent(self, prominent: bool) -> None:
         if prominent == self._prominent:
@@ -82,6 +92,10 @@ class _GrabHandle(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self._home_layout:
+            color = styles.HOME_ACCENT if self._prominent else "white"
+            qta.icon("fa5s.cog", color=color).paint(painter, self.rect().adjusted(16, 16, -16, -16))
+            return
         painter.setPen(Qt.PenStyle.NoPen)
         if self._focused:
             painter.setBrush(_HANDLE_FOCUSED)
@@ -107,9 +121,11 @@ class _GrabHandle(QWidget):
         super().mouseReleaseEvent(event)
 
 
-def _btn_style(selected: bool) -> str:
+def _btn_style(selected: bool, *, home: bool = False) -> str:
     if selected:
-        return (f"background-color: {_FOCUS_FILL}; border: 2px solid {_FOCUS_BORDER};"
+        fill = "rgba(180, 122, 255, 40)" if home else _FOCUS_FILL
+        border = styles.HOME_ACCENT if home else _FOCUS_BORDER
+        return (f"background-color: {fill}; border: 2px solid {border};"
                 f" border-radius: {_BTN // 2}px;")
     return f"background: transparent; border: 2px solid transparent; border-radius: {_BTN // 2}px;"
 
@@ -167,6 +183,8 @@ class HomeHeader(QWidget):
     def __init__(self, model: HomeHeaderModel, width: int) -> None:
         super().__init__()
         self._model = model
+        self._menu_width = width
+        self._home_layout = False
 
         self.setObjectName("homeheader")
         self.setFixedHeight(HEADER_H)
@@ -181,7 +199,9 @@ class HomeHeader(QWidget):
             "  border-radius: 40px;"
             "}"
         )
+        self._menu_style = self.styleSheet()
         row = QHBoxLayout(self)
+        self._row = row
         row.setContentsMargins(24, 0, 16, 0)
 
         lbl_style = "font-size: 26px; color: white; background: transparent; border: none;"
@@ -247,11 +267,53 @@ class HomeHeader(QWidget):
         timer.timeout.connect(self._tick_clock)
         timer.start(1000)
 
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
+    def set_home_layout(self, width: int | None) -> None:
+        """Spread collapsed Home chrome across the screen; keep menu chrome intact."""
+        self._home_layout = width is not None
+        self._row.setEnabled(not self._home_layout)
+        self._handle.set_home_layout(self._home_layout)
+        if self._home_layout:
+            self.setStyleSheet("#homeheader { background: transparent; border: none; }")
+            self._clock_lbl.setStyleSheet(
+                "font-size: 72px; font-weight: 300; color: white; background: transparent; border: none;")
+            self._date_lbl.setStyleSheet(
+                "font-size: 24px; font-weight: normal; color: #c5bdd7; background: transparent; border: none;")
+            self.setFixedSize(width, 140)
+            self._position_home_items()
+        else:
+            self.setStyleSheet(self._menu_style)
+            label_style = "font-size: 26px; color: white; background: transparent; border: none;"
+            self._clock_lbl.setStyleSheet(label_style)
+            self._date_lbl.setStyleSheet(label_style)
+            self.setFixedSize(self._menu_width, HEADER_H)
+            self._row.invalidate()
+            self._row.activate()
+            self._position_handle()
+        for i, btn in enumerate(self._buttons):
+            btn.setStyleSheet(_btn_style(i == self._model.selected_index, home=self._home_layout))
+        self._tick_clock()
+
+    def _position_home_items(self) -> None:
+        self._clock_lbl.setGeometry(0, 0, max(400, self.width() // 2), 92)
+        self._date_lbl.setGeometry(0, 96, max(400, self.width() // 2), 36)
+        for i, btn in enumerate(self._buttons):
+            btn.move(self.width() - (3 - i) * (_BTN + 8) + 8, 8)
+        # The existing mouse menu toggle becomes a lightweight settings affordance.
+        # No new action or navigable item is introduced.
+        self._handle.move(self.width() - 4 * (_BTN + 8) + 8, 8)
+        self._handle.raise_()
+
+    def _position_handle(self) -> None:
         self._handle.move((self.width() - self._handle.width()) // 2,
                           self.height() - self._handle.height() - _HANDLE_BOTTOM_INSET)
         self._handle.raise_()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self._home_layout:
+            self._position_home_items()
+        else:
+            self._position_handle()
 
     def eventFilter(self, obj, event) -> bool:
         # Re-evaluate on the next tick: the header gets no Leave when the pointer
@@ -318,7 +380,7 @@ class HomeHeader(QWidget):
     def set_selected(self, index: int | None) -> None:
         self._model.select(index)
         for i, btn in enumerate(self._buttons):
-            btn.setStyleSheet(_btn_style(i == index))
+            btn.setStyleSheet(_btn_style(i == index, home=self._home_layout))
 
     def trigger(self, index: int) -> None:
         self._model.activate(index)
@@ -351,4 +413,4 @@ class HomeHeader(QWidget):
         day = loc.dayName(now.weekday() + 1, QLocale.FormatType.LongFormat)
         month = loc.monthName(now.month, QLocale.FormatType.ShortFormat)
         self._date_lbl.setText(f"{day}  {now.day:02d} {month}. {now.year}")
-        self._clock_lbl.setText(now.strftime("%H:%M:%S"))
+        self._clock_lbl.setText(now.strftime("%H:%M" if self._home_layout else "%H:%M:%S"))

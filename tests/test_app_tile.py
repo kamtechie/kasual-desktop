@@ -113,17 +113,16 @@ class TestHoverSuppression:
 
 
 class TestSetColor:
-    def test_recolours_button(self, tile):
+    def test_recolours_artwork_focus(self, tile):
         tile.set_color("#ff0000")
-        assert "#ff0000" in tile._btn.styleSheet()
+        assert tile._btn.color == "#ff0000"
 
-    def test_recolours_visible_marquee_clip(self, tile):
-        # Simulate a running marquee (long title scrolling): its clip is painted
-        # with the tile colour so the text blends into the tile.
-        tile._marquee_clip.setStyleSheet("background-color: #2e3440;")
+    def test_recolour_keeps_visible_marquee_transparent(self, tile):
+        # Titles sit directly on Home, not on an opaque app-colour rectangle.
+        tile._marquee_clip.setStyleSheet("background: transparent;")
         tile._marquee_clip.show()
         tile.set_color("#ff0000")
-        assert "#ff0000" in tile._marquee_clip.styleSheet()
+        assert tile._marquee_clip.styleSheet() == "background: transparent;"
 
     def test_leaves_hidden_marquee_clip_untouched(self, tile):
         tile._marquee_clip.setStyleSheet("background-color: #2e3440;")

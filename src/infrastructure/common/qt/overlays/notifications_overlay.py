@@ -80,21 +80,21 @@ def _resolve_icon_pixmap(icon_hint: str | None, app_name: str, size: int) -> QPi
 # Row background, scoped to #notifrow so the child labels (transparent) are
 # untouched. Selection just swaps the frame's background + border.
 _ROW_NORMAL = (
-    "#notifrow { background-color: #2e3440; border-radius: 8px;"
+    "#notifrow { background-color: #242031; border-radius: 12px;"
     " border: 2px solid transparent; }"
 )
 # Unread (new since last viewed): lifted background + a left accent border, so
 # new notifications stand out from already-seen ones even when not selected.
 _ROW_UNREAD = (
-    "#notifrow { background-color: #3b4252; border-radius: 8px;"
-    " border: 2px solid transparent; border-left: 4px solid #88c0d0; }"
+    "#notifrow { background-color: #30263f; border-radius: 12px;"
+    f" border: 2px solid transparent; border-left: 4px solid {styles.GUIDE_ACCENT}; }}"
 )
 _ROW_SELECTED = (
-    "#notifrow { background-color: #434c5e; border-radius: 8px;"
-    " border: 2px solid #88c0d0; }"
+    "#notifrow { background-color: #463055; border-radius: 12px;"
+    f" border: 2px solid {styles.GUIDE_ACCENT}; }}"
 )
 
-_ACCENT = "#88c0d0"   # unread accent (border + dot)
+_ACCENT = styles.GUIDE_ACCENT   # unread accent (border + dot)
 
 
 class NotificationsOverlay(BaseOverlay):
@@ -119,6 +119,7 @@ class NotificationsOverlay(BaseOverlay):
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         card = self.build_card(640)
+        styles.style_guide_panel(card)
         # Hug the content vertically (like the Home Overlay) so a short list does
         # not leave a tall empty card — the height tracks the number of rows.
         card.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Maximum)

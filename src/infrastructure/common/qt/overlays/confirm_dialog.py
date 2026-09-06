@@ -47,6 +47,7 @@ class ConfirmDialog(BaseOverlay):
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         card = self.build_card(680)
+        styles.style_guide_panel(card)
 
         layout = QVBoxLayout(card)
         layout.setContentsMargins(48, 48, 48, 48)
@@ -149,5 +150,5 @@ class ConfirmDialog(BaseOverlay):
             self._on_cancelled()
 
     def _refresh_buttons(self, index: int) -> None:
-        styles.style_dialog_button(self._btn_yes, role="primary", focused=index == 0)
-        styles.style_dialog_button(self._btn_no, role="secondary", focused=index == 1)
+        styles.style_dialog_button(self._btn_yes, role="primary", focused=index == 0, guide=True)
+        styles.style_dialog_button(self._btn_no, role="secondary", focused=index == 1, guide=True)

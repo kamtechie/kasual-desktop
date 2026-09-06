@@ -25,7 +25,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import (
     Qt, QTimer, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve, pyqtSignal,
 )
-from PyQt6.QtGui import QGuiApplication, QPainter, QRegion
+from PyQt6.QtGui import QColor, QGuiApplication, QLinearGradient, QPainter, QRegion
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGraphicsOpacityEffect
 
 from domain.catalog.target import Target
@@ -50,8 +50,8 @@ TOP_MARGIN  = 32
 # brightness slider and the HUD toggle, ~526px) — tighter clips row content.
 CONTENT_H   = 550
 MORPH_MS    = 180   # collapse↔expand animation duration
-# The surface is ALWAYS this tall (sized for the expanded state) and anchored to
-# the top: collapse/expand only morphs the inner content, never the surface.
+# Resting Home chrome keeps its original top-surface extent. Guide temporarily
+# fills the screen for centering; restore this extent only after its fade clears.
 SURFACE_H   = TOP_MARGIN + HEADER_H + CONTENT_H + TOP_MARGIN
 
 
@@ -87,17 +87,14 @@ class HomeSurface(QWidget):
         # The header is created early by the Desktop (it doubles as the
         # FocusNavigator's top bar before this surface exists) and reparented here.
         self._header = header
+        self._home_presentation = True
         outer.addWidget(self._header, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        # The expanded Home menu, embedded under the header inside a fixed-width
-        # card. Its max-height + opacity are animated for the morph; collapsed it
-        # is fully shrunk and transparent (but still mapped — no unmap).
+        # Guide is independently centered, not attached to the top information.
+        # Keep the existing height/opacity morph and persistent surface lifecycle.
         self._panel = styles.make_card(CARD_WIDTH)
-        # transparency test: 20% — overrides make_card's opaque #2e3440 for the
-        # Home overlay menu only (make_card is shared by the other dialogs).
-        self._panel.setStyleSheet(
-            "background-color: rgba(46, 52, 64, 204); border-radius: 40px;"
-        )
+        self._panel.setParent(self)
+        styles.style_guide_panel(self._panel)
         panel_col = QVBoxLayout(self._panel)
         panel_col.setContentsMargins(28, 22, 28, 22)
         self._content = HomeMenuContent(menu_model)
@@ -109,7 +106,6 @@ class HomeSurface(QWidget):
             request_dismiss=self.dismiss,
         )
         panel_col.addWidget(self._content)
-        outer.addWidget(self._panel, alignment=Qt.AlignmentFlag.AlignHCenter)
         outer.addStretch(1)
 
         self._opacity = QGraphicsOpacityEffect(self._panel)
@@ -125,6 +121,8 @@ class HomeSurface(QWidget):
         self._a_o.setDuration(MORPH_MS)
         self._anim.addAnimation(self._a_h)
         self._anim.addAnimation(self._a_o)
+        self._anim.finished.connect(self._finish_header_transition)
+        self._a_h.valueChanged.connect(self._position_panel)
 
     @property
     def header(self) -> HomeHeader:
@@ -153,6 +151,15 @@ class HomeSurface(QWidget):
         painter = QPainter(self)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
         painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
+        if self.is_open():
+            # Guide-only scrim: leave the independent controller hints clear.
+            area = self.rect().adjusted(0, 0, 0, -100)
+            scrim = QLinearGradient(0, 0, 0, area.height())
+            scrim.setColorAt(0, QColor(8, 5, 15, 0))
+            scrim.setColorAt(0.06, QColor(8, 5, 15, 170))
+            scrim.setColorAt(0.9, QColor(8, 5, 15, 170))
+            scrim.setColorAt(1, QColor(8, 5, 15, 0))
+            painter.fillRect(area, scrim)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -161,6 +168,42 @@ class HomeSurface(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._set_header_presentation(home=self._home_presentation)
+        self._position_panel()
+        self._refresh_input_region()
+
+    def _set_header_presentation(self, *, home: bool) -> None:
+        self._home_presentation = home
+        width = self.width() - 2 * styles.home_edge_margin(self.width())
+        # The existing header controls keep their navigation zone and actions,
+        # but Guide no longer brings back the old enclosing status pill.
+        self._header.set_home_layout(width)
+        height = SURFACE_H if home else self.screen().availableGeometry().height()
+        if self.height() != height:
+            self.setFixedHeight(height)
+        self.layout().activate()
+        self._position_panel()
+
+    def _position_panel(self, _value=None) -> None:
+        if not hasattr(self, "_panel"):
+            return
+        self._panel.layout().activate()
+        height = min(self._panel.maximumHeight(), self._panel.sizeHint().height())
+        self._panel.resize(CARD_WIDTH, height)
+        # Center the whole control plate, independently of the top header. On
+        # short screens leave room for the information and the bottom hints.
+        top = max(self._header.geometry().bottom() + 24, (self.height() - height) // 2)
+        self._panel.move((self.width() - self._panel.width()) // 2, top)
+        # Moving translucent content needs a full backing-buffer clear, not
+        # just the new widget bounds, otherwise Wayland can retain old frames.
+        self.update()
+
+    def _finish_header_transition(self) -> None:
+        if not self.is_open():
+            self._panel.hide()
+            self.clearMask()
+            self.repaint()
+            self._set_header_presentation(home=True)
         self._refresh_input_region()
 
     def _refresh_input_region(self) -> None:
@@ -170,10 +213,19 @@ class HomeSurface(QWidget):
         header only once the morph has finished."""
         if not self.isVisible():
             return
-        if self.is_open() or self._input_open_hold:
+        if self.is_open() or self._input_open_hold or self._opacity.opacity() > 0:
             self.clearMask()
         else:
-            self.setMask(QRegion(self._header.geometry()))
+            if self._home_presentation:
+                # Leave transparent space between information and controls out
+                # of the input region instead of creating a screen-wide pill.
+                region = QRegion()
+                for child in self._header.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                    if not child.isHidden():
+                        region |= QRegion(child.geometry().translated(self._header.pos()))
+                self.setMask(region)
+            else:
+                self.setMask(QRegion(self._header.geometry()))
 
     def hold_input_open(self, hold: bool) -> None:
         """Keep the full input region while a child popover (the Power chooser)
@@ -189,8 +241,11 @@ class HomeSurface(QWidget):
         super().mousePressEvent(event)
 
     def _point_in_menu(self, pos) -> bool:
-        return (self._header.geometry().contains(pos)
-                or self._panel.geometry().contains(pos))
+        in_header_control = any(
+            not child.isHidden() and child.geometry().translated(self._header.pos()).contains(pos)
+            for child in self._header.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly)
+        )
+        return in_header_control or self._panel.geometry().contains(pos)
 
     # ── Header mouse while expanded (the header is the menu's zone 0) ────────
 
@@ -229,6 +284,10 @@ class HomeSurface(QWidget):
 
     def show_collapsed(self) -> None:
         self.position_at_top()
+        # Chrome ownership can be returned before the close morph has begun.
+        # Keep its full painting area until that last translucent frame clears.
+        if not self.is_open() and self._opacity.opacity() == 0:
+            self._set_header_presentation(home=True)
         self.show()
         self.raise_()
 
@@ -239,6 +298,7 @@ class HomeSurface(QWidget):
         take the pad, animate the panel in. The header stays put throughout."""
         if not self._controller.expand(self._header):
             return
+        self._set_header_presentation(home=False)
         self._header.set_menu_open(True)
         self._panel.show()   # unhide the panel collapsed teardown hid (see below)
         self._morph(open_=True)
@@ -275,6 +335,9 @@ class HomeSurface(QWidget):
         # keeps its last buffer until Qt commits a new one, and setting
         # maxHeight/opacity while unmapped triggers no repaint — leaving a ghost.
         self._panel.hide()
+        self.clearMask()
+        self.repaint()
+        self._set_header_presentation(home=True)
         self._refresh_input_region()   # snapped collapsed → header-only mask
         if self.isVisible():
             self.repaint()
@@ -314,6 +377,7 @@ class HomeSurface(QWidget):
             on_action, on_cancel, set_hints, desktop_minimized,
         ):
             return
+        self._set_header_presentation(home=False)
         self._header.set_menu_open(True)
         self.position_at_top()
         self.show()
@@ -322,6 +386,7 @@ class HomeSurface(QWidget):
         self._anim.stop()
         self._panel.show()   # undo any prior collapse's panel.hide()
         self._panel.setMaximumHeight(CONTENT_H)
+        self._position_panel()
         self._opacity.setOpacity(1.0)
         self._refresh_input_region()   # mapped already open → full input region
 

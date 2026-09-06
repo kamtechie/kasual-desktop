@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt, QTimer, QEvent
-from PyQt6.QtGui import QPainter, QColor
+from PyQt6.QtCore import Qt, QTimer, QEvent, QPointF
+from PyQt6.QtGui import QPainter, QColor, QRadialGradient
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QApplication
 
 from domain.catalog.live_catalog import LiveCatalog
@@ -41,6 +41,8 @@ from .home_surface import HomeSurface
 from .power_popover_controller import PowerPopoverController
 from .tile_bar import TileBar
 from infrastructure.common.qt.overlays.home_header import HomeHeader
+from infrastructure.common.qt.overlays.notification_banner import NotificationBanner
+from domain.notifications.notification import Notification
 from infrastructure.common.qt.overlays.home_menu_content import CARD_WIDTH
 
 # Keyboard keys → navigation events, so a keyboard drives the same handler
@@ -86,6 +88,8 @@ class Desktop(QWidget):
         # The add-app use-case behind the [＋] tile.
         self._app_adder      = app_adder
         self._surface        = LayerShellSurface()
+        self._notification_banner = NotificationBanner()
+        self._notification_banner.install_surface()
 
         # Desktop visibility + paused + what the BTN_MODE menu targets (foreground).
         # The foreground is shared by reference with the AppLifecycle coordinator.
@@ -117,7 +121,6 @@ class Desktop(QWidget):
         # Desktop) — a click then closes the on-demand overlay over an app too.
         self._home_header.toggle_requested.connect(self._gamepad.trigger_btn_mode)
         self._topbar = self._home_header
-        main.addStretch(1)
         self._tilebar = TileBar(tile_model)
         self._tilebar.tile_hovered.connect(self._on_tile_hovered)
         self._tilebar.tile_context_menu.connect(self._on_tile_context_menu)
@@ -381,6 +384,11 @@ class Desktop(QWidget):
         super().resizeEvent(event)
         self._wallpaper_scaled = None
         if hasattr(self, '_tilebar'):
+            # Bigscreen's content band sits below the spacious information area.
+            # On shorter displays, keep the full strip clear of the unchanged hints.
+            top = max(0, min(round(self.height() * 0.46) - 50,
+                             self.height() - self._tilebar.height() - 100))
+            self.layout().setContentsMargins(0, top, 0, 0)
             QTimer.singleShot(0, self._tilebar.center_current)
 
     def _load_wallpaper_pixmap(self) -> 'QPixmap | None':
@@ -397,19 +405,20 @@ class Desktop(QWidget):
 
     def paintEvent(self, _) -> None:
         painter = QPainter(self)
-        if self._wallpaper and not self._wallpaper.isNull():
-            if self._wallpaper_scaled is None:
-                self._wallpaper_scaled = self._wallpaper.scaled(
-                    self.size(),
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            scaled = self._wallpaper_scaled
-            x = (self.width()  - scaled.width())  // 2
-            y = (self.height() - scaled.height()) // 2
-            painter.drawPixmap(x, y, scaled)
-        else:
-            painter.fillRect(self.rect(), QColor("#0b140e"))
+        # Home's generated, restrained backdrop: no artwork or new wallpaper API.
+        # The wallpaper source/model is left intact; only this Home paint changes.
+        painter.fillRect(self.rect(), QColor("#08070e"))
+        glow = QRadialGradient(QPointF(self.width() * 0.38, self.height() * 0.12),
+                               self.width() * 0.62)
+        glow.setColorAt(0, QColor("#261238"))
+        glow.setColorAt(0.5, QColor("#120c1e"))
+        glow.setColorAt(1, QColor(8, 7, 14, 0))
+        painter.fillRect(self.rect(), glow)
+        lower_glow = QRadialGradient(QPointF(self.width() * 0.18, self.height() * 0.72),
+                                     self.width() * 0.42)
+        lower_glow.setColorAt(0, QColor(48, 20, 76, 70))
+        lower_glow.setColorAt(1, QColor(8, 7, 14, 0))
+        painter.fillRect(self.rect(), lower_glow)
 
     def changeEvent(self, event) -> None:
         super().changeEvent(event)
@@ -488,6 +497,10 @@ class Desktop(QWidget):
 
     def refresh_notification_badge(self) -> None:
         self._chrome.refresh_notification_badge()
+
+    def show_notification_banner(self, notification: Notification) -> None:
+        """Show a passive toast above Home or an active fullscreen application."""
+        self._notification_banner.show_notification(notification)
 
     def update_network_status(self, status: NetworkStatus) -> None:
         self._chrome.update_network_status(status)

@@ -5,19 +5,19 @@ from collections.abc import Sequence
 
 from PyQt6.QtCore import Qt, QPoint, QTimer, QEasingCurve, QPropertyAnimation, pyqtSignal
 from PyQt6.QtGui import QCursor, QIcon
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QScrollArea, QApplication
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QScrollArea
 
 from domain.catalog.target import AddTileTarget, AppTarget, Target
 from domain.catalog.tile_bar_model import TileBarModel
 from domain.catalog.window import Window
 from infrastructure.common.qt.ui import styles
-from .app_tile import AddTile, AppTile, TILE_H, TILE_SEL_H
+from .app_tile import AddTile, AppTile, TILE_H, TILE_SEL_H, SCALE_ANIM_MS
 from .window_icons import WindowIconResolver
 
 logger = logging.getLogger(__name__)
 
 _DYN_TILE_MAX_TITLE = 22   # Maximum length of a dynamic tile title
-_SCROLL_ANIM_MS     = 220  # glide duration when centering the focused tile
+_SCROLL_ANIM_MS     = 220  # glide duration when revealing the focused tile
 
 
 class TileBar(QScrollArea):
@@ -50,6 +50,9 @@ class TileBar(QScrollArea):
 
         self._focused    = True   # tiles own focus at startup
         self._scroll_anim: QPropertyAnimation | None = None
+        self._settle_timer = QTimer(self)
+        self._settle_timer.setSingleShot(True)
+        self._settle_timer.timeout.connect(self.center_current)
         # Blocks the synthetic enterEvent Qt fires when the Desktop reappears
         # under a stationary cursor. Anchor latches on the FIRST hover, not at
         # arm time, since QCursor.pos() is stale on Wayland until then.
@@ -69,9 +72,11 @@ class TileBar(QScrollArea):
         container = QWidget()
         container.setStyleSheet("background: transparent;")
         self._tile_layout = QHBoxLayout(container)
-        # Half-screen padding on each side so any tile can be scrolled to center.
-        screen_half = QApplication.primaryScreen().size().width() // 2
-        self._tile_layout.setContentsMargins(screen_half, 50, screen_half, 50)
+        # Start at Home's information inset, not half a screen of empty space.
+        # Left alignment also prevents a small catalog stretching across the row.
+        edge = styles.home_edge_margin(self.viewport().width())
+        self._tile_layout.setContentsMargins(edge, 50, edge, 50)
+        self._tile_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._tile_layout.setSpacing(24)
 
         self._tiles: list[AppTile] = []
@@ -277,6 +282,16 @@ class TileBar(QScrollArea):
         """Current position of a static app *tile* (it shifts during move mode)."""
         return self._tiles.index(tile)
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_tile_layout"):
+            # Use the actual viewport, including windowed Home and screen changes.
+            edge = styles.home_edge_margin(self.viewport().width())
+            self._tile_layout.setContentsMargins(edge, 50, edge, 50)
+            self._tile_layout.activate()
+            self.widget().adjustSize()
+            QTimer.singleShot(0, self.center_current)
+
     def center_current(self) -> None:
         if not self._focused:
             return
@@ -285,9 +300,16 @@ class TileBar(QScrollArea):
             return
         tile = tiles[self._tile_index]
         vp_w = self.viewport().width()
-        # tile.x() is relative to the container; center it in the viewport.
-        target = tile.x() + tile.width() // 2 - vp_w // 2
-        self._animate_scroll_to(max(0, target))
+        # Keep the row anchored while the selected slot fits. Only overflow
+        # scrolls, revealing the next item without centering a short catalog.
+        bar = self.horizontalScrollBar()
+        edge = styles.home_edge_margin(vp_w)
+        target = bar.value()
+        if tile.x() < target + edge:
+            target = tile.x() - edge
+        elif tile.x() + tile.width() > target + vp_w - edge:
+            target = tile.x() + tile.width() - vp_w + edge
+        self._animate_scroll_to(max(0, min(target, bar.maximum())))
 
     def _animate_scroll_to(self, target: int) -> None:
         """Glide the horizontal scrollbar to *target* instead of jumping."""
@@ -334,8 +356,8 @@ class TileBar(QScrollArea):
             return
 
         sep = QWidget()
-        sep.setFixedSize(2, TILE_H - 24)
-        sep.setStyleSheet("background: #3b4252;")
+        sep.setFixedSize(2, TILE_H // 2)
+        sep.setStyleSheet("background: #3b4252; border-radius: 1px;")
         self._tile_layout.addWidget(sep)
         self._dyn_separator = sep
 
@@ -390,6 +412,9 @@ class TileBar(QScrollArea):
             tile.set_selected(self._focused and (n_static + 1 + i) == self._tile_index)
         if self._focused and scroll:
             QTimer.singleShot(0, self.center_current)
+            # Slot widths follow the content lift. Recheck the viewport once
+            # settled, so a growing final tile cannot remain clipped.
+            self._settle_timer.start(SCALE_ANIM_MS + 16)
 
     def _clear_dynamic_tiles(self) -> None:
         for _, _, tile in self._dynamic_tiles:

@@ -33,6 +33,7 @@ class InfoDialog(BaseOverlay):
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         card = self.build_card(680)
+        styles.style_guide_panel(card)
 
         layout = QVBoxLayout(card)
         layout.setContentsMargins(48, 48, 48, 48)
@@ -47,7 +48,7 @@ class InfoDialog(BaseOverlay):
         self._btn_ok = QPushButton("✔  OK")
         self._btn_ok.setMinimumSize(200, 80)
         self._btn_ok.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        styles.style_dialog_button(self._btn_ok, role="primary", focused=True)
+        styles.style_dialog_button(self._btn_ok, role="primary", focused=True, guide=True)
         self._btn_ok.clicked.connect(self._confirm)
         layout.addWidget(self._btn_ok, alignment=Qt.AlignmentFlag.AlignCenter)
 

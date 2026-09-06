@@ -110,7 +110,11 @@ def build_controller(*, gamepad, desktop, tray, wm, power, hud) -> Application:
 
 def wire_notification_badge(source, desktop) -> None:
     """Keeps the top-bar notifications badge in sync with the in-memory count."""
-    source.on_notification(lambda _n: desktop.refresh_notification_badge())
+    def _on_notification(notification) -> None:
+        desktop.refresh_notification_badge()
+        desktop.show_notification_banner(notification)
+
+    source.on_notification(_on_notification)
 
 
 def defer_start(app: QApplication, monitor) -> None:

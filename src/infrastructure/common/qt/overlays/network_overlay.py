@@ -48,6 +48,7 @@ class NetworkOverlay(BaseOverlay):
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         card = self.build_card(560)
+        styles.style_guide_panel(card)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(40, 32, 40, 32)
         layout.setSpacing(22)
@@ -87,7 +88,7 @@ class NetworkOverlay(BaseOverlay):
         styles.style_dialog_button(
             self._btn,
             role="primary" if self._button.enabled else "disabled",
-            focused=self._button.enabled,
+            focused=self._button.enabled, guide=True,
         )
         self._btn.clicked.connect(self._activate)
         layout.addWidget(self._btn)

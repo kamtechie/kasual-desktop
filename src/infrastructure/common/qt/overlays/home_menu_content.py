@@ -17,7 +17,7 @@ from domain.system.bounded_value import BoundedValue
 from infrastructure.common.qt.ui import styles
 
 CARD_WIDTH = 832
-_LIST_WIDTH = round(CARD_WIDTH * 2 / 3)
+_LIST_WIDTH = CARD_WIDTH - 96
 _QUICK_WIDTH = _LIST_WIDTH
 _QUICK_RADIUS = 20
 
@@ -69,22 +69,15 @@ class _MenuCard(QPushButton):
         self._pos_at_leave = QCursor.pos()
 
 
-_SLIDER_QSS = """
-    QSlider { background: transparent; }
-    QSlider::groove:horizontal { height: 8px; border-radius: 4px; }
-    QSlider::sub-page:horizontal { background: #88c0d0; border-radius: 4px; }
-    QSlider::add-page:horizontal  { background: #4c566a; border-radius: 4px; }
-    QSlider::handle:horizontal {
-        width: 22px; height: 22px; margin: -7px 0; background: white; border-radius: 11px;
-    }
-"""
+_SLIDER_QSS = styles.GUIDE_SLIDER_QSS
 
 
 def _quick_row_style(selected: bool) -> str:
-    background = "rgba(136,192,208,40)" if selected else "transparent"
+    background = "rgba(127,70,184,45)" if selected else "rgba(32,28,45,100)"
+    border = styles.GUIDE_ACCENT if selected else "transparent"
     return (
-        f"background-color: {background}; border: 2px solid transparent; "
-        f"border-radius: {_QUICK_RADIUS}px;"
+        f"QFrame#guidequickrow {{ background-color: {background}; border: 2px solid {border}; "
+        f"border-radius: {_QUICK_RADIUS}px; }}"
     )
 
 
@@ -160,6 +153,8 @@ class HomeMenuContent(QWidget):
         self._render()
 
     def _build(self, sections: list[HomeSection]) -> None:
+        self._compact = self.window().screen().availableGeometry().height() < 900
+        self._zones_layout.setSpacing(8 if self._compact else 14)
         self._build_generation += 1
         while self._zones_layout.count():
             item = self._zones_layout.takeAt(0)
@@ -170,7 +165,9 @@ class HomeMenuContent(QWidget):
         section_offset = 1 if self._header is not None else 0
         for section_index, section in enumerate(sections):
             if section_index:
-                self._zones_layout.addWidget(styles.separator())
+                separator = styles.separator()
+                separator.setStyleSheet("background: #393047;")
+                self._zones_layout.addWidget(separator)
             zone_index = section_index + section_offset
             if section.kind == SectionKind.QUICK:
                 self._build_quick(zone_index, section)
@@ -182,17 +179,19 @@ class HomeMenuContent(QWidget):
         container.setStyleSheet("background: transparent;")
         column = QVBoxLayout(container)
         column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(18)
+        column.setSpacing(8 if self._compact else 12)
         for item_index, item in enumerate(section.items):
             value = self._model.default_value(item.action)
             row = _RoundedFrame()
+            row.setObjectName("guidequickrow")
             row.setFrameShape(QFrame.Shape.NoFrame)
+            row.setFixedHeight(52 if self._compact else 64)
             row.hovered.connect(lambda zi=zone_index, ii=item_index: self._hover_item(zi, ii))
             layout = QHBoxLayout(row)
-            layout.setContentsMargins(12, 8, 12, 8)
-            layout.setSpacing(12)
+            layout.setContentsMargins(18, 8, 18, 8)
+            layout.setSpacing(20)
             icon = QLabel()
-            icon.setPixmap(qta.icon(item.icon, color="white").pixmap(24, 24))
+            icon.setPixmap(qta.icon(item.icon, color="white").pixmap(28, 28))
             icon.setStyleSheet("background: transparent;")
             layout.addWidget(icon)
             slider = QSlider(Qt.Orientation.Horizontal)
@@ -205,9 +204,9 @@ class HomeMenuContent(QWidget):
             )
             layout.addWidget(slider, 1)
             label = QLabel(f"{value.value}%")
-            label.setFixedWidth(52)
+            label.setFixedWidth(64)
             label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            label.setStyleSheet("color: white; font-size: 18px; background: transparent;")
+            label.setStyleSheet("color: white; font-size: 22px; background: transparent;")
             layout.addWidget(label)
             column.addWidget(row)
             self._zone_widgets[zone_index].append(row)
@@ -224,11 +223,11 @@ class HomeMenuContent(QWidget):
         grid.setSpacing(8)
         for item_index, item in enumerate(section.items):
             card = _MenuCard("  " + item.label)
-            card.setMinimumHeight(58)
+            card.setMinimumHeight(52 if self._compact else 64)
             card.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             if item.icon:
-                card.setIcon(qta.icon(item.icon, color="white"))
-                card.setIconSize(QSize(22, 22))
+                card.setIcon(qta.icon(item.icon, color=styles.GUIDE_ACCENT))
+                card.setIconSize(QSize(28, 28))
             card.hovered.connect(lambda zi=zone_index, ii=item_index: self._hover_item(zi, ii))
             card.clicked.connect(
                 lambda _=False, zi=zone_index, ii=item_index: self._click_item(zi, ii)
@@ -307,7 +306,7 @@ class HomeMenuContent(QWidget):
                 selected = active and item_index == zone.index
                 widget.setStyleSheet(
                     _quick_row_style(selected) if zone.kind == SectionKind.QUICK else
-                    styles.home_menu_item_selected() if selected else styles.home_menu_item_normal()
+                    styles.guide_menu_item(selected, compact=self._compact)
                 )
 
     def sync_hints(self) -> None:

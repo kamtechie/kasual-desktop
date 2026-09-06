@@ -1,30 +1,84 @@
 """Single application tile displayed on the desktop tile bar."""
 
 import qtawesome as qta
-from PyQt6.QtCore import (Qt, QSize, QPoint, QEasingCurve,
+from PyQt6.QtCore import (Qt, QSize, QPoint, QRect, QRectF, QEasingCurve,
                           QPropertyAnimation, QVariantAnimation,
                           QSequentialAnimationGroup, QPauseAnimation,
                           pyqtSignal)
-from PyQt6.QtGui import QCursor, QFont, QFontMetrics
+from PyQt6.QtGui import QColor, QCursor, QFontMetrics, QLinearGradient, QPainter, QPen
 from PyQt6.QtWidgets import QWidget, QToolButton, QLabel
 
 from infrastructure.common.qt.icons import fitted_icon
 from infrastructure.common.qt.ui import styles
 
-TILE_W        = 180
-TILE_H        = 200
-TILE_SEL_W    = round(TILE_W * 1.20)    # 216
-TILE_SEL_H    = round(TILE_H * 1.20)    # 240
-ICON_SIZE     = 84
-ICON_SIZE_SEL = round(ICON_SIZE * 1.20) # 101
-BAR_W_RATIO   = 0.7
-BAR_H         = 8
-BAR_MARGIN    = 12
+TILE_W        = 344
+TILE_H        = 218
+TILE_SEL_W    = 408
+TILE_SEL_H    = 256
+ICON_SIZE     = 124
+ICON_SIZE_SEL = 156
+TITLE_SIZE    = 24
+BAR_W_RATIO   = 0.12
+BAR_H         = 5
 
 MARQUEE_MS_PER_PX = 30    # scroll speed
 MARQUEE_PAUSE_MS  = 900   # hold at each end before reversing
 
-SCALE_ANIM_MS = 160       # grow/shrink when (de)selected
+SCALE_ANIM_MS = 220       # grow/shrink when (de)selected
+
+
+class _LauncherButton(QToolButton):
+    """Paint icon-first content while retaining the existing button interaction.
+
+    Landscape content with its name inset at the bottom-left. Fixed 16:9
+    artwork proportions are maintained throughout the moderate focus lift.
+    """
+
+    def __init__(self, color: str, parent=None):
+        super().__init__(parent)
+        self.color = color
+        self.selected = False
+        self.moving = False
+        self.marquee_active = False
+
+    def artwork_rect(self) -> QRectF:
+        width = self.width() - 4
+        return QRectF(2, 8, width, width * 9 / 16)
+
+    def title_rect(self) -> QRect:
+        return QRect(20, round(self.artwork_rect().bottom()) - 48, self.width() - 40, 32)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        artwork = self.artwork_rect()
+        # Subtle colour, not new artwork: existing app colours tint the surface.
+        gradient = QLinearGradient(artwork.topLeft(), artwork.bottomRight())
+        gradient.setColorAt(0, QColor("#502196") if self.selected else QColor(self.color).darker(170))
+        gradient.setColorAt(0.5, QColor(self.color).darker(160))
+        gradient.setColorAt(1, QColor("#100b1e") if self.selected else QColor("#0c0b14"))
+        painter.setBrush(gradient)
+        pen = QPen(QColor("#dec7ff"), 2.5) if self.selected else QPen(QColor("#30263e"), 1)
+        if self.moving:
+            pen.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.drawRoundedRect(artwork, 16, 16)
+        size = self.iconSize().width()
+        # Reserve a real caption band, rather than putting text over the icon.
+        content = artwork.adjusted(16, 10, -16, -48)
+        icon_rect = QRect(round(content.center().x() - size / 2),
+                          round(content.center().y() - size / 2), size, size)
+        # Keep themed artwork intact, only quieten idle content slightly.
+        painter.setOpacity(1.0 if self.selected else 0.82)
+        self.icon().paint(painter, icon_rect)
+        painter.setOpacity(1.0)
+        if not self.marquee_active:
+            font = self.font()
+            font.setPixelSize(TITLE_SIZE)
+            font.setBold(self.selected)
+            painter.setFont(font)
+            painter.setPen(QColor("white" if self.selected else "#d8dee9"))
+            painter.drawText(self.title_rect(), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.text())
 
 
 class AppTile(QWidget):
@@ -38,7 +92,7 @@ class AppTile(QWidget):
         super().__init__(parent)
         self._color = color
 
-        self._btn = QToolButton(self)
+        self._btn = _LauncherButton(color, self)
         self._btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         if qicon is not None and not qicon.isNull():
             self._btn.setIcon(fitted_icon(qicon, ICON_SIZE_SEL))
@@ -48,6 +102,7 @@ class AppTile(QWidget):
             except Exception:
                 self._btn.setIcon(qta.icon("fa5s.desktop", color="white"))
         self._btn.setText(name)
+        self._btn.setAccessibleName(full_name if full_name is not None else name)
         self._btn.setStyleSheet(styles.tile_normal(color))
         self._btn.clicked.connect(self.clicked)
 
@@ -101,6 +156,8 @@ class AppTile(QWidget):
         if selected == self._is_selected:
             return
         self._is_selected = selected
+        self._btn.selected = selected
+        self._btn.moving = False
         if selected:
             self._btn.setStyleSheet(styles.tile_selected(self._color))
             self._apply_shadow(selected=True)
@@ -110,12 +167,15 @@ class AppTile(QWidget):
                 self._marquee_seq.stop()
                 self._marquee_seq = None
             self._marquee_clip.hide()
+            self._btn.marquee_active = False
             self._btn.setStyleSheet(styles.tile_normal(self._color))
             self._apply_shadow(selected=False)
             self._animate_scale(to_selected=False)
 
     def set_moving(self, moving: bool) -> None:
         """Toggle the move-mode cue on this (selected) tile's button."""
+        self._btn.moving = moving
+        self._btn.update()
         self._btn.setStyleSheet(
             styles.tile_moving(self._color) if moving else styles.tile_selected(self._color)
         )
@@ -124,11 +184,13 @@ class AppTile(QWidget):
         """Recolour the tile, keeping its current selected/normal styling so the new
         colour shows immediately either way."""
         self._color = color
+        self._btn.color = color
+        self._btn.update()
         style = styles.tile_selected if self._is_selected else styles.tile_normal
         self._btn.setStyleSheet(style(color))
-        # The marquee clip is also painted in the tile colour; keep it in sync.
+        # The marquee stays transparent over the painted tile gradient.
         if not self._marquee_clip.isHidden():
-            self._marquee_clip.setStyleSheet(f"background-color: {color};")
+            self._marquee_clip.setStyleSheet("background: transparent;")
 
     def set_running(self, running: bool) -> None:
         if running == self._running:
@@ -154,20 +216,26 @@ class AppTile(QWidget):
 
     def _apply_shadow(self, selected: bool) -> None:
         if selected:
-            styles.apply_card_shadow(self, offset_x=0, offset_y=0, blur=90, alpha=180, color=styles.COLOR_ACCENT)
+            styles.apply_card_shadow(self, offset_x=0, offset_y=0, blur=36, alpha=185, color=styles.HOME_ACCENT)
         else:
-            styles.apply_card_shadow(self, offset_x=4, offset_y=6, blur=32, alpha=180)
+            styles.apply_card_shadow(self, offset_x=0, offset_y=2, blur=8, alpha=110)
 
     def _refit(self, w: int, h: int, icon: int) -> None:
-        """Position and resize the button within the fixed TILE_SEL_W × TILE_SEL_H slot."""
-        ox = (TILE_SEL_W - w) // 2
+        """Grow content and its slot together to keep inter-card spacing even."""
+        self.setFixedWidth(w)
+        ox = 0
         oy = (TILE_SEL_H - h) // 2
         self._btn.move(ox, oy)
         self._btn.setFixedSize(w, h)
         self._btn.setIconSize(QSize(icon, icon))
+        # Pixel elision keeps long catalog names within their carousel slot.
+        self._btn.ensurePolished()
+        fm = self._btn.fontMetrics()
+        self._btn.setText(fm.elidedText(self._full_name, Qt.TextElideMode.ElideRight, w - 40))
         bar_w = round(w * BAR_W_RATIO)
         self._status_bar.setFixedSize(bar_w, BAR_H)
-        self._status_bar.move(ox + (w - bar_w) // 2, oy + h - BAR_H - BAR_MARGIN)
+        self._status_bar.move(ox + (w - bar_w) // 2,
+                              oy + round(self._btn.artwork_rect().bottom()) - BAR_H - 5)
 
     def _animate_scale(self, to_selected: bool) -> None:
         """Interpolate the button/icon size between normal and selected."""
@@ -203,27 +271,14 @@ class AppTile(QWidget):
         # A deselect mid-grow stops the animation that calls this, but bail anyway.
         if not self._is_selected:
             return
-        font = QFont()
-        font.setPixelSize(18)
+        font = self._btn.font()
+        font.setPixelSize(TITLE_SIZE)
         font.setBold(True)
         fm = QFontMetrics(font)
-        text_h = fm.height()
-
-        # Match where QToolButton draws the title: it centres the icon+gap+text
-        # block within the padded area, not top-aligned under the icon.
-        gap = 4
-        content_top, content_bottom = 12, 16   # tile_* stylesheet vertical padding
-        content_h = TILE_SEL_H - content_top - content_bottom
-        block_h = ICON_SIZE_SEL + gap + text_h
-        center_offset = max(0, (content_h - block_h) // 2)
-        text_top = content_top + center_offset + ICON_SIZE_SEL + gap
-
-        clip_x = 4
-        clip_w = TILE_SEL_W - 8
-        clip_h = text_h
-        clip_y = text_top
-        self._marquee_clip.setGeometry(clip_x, clip_y, clip_w, clip_h)
-        self._marquee_clip.setStyleSheet(f"background-color: {self._color};")
+        title_rect = self._btn.title_rect().translated(self._btn.pos())
+        clip_w, clip_h = title_rect.width(), title_rect.height()
+        self._marquee_clip.setGeometry(title_rect)
+        self._marquee_clip.setStyleSheet("background: transparent;")
 
         self._marquee_lbl.setFont(font)
         self._marquee_lbl.setStyleSheet("color: white; background: transparent;")
@@ -236,6 +291,8 @@ class AppTile(QWidget):
             return
 
         self._marquee_lbl.move(0, 0)
+        self._btn.marquee_active = True
+        self._btn.update()
         self._marquee_clip.show()
         if self._marquee_seq is not None:
             self._marquee_seq.stop()
@@ -261,9 +318,8 @@ class AppTile(QWidget):
 class AddTile(QWidget):
     """The synthetic ``[＋]`` "Add app" tile that ends the pinned section.
 
-    A deliberately app-unlike tile: transparent, dashed outline, a single
-    circle-plus glyph, no title/status bar/marquee. Mirrors :class:`AppTile`'s
-    fixed slot and grow-on-select animation but carries none of an app's state.
+    Uses the same icon-first focus and scale rhythm, with a plus glyph and an
+    explicit action label. Carries none of an app's running state.
     """
 
     clicked = pyqtSignal()
@@ -271,8 +327,10 @@ class AddTile(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._btn = QToolButton(self)
-        self._btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self._btn = _LauncherButton("#242331", self)
+        self._btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self._btn.setText("Add Application")
+        self._btn.setAccessibleName("Add Application")
         self._btn.setStyleSheet(styles.add_tile(selected=False))
         self._btn.clicked.connect(self.clicked)
 
@@ -284,6 +342,7 @@ class AddTile(QWidget):
         self.setFixedSize(TILE_SEL_W, TILE_SEL_H)
         self._refit(TILE_W, TILE_H, ICON_SIZE)
         self._apply_icon(selected=False)
+        self._apply_shadow(selected=False)
 
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
@@ -304,16 +363,26 @@ class AddTile(QWidget):
         if selected == self._is_selected:
             return
         self._is_selected = selected
+        self._btn.selected = selected
         self._btn.setStyleSheet(styles.add_tile(selected=selected))
         self._apply_icon(selected=selected)
+        self._apply_shadow(selected=selected)
         self._animate_scale(to_selected=selected)
 
+    def _apply_shadow(self, selected: bool) -> None:
+        styles.apply_card_shadow(
+            self, offset_y=0 if selected else 2,
+            blur=36 if selected else 8, alpha=185 if selected else 110,
+            color=styles.HOME_ACCENT if selected else None,
+        )
+
     def _apply_icon(self, selected: bool) -> None:
-        color = styles.COLOR_ACCENT if selected else "#6b7280"
+        color = styles.HOME_ACCENT if selected else "#a9a6b8"
         self._btn.setIcon(qta.icon("fa5s.plus-circle", color=color))
 
     def _refit(self, w: int, h: int, icon: int) -> None:
-        ox = (TILE_SEL_W - w) // 2
+        self.setFixedWidth(w)
+        ox = 0
         oy = (TILE_SEL_H - h) // 2
         self._btn.move(ox, oy)
         self._btn.setFixedSize(w, h)
